@@ -6,6 +6,7 @@ import { buildStreet } from './street.js';
 import { buildBuildings } from './buildings.js';
 import { createRain, createDrips } from './fx.js';
 import { mergeStatic } from './merge.js';
+import { buildBackdrop } from './backdrop.js';
 
 const flick = (period, dur, depth, seed = 0) => (t) => {
   const k = (t + seed) % period;
@@ -37,6 +38,7 @@ export function buildWorld(scene, renderer, refl) {
   buildStore(world, drips);
   buildStreet(world, drips);
   buildBuildings(world, drips);
+  buildBackdrop(world);
 
   mergeStatic(world);
 
@@ -45,9 +47,8 @@ export function buildWorld(scene, renderer, refl) {
     [-5.6, 4.6, -4.6, 1.6, 3.55], // store
     [-5.6, 5.5, 1.5, 2.5, 3.0], // south awning
     [4.5, 5.5, -4.6, 2.5, 3.0], // east awning
-    [-12.2, -8.3, -7.3, 3.6, 6.7], // izakaya
+    [-12.2, -8.3, -7.3, 3.6, 7.0], // izakaya
     [-12.2, -8.2, 3.5, 4.55, 3.2], // izakaya eave
-    [-12.2, 7.7, -12.2, -7.1, 9.8], // block
     [-12.2, -8.2, 3.5, 4.3, 3.8], // izakaya balcony
   ]);
   createDrips(world, drips);

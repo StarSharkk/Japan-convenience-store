@@ -525,15 +525,12 @@ export function buildStreet(parent, drips) {
   const xoff = [[0, -0.15, -0.8], [0, -0.15, 0], [0, -0.15, 0.8], [0, -0.95, -0.6], [0, -0.95, 0.6]];
   wl([-1.8, top(U[3]), U[3][1]], [-11.0, top(U[4]), U[4][1]], 0.9, xoff);
   wire(g, [7.0, top(U[0]) - 0.15, 4.3], [-1.8, top(U[3]) - 0.15, 6.05], 1.1);
-  wire(g, [7.0, top(U[0]) - 0.95, 4.3], [-1.8, top(U[3]) - 0.95, 6.05], 1.0);
-  wire(g, [6.2, top(U[0]) - 0.15, 4.3], [-1.8, top(U[3]) - 0.15, 5.25], 1.2);
   // service drop to the store roof
   wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.015);
   wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.015);
   // drop to the neighbour house
   wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 3.6], 0.5, 0.015);
   // stray crossing wire at the alley
-  wire(g, [-8.5, 5.4, 3.0], [-5.5, 5.0, 3.0], 0.4, 0.013);
 
   /* ---- traffic signals ---- */
   const near = mastSignals(g, 7.2, 6.0, 3.6, 4.7, [1.0, 2.5, 3.5], 'near');

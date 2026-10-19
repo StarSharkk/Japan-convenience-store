@@ -65,7 +65,7 @@ controls.maxPolarAngle = Math.PI / 2 - 0.015;
 controls.rotateSpeed = 0.8;
 controls.zoomSpeed = 0.9;
 controls.screenSpacePanning = true;
-const TARGET = new THREE.Vector3(0.6, 1.9, -0.2);
+const TARGET = new THREE.Vector3(0.4, 1.4, 0.2);
 controls.target.copy(TARGET);
 const clampPan = () => {
   controls.target.x = THREE.MathUtils.clamp(controls.target.x, -11, 11);
@@ -75,7 +75,7 @@ const clampPan = () => {
 controls.addEventListener('change', clampPan);
 
 // start pose (SE, elevated) with a slow intro dolly
-const BASE_R = 46;
+const BASE_R = 36;
 const sph = new THREE.Spherical(BASE_R, THREE.MathUtils.degToRad(61), THREE.MathUtils.degToRad(36));
 const from = new THREE.Spherical(78, THREE.MathUtils.degToRad(46), THREE.MathUtils.degToRad(70));
 let intro = true;

@@ -46,88 +46,6 @@ function pickWin(R) {
   return arr[(R() * arr.length) | 0];
 }
 
-/* =========================================================== back apartment block */
-function backBlock(parent) {
-  const g = grp(parent);
-  const R = rng(17);
-  const X0 = -12, X1 = 7.5, Z0 = -12, Z1 = -7.2;
-  const H = 9.6;
-  const wall = toon('#65729a');
-  const slab = toon('#929cba');
-  const dark = toon('#262d40');
-  bx(g, wall, X0, X1, Y0, H, Z0, Z1);
-  // floor bands
-  [3.35, 6.35, 9.35].forEach((y) => bx(g, slab, X0, X1, y, y + 0.14, Z0, Z1 + 0.12));
-  // balcony railings (south)
-  const rail = toon('#2a3142');
-  const balc = toon('#8a94ae');
-  const wins = [], winsE = [];
-  [[4.35, 5.6], [7.35, 8.6]].forEach(([y0, y1]) => {
-    // balcony slab + glass rail
-    bx(g, balc, X0, X1, y0 - 1.0, y0 - 0.88, Z1, Z1 + 0.7);
-    bx(g, rail, X0, X1, y0 - 0.88, y0 + 0.0, Z1 + 0.66, Z1 + 0.7, { cast: false });
-    for (let x = X0 + 0.3; x < X1; x += 1.7) {
-      wins.push([x + 0.65, (y0 + y1) / 2, Z1 + 0.0, 0.95, y1 - y0, pickWin(R)]);
-      if (R() < 0.35) {
-        // balcony AC unit
-        bx(g, toon('#c9ced8'), x + 1.1, x + 1.55, y0 - 0.88, y0 - 0.45, Z1 + 0.2, Z1 + 0.5);
-      }
-      if (R() < 0.2) { bx(g, toon('#d9d2c0'), x + 0.2, x + 0.6, y0 - 0.88, y0 - 0.1, Z1 + 0.25, Z1 + 0.35, { cast: false }); }
-    }
-  });
-  windows(g, wins);
-  // east face windows (road side)
-  [[4.35, 5.6], [7.35, 8.6]].forEach(([y0, y1]) => {
-    bx(g, balc, X1, X1 + 0.7, y0 - 1.0, y0 - 0.88, Z0, Z1);
-    bx(g, rail, X1 + 0.66, X1 + 0.7, y0 - 0.88, y0, Z0, Z1, { cast: false });
-    for (let z = Z0 + 0.6; z < Z1 - 0.5; z += 1.5) winsE.push([X1 + 0.0, (y0 + y1) / 2, z + 0.4, 0.95, y1 - y0, pickWin(R)]);
-  });
-  windows(g, winsE, { ry: Math.PI / 2 });
-  // north + west faces
-  const winsN = [], winsW = [];
-  [[4.35, 5.6], [7.35, 8.6], [1.2, 2.5]].forEach(([y0, y1]) => {
-    for (let x = X0 + 1.0; x < X1 - 0.6; x += 1.9) winsN.push([x, (y0 + y1) / 2, Z0, 0.95, y1 - y0, pickWin(R)]);
-    for (let z = Z0 + 1.0; z < Z1 - 0.6; z += 1.9) winsW.push([X0, (y0 + y1) / 2, z, 0.95, y1 - y0, pickWin(R)]);
-  });
-  windows(g, winsN, { ry: Math.PI });
-  windows(g, winsW, { ry: -Math.PI / 2 });
-  // ground floor: shutters + lit lobby
-  for (let x = X0 + 0.2; x < X1 - 0.5; x += 1.5) {
-    if (x > -3.3 && x < -0.3) continue;
-    bx(g, toon('#323b52'), x, x + 1.3, Y0, 3.1, Z1, Z1 + 0.06, { cast: false });
-    for (let k = 0; k < 12; k++) bx(g, toon('#2a3246'), x, x + 1.3, Y0 + 0.2 * k * 1.2 + 0.2, Y0 + 0.2 * k * 1.2 + 0.23, Z1 + 0.06, Z1 + 0.075, { cast: false });
-  }
-  // lobby
-  bx(g, toon('#e4dccb', { lit: 0.6 }), -3.2, -0.4, Y0, 3.0, Z1, Z1 + 0.04);
-  pl(g, glow('#ffd9a0', 1.5), 2.6, 2.6, -1.8, 1.5, Z1 + 0.06, 0, 0);
-  halo(g, -1.8, 1.6, Z1 + 0.5, '#ffd9a0', 4, 0.3);
-  bx(g, dark, -3.3, -0.3, 3.1, 3.3, Z1, Z1 + 0.5);
-  // roof
-  bx(g, toon('#6d7894'), X0, X1, H, H + 0.4, Z0, Z1);
-  bx(g, toon('#5a6480'), X0 + 0.15, X1 - 0.15, H + 0.4, H + 0.44, Z0 + 0.15, Z1 - 0.15);
-  // tank on stilts
-  [[-8, -9.5], [-6.6, -9.5], [-8, -8.6], [-6.6, -8.6]].forEach(([x, z]) => cy(g, dark, x, H + 0.4, z, 0.05, 1.0, 6));
-  cy(g, toon('#c9d3e0'), -7.3, H + 1.4, -9.05, 0.95, 1.4, 14);
-  cy(g, toon('#9aa6ba'), -7.3, H + 2.8, -9.05, 0.97, 0.12, 14, { rt: 0.7 });
-  // antenna + blinking light
-  cyl2(g, toon('#9aa3b6'), [2.5, H + 0.4, -10.0], [2.5, H + 3.6, -10.0], 0.04, 6);
-  [0.9, 1.7, 2.5].forEach((dy, i) => cyl2(g, toon('#9aa3b6'), [2.0 + i * 0.1, H + 0.4 + 1.2 + dy, -10.0], [3.0 - i * 0.1, H + 0.4 + 1.2 + dy, -10.0], 0.02, 4));
-  const blink = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 0.2, 0.15) });
-  const bl = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), blink);
-  bl.position.set(2.5, H + 3.75, -10.0); bl.userData.noLine = true;
-  g.add(bl);
-  const bh = halo(g, 2.5, H + 3.75, -10.0, '#ff3a2a', 2.4, 0.8);
-  reg.updaters.push((t) => {
-    const on = (t % 2.2) < 0.25 || ((t % 2.2) > 0.45 && (t % 2.2) < 0.6);
-    blink.color.setRGB(3, 0.2, 0.15).multiplyScalar(on ? 1 : 0.06);
-    bh.material.opacity = on ? 0.8 : 0.0;
-  });
-  // rooftop stair house
-  bx(g, wall, 3.0, 5.6, H + 0.4, H + 2.2, -11.5, -9.6);
-  bx(g, dark, 3.0, 5.6, H + 2.2, H + 2.35, -11.6, -9.5);
-  return g;
-}
-
 /* =========================================================== izakaya + flat (west neighbour) */
 function izakaya(parent, drips) {
   const g = grp(parent);
@@ -139,14 +57,22 @@ function izakaya(parent, drips) {
   bx(g, plaster, X0, X1, Y0, H, Z0, Z1);
   bx(g, toon('#3d342d'), X0, X1 + 0.02, Y0, 1.0, Z0, Z1 + 0.02); // lower wainscot
   bx(g, toon('#8e8474'), X0 - 0.05, X1 + 0.08, 3.55, 3.72, Z0, Z1 + 0.08); // floor band
-  // roof & parapet
-  bx(g, toon('#3c4256'), X0 - 0.1, X1 + 0.15, H, H + 0.15, Z0, Z1 + 0.15);
-  bx(g, plaster, X0 - 0.1, X1 + 0.15, H + 0.15, H + 0.55, Z1 + 0.03, Z1 + 0.15);
-  bx(g, plaster, X1 + 0.03, X1 + 0.15, H + 0.15, H + 0.55, Z0, Z1 + 0.15);
-  bx(g, toon('#6f7790'), X0 + 0.5, X0 + 2.2, H + 0.15, H + 1.2, -2.0, -0.5);
-  // TV antenna
-  cyl2(g, toon('#9aa3b6'), [-11, H + 0.15, 0], [-11, H + 2.6, 0], 0.03, 5);
-  [0.8, 1.4, 1.9].forEach((d, i) => cyl2(g, toon('#9aa3b6'), [-11.4 - i * 0.05, H + 0.15 + 0.8 + d, 0], [-10.6 + i * 0.05, H + 0.15 + 0.8 + d, 0], 0.018, 4));
+  // tiled gable roof (ridge runs north-south), plaster gable ends, ridge cap
+  {
+    const rx0 = X0 - 0.1, rx1 = X1 + 0.45, rz0 = Z0 - 0.1, rz1 = Z1 + 0.7;
+    const sh = new THREE.Shape();
+    sh.moveTo(rx0, 0); sh.lineTo(rx1, 0); sh.lineTo((X0 + X1) / 2 + 0.15, 1.15); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: rz1 - rz0, bevelEnabled: false });
+    geo.translate(0, H, rz0);
+    const roofMesh = new THREE.Mesh(geo, [plaster, toon('#2b3048')]);
+    roofMesh.castShadow = true; roofMesh.receiveShadow = true;
+    g.add(roofMesh);
+    bx(g, toon('#3d4466'), (X0 + X1) / 2 + 0.05, (X0 + X1) / 2 + 0.25, H + 1.1, H + 1.25, rz0 - 0.05, rz1 + 0.05);
+    bx(g, toon('#2b3048'), rx0, rx1, H - 0.1, H, rz0, rz1);
+    // antenna on the ridge
+    cyl2(g, toon('#9aa3b6'), [-10.2, H + 1.25, 0], [-10.2, H + 2.75, 0], 0.03, 5);
+    [0.5, 0.95, 1.35].forEach((d, i) => cyl2(g, toon('#9aa3b6'), [-10.55 - i * 0.04, H + 1.25 + d, 0], [-9.85 + i * 0.04, H + 1.25 + d, 0], 0.018, 4));
+  }
 
   /* ---- ground floor south: izakaya front ---- */
   // eave (kawara)
@@ -190,6 +116,25 @@ function izakaya(parent, drips) {
   cyl2(g, wood, [-10.8, 2.56, Z1 + 0.2], [-8.95, 2.56, Z1 + 0.2], 0.018, 5);
   reg.updaters.push((t) => norens.forEach((n, i) => (n.rotation.x = Math.sin(t * 1.3 + i * 1.1) * 0.05)));
   // lantern
+  // string of small red chochin lanterns along the eave
+  {
+    const lm2 = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 0.3, 0.2) });
+    for (let x = -11.7; x < -8.9; x += 0.62) {
+      const l = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8), lm2);
+      l.scale.set(0.9, 1.15, 0.9); l.position.set(x, 2.68, Z1 + 0.88); g.add(l);
+      cy(g, toon('#14161e'), x, 2.78, Z1 + 0.88, 0.04, 0.05, 8);
+    }
+    halo(g, -10.3, 2.65, Z1 + 1.0, '#ff4a2a', 3.4, 0.28);
+  }
+  // wooden plaque between the floors
+  {
+    const pq = canvasTex(512, 128, (c, w, h) => {
+      c.fillStyle = '#3a2619'; c.fillRect(0, 0, w, h);
+      c.strokeStyle = '#c9a25a'; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
+      T(c, '炭火焼  ほたる', w / 2, h / 2 + 3, 64, '#f2d89a', { weight: 800 });
+    });
+    pl(g, new THREE.MeshBasicMaterial({ map: pq, color: new THREE.Color(0.8, 0.75, 0.62) }), 1.5, 0.375, -10.25, 3.38, Z1 + 0.06, 0, 0);
+  }
   const lanternPos = [-8.85, 2.15, Z1 + 0.55];
   const lm = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, 0.35, 0.22) });
   const lan = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), lm);
@@ -316,7 +261,6 @@ function alleyProps(parent) {
 
 export function buildBuildings(parent, drips) {
   const g = grp(parent);
-  backBlock(g);
   izakaya(g, drips);
   alleyProps(g);
   return g;

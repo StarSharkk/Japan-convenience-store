@@ -256,6 +256,22 @@ export function buildStore(parent, drips) {
   plight(g, '#ffe8c4', 8, 9, 1.0, 3.0, -2.0, 'inB');
   plight(g, '#ffe6c0', 7, 9, 2.6, 2.3, 2.3, 'door');
 
+  /* ---------------- warm light spill on the wet pavement (makes the shop the focal point) ---------------- */
+  const spillTex = canvasTex(256, 256, (c, w, h) => {
+    const gr = c.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, w, h);
+    const gx = c.createLinearGradient(0, 0, w, 0);
+    gx.addColorStop(0, 'rgba(0,0,0,1)'); gx.addColorStop(0.12, 'rgba(0,0,0,0)'); gx.addColorStop(0.88, 'rgba(0,0,0,0)'); gx.addColorStop(1, 'rgba(0,0,0,1)');
+    c.globalCompositeOperation = 'destination-out'; c.fillStyle = gx; c.fillRect(0, 0, w, h);
+  }, { aniso: 1 });
+  const spillMat = new THREE.MeshBasicMaterial({ map: spillTex, color: new THREE.Color(1.0, 0.72, 0.4), transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const sp1 = pl(g, spillMat, 10.6, 3.3, -0.4, Y0 + 0.02, 3.15, 0, -Math.PI / 2, { noLine: true });
+  const sp2 = pl(g, spillMat, 6.4, 2.6, 6.45, Y0 + 0.02, -0.9, -Math.PI / 2, -Math.PI / 2, { noLine: true });
+  sp2.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+  sp2.rotation.order = 'YXZ';
+  [sp1, sp2].forEach((m) => reg.noRefl.push(m));
+
   buildInterior(g, ST);
   return g;
 }
