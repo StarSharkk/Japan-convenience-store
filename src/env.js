@@ -158,6 +158,7 @@ export function createEnvironment(ctx) {
   const fwCfg = { rate: 0, palette: ['#ffffff'], types: [0], scale: 1 };
 
   const k = (rate, dt) => 1 - Math.exp(-rate * dt);
+  const _zero = new THREE.Vector3();
   const isStoreOpenAt = (h) => {
     if (state.alwaysOpen || state.openFrom === state.openTo) return true;
     return state.openFrom < state.openTo ? h >= state.openFrom && h < state.openTo : h >= state.openFrom || h < state.openTo;
@@ -195,6 +196,7 @@ export function createEnvironment(ctx) {
     if (weather === 'snowy' && Math.random() < 0.6) season = 'winter';
     const holiday = Math.random() < 0.45 ? 'none' : HOLIDAYS[1 + ((Math.random() * (HOLIDAYS.length - 1)) | 0)];
     set({ weather, season, holiday, time: Math.random() * 24, storeStatus: Math.random() < 0.88 ? 'open' : 'closed', storeMode: 'manual', autoTime: false });
+    particles.piles.reseed();
   }
 
   /* ------------------------------------------------ per-frame */
@@ -315,7 +317,11 @@ export function createEnvironment(ctx) {
 
     const useSun = sunSin > 0.012;
     const lp = useSun ? sunDir : moonDir;
-    sun.position.copy(lp).multiplyScalar(30);
+    // the light (and its shadow box) is centred on the part of the town the camera looks at
+    const SC = reg.shadowCenter || _zero;
+    sun.position.copy(lp).multiplyScalar(45).add(SC);
+    sun.target.position.copy(SC);
+    sun.target.updateMatrixWorld();
     if (useSun) {
       sun.color.copy(kf.sunC).multiply(_c1.setRGB(li[0], li[1], li[2]));
       sun.intensity = kf.sunI * sunUp * sunMul * cur.sun;
@@ -327,7 +333,7 @@ export function createEnvironment(ctx) {
     sun.intensity += flashA * 3.5;
     sun.shadow.intensity = clamp((useSun ? 1 - cur.cloud * 0.82 : 1 - cur.cloud * 0.5) * (useSun ? sunUp : moonUp) + 0.02, 0, 1);
     // shadow map is static, so only re-render it when the light really moved
-    if (lp.angleTo(last.dir) > 0.005 && t - last.t > 0.25) { renderer.shadowMap.needsUpdate = true; last.dir.copy(lp); last.t = t; }
+    if ((lp.angleTo(last.dir) > 0.005 && t - last.t > 0.25) || reg.shadowDirty) { renderer.shadowMap.needsUpdate = true; last.dir.copy(lp); last.t = t; reg.shadowDirty = false; }
 
     // fog colour follows the horizon, density follows the weather
     const fogCol = mid.clone().multiplyScalar(0.92);
@@ -403,6 +409,17 @@ export function createEnvironment(ctx) {
       G.uTintC.value.set(fws.color.r, fws.color.g, fws.color.b).multiplyScalar(fwS * 0.8);
     }
     reg.reflOn = wet * 0.8 + puddle > 0.05 && snowCover < 0.92;
+
+    /* lake: sky colour, sun / moon glints, rain rings, cold season, lightning */
+    if (reg.lakeU) {
+      const L = reg.lakeU;
+      L.uRain.value = cur.rain; L.uDay.value = day * (1 - cur.cloud * 0.35); L.uNight.value = 1 - day;
+      L.uSkyLo.value.copy(mid).multiplyScalar(0.9 + 0.2 * day); L.uSkyHi.value.copy(top);
+      L.uSunDir.value.copy(sunDir); L.uSunCol.value.copy(kf.sunC); L.uSunVis.value = smooth(-0.05, 0.1, sunSin) * (1 - cur.cloud * 0.85);
+      L.uMoonDir.value.copy(moonDir); L.uMoonVis.value = moonUp * (1 - day) * (1 - cur.cloud * 0.8);
+      L.uCold.value = clamp(sw[3] * 0.8 + snowCover * 0.4, 0, 1); L.uFlash.value = flashA; L.uWind.value = cur.wind;
+      L.uReflK.value = reg.reflActive ? 1 : 0;
+    }
     SNOW_U.value = snowCover;
 
     /* foliage: season weights + the holiday's own colour cast / blossom force / night glow */
@@ -439,7 +456,8 @@ export function createEnvironment(ctx) {
       motes: moteAmt, motesTint: _c4,
       pilePetal: clamp(sw[0] * 0.75 + petalPile, 0, 1) * (1 - snowCover),
       pileLeaf: clamp(sw[2] * 0.9 + leafPile, 0, 1) * (1 - snowCover),
-      pileSnow: Math.max(snowCover * 0.9, snowPile * (0.6 + 0.4 * snowCover)),
+      pileSnow: Math.max(Math.sqrt(snowCover) * 0.9, // drifts outlast the thin cover when it thaws
+         snowPile * (0.6 + 0.4 * snowCover) * clamp(sw[3] * 1.2 + snowCover, 0, 1)), // holiday snow drifts only in winter / when it snowed
       pileBright: lerp(0.45, 1.0, day) * (1 - 0.2 * flashA) + flashA * 0.5,
       lightDir: lightDirV,
       bright,
@@ -468,6 +486,7 @@ export function createEnvironment(ctx) {
     on: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
     isOpen: () => cur.open > 0.5,
     holidays, sky, fireworks,
+    reseedPiles: (seed) => particles.piles.reseed(seed),
     get readout() { return ctx.readout; },
   };
 }

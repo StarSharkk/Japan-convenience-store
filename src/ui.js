@@ -35,6 +35,16 @@ export function createUI(env, hooks = {}) {
   const panel = el('aside', 'ce-panel');
   panel.setAttribute('aria-label', 'Environment controls');
   root.append(toggle, panel);
+  // camera shortcuts: back to the shop, or the whole town
+  const cam = el('div', 'ce-cam');
+  const bHome = el('button', '', '⌂ 回到 LAWSON');
+  const bTown = el('button', '', '◎ 全镇视图');
+  bHome.setAttribute('aria-label', '镜头回到 LAWSON 便利店');
+  bTown.setAttribute('aria-label', '查看整个小镇');
+  bHome.addEventListener('click', () => hooks.home && hooks.home());
+  bTown.addEventListener('click', () => hooks.town && hooks.town());
+  cam.append(bHome, bTown);
+  root.append(cam);
 
   const head = el('div', 'ce-head');
   head.innerHTML = '<div><div class="ce-title">Environment</div><div class="ce-sub">環境コントロール · 同一家便利店，任意组合</div></div>';
@@ -118,7 +128,10 @@ export function createUI(env, hooks = {}) {
   const fwSw = el('label', 'ce-switch', '<input type="checkbox" checked><i></i><span>允许烟花 Fireworks（新年 / 夏日祭 / 樱花季夜晚）</span>');
   const fwInput = fwSw.querySelector('input');
   fwInput.addEventListener('change', () => env.set({ fireworks: fwInput.checked }));
-  hSec.append(fwSw);
+  const bPiles = el('button', 'ce-act', '🍂 重新生成地面堆积（雪 / 落叶 / 花瓣）');
+  bPiles.style.width = '100%'; bPiles.style.marginTop = '8px';
+  bPiles.addEventListener('click', () => env.reseedPiles());
+  hSec.append(fwSw, bPiles);
 
   /* store */
   const storeSec = section('Store status', '营业状态');

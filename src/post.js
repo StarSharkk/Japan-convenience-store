@@ -159,7 +159,11 @@ class ScenePass extends Pass {
   render(renderer, writeBuffer, readBuffer) {
     const { scene, camera } = this;
     if (reg.sceneDirty) this.collect();
-    if (reg.reflOn !== false) this.refl.render(renderer, scene, camera, reg.ground.concat(reg.noRefl)); // dry / snowy ground has nothing to mirror
+    // dry / snowy ground has nothing to mirror, but the lake always does when it is on screen
+    reg.reflActive = reg.reflOn !== false || !!reg.lakeVisible;
+    if (reg.groundU) reg.groundU.uReflOn.value = reg.reflActive ? 1 : 0;
+    // lake only (dry streets): the far greenery cannot show in the lake, leave it out of the mirror pass
+    if (reg.reflActive) this.refl.render(renderer, scene, camera, reg.reflOn === false ? reg.ground.concat(reg.noRefl, reg.reflLakeHide || []) : reg.ground.concat(reg.noRefl));
 
     renderer.setRenderTarget(readBuffer);
     renderer.clear(true, true, true);
@@ -172,6 +176,10 @@ class ScenePass extends Pass {
     scene.fog = null;
     scene.overrideMaterial = this.nmat;
     this.noLine.forEach((o) => (o.visible = false));
+    // far tree chunks: their ink lines would be sub-pixel anyway (greenery LOD fills reg.lineHide)
+    const lh = reg.lineHide || [];
+    const lhVis = lh.map((o) => o.visible);
+    lh.forEach((o) => (o.visible = false));
     const cutVis = this.cut.map((o) => o.visible);
     this.cut.forEach((o) => (o.visible = false));
     renderer.getClearColor(this._c);
@@ -197,6 +205,7 @@ class ScenePass extends Pass {
     this.cut.forEach((o, i) => (o.visible = cutVis[i]));
     renderer.setClearColor(this._c, ca);
     this.noLine.forEach((o) => (o.visible = true));
+    lh.forEach((o, i) => (o.visible = lhVis[i]));
     scene.overrideMaterial = null;
     scene.background = bg;
     scene.fog = fog;

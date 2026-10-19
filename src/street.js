@@ -151,7 +151,7 @@ function umbrellaStand(parent, x, z) {
 const poleMat = toon('#6f778a');
 const armMat = toon('#4d5568');
 const insMat = toon('#c8d0e0');
-function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
+export function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
   const p = grp(parent, x, Y0, z);
   cy(p, poleMat, 0, 0, 0, 0.11, h, 10, { rt: 0.62 });
   cy(p, toon('#d4b82a'), 0, 1.0, 0, 0.113, 0.28, 10, { cast: false });
@@ -173,7 +173,7 @@ function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
   return p;
 }
 
-function wire(parent, a, b, sag = 0.5, r = 0.017) {
+export function wire(parent, a, b, sag = 0.5, r = 0.017) {
   const pts = [];
   for (let i = 0; i <= 10; i++) {
     const t = i / 10;
@@ -187,7 +187,7 @@ function wire(parent, a, b, sag = 0.5, r = 0.017) {
 }
 
 /* ================================================================ traffic signal */
-function signalHead(parent, x, y, z, ry = 0) {
+export function signalHead(parent, x, y, z, ry = 0) {
   const s = grp(parent, x, y, z, ry);
   const body = bx(s, toon('#2b3242'), -0.56, 0.56, -0.17, 0.17, -0.1, 0.1);
   const lens = [];
@@ -218,7 +218,7 @@ function mastSignals(parent, poleX, poleZ, armDx, armY, heads, name) {
 }
 
 /* ================================================================ lamp posts */
-function streetLamp(parent, x, z, dirx, dirz, h, armLen, color, lightI, name) {
+export function streetLamp(parent, x, z, dirx, dirz, h, armLen, color, lightI, name) {
   const p = grp(parent, x, Y0, z);
   cy(p, toon('#5f677c'), 0, 0, 0, 0.075, h, 10, { rt: 0.66 });
   cy(p, toon('#4a5266'), 0, 0, 0, 0.12, 0.35, 10, { rt: 0.65 });
@@ -234,7 +234,7 @@ function streetLamp(parent, x, z, dirx, dirz, h, armLen, color, lightI, name) {
 }
 
 /* ================================================================ guardrail */
-function guardrail(parent, x0, z0, x1, z1) {
+export function guardrail(parent, x0, z0, x1, z1) {
   const g = grp(parent, 0, Y0, 0);
   const L = Math.hypot(x1 - x0, z1 - z0);
   const n = Math.max(1, Math.round(L / 1.3));
@@ -314,7 +314,7 @@ export function nobori(parent, x, z, text, bg, seed) {
 }
 
 /* ================================================================ road sign plates */
-function signTexture(kind) {
+export function signTexture(kind) {
   return canvasTex(256, 256, (g, w, h) => {
     g.clearRect(0, 0, w, h);
     if (kind === 'stop') {
@@ -345,11 +345,40 @@ function signTexture(kind) {
       g.strokeStyle = '#fff'; g.lineWidth = 4; roundRect(g, 10, 76, 236, 104, 10); g.stroke();
       T(g, '星空通り', 128, 112, 50, '#fff', { weight: 900 });
       T(g, 'Hoshizora-dori', 128, 160, 24, '#cfe4ff', { weight: 600 });
+    } else if (kind === 'rail') {
+      // 踏切あり: yellow diamond with the steam-loco pictogram
+      g.fillStyle = '#f6d12a'; g.save(); g.translate(128, 128); g.rotate(Math.PI / 4); roundRect(g, -84, -84, 168, 168, 12); g.fill();
+      g.strokeStyle = '#111'; g.lineWidth = 8; roundRect(g, -76, -76, 152, 152, 9); g.stroke(); g.restore();
+      g.fillStyle = '#111';
+      g.fillRect(70, 118, 96, 34); g.fillRect(150, 92, 30, 60); g.fillRect(84, 98, 16, 22); g.fillRect(66, 152, 122, 8);
+      [88, 118, 160].forEach((x) => { g.beginPath(); g.arc(x, 168, 12, 0, 7); g.fill(); });
+    } else if (kind === '40') {
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(128, 128, 118, 0, 7); g.fill();
+      g.strokeStyle = '#c91b1b'; g.lineWidth = 22; g.beginPath(); g.arc(128, 128, 98, 0, 7); g.stroke();
+      T(g, '40', 128, 132, 110, '#1f4fb8', { weight: 900 });
+    } else if (kind === 'curve') {
+      g.fillStyle = '#f6d12a'; g.save(); g.translate(128, 128); g.rotate(Math.PI / 4); roundRect(g, -84, -84, 168, 168, 12); g.fill();
+      g.strokeStyle = '#111'; g.lineWidth = 8; roundRect(g, -76, -76, 152, 152, 9); g.stroke(); g.restore();
+      g.strokeStyle = '#111'; g.lineWidth = 18; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(110, 190); g.lineTo(110, 130); g.quadraticCurveTo(110, 96, 146, 96); g.stroke();
+      g.fillStyle = '#111'; g.beginPath(); g.moveTo(140, 70); g.lineTo(176, 96); g.lineTo(140, 122); g.closePath(); g.fill();
+    } else if (kind === 'cross') {
+      g.fillStyle = '#1255b5'; roundRect(g, 18, 18, 220, 220, 18); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(128, 40); g.lineTo(222, 214); g.lineTo(34, 214); g.closePath(); g.fill();
+      g.fillStyle = '#111'; g.beginPath(); g.arc(128, 104, 13, 0, 7); g.fill(); g.fillRect(118, 118, 20, 44);
+      g.fillRect(96, 196, 64, 8);
+    } else if (kind === 'lake' || kind === 'station') {
+      const lake = kind === 'lake';
+      g.fillStyle = '#134a9a'; roundRect(g, 4, 54, 248, 148, 14); g.fill();
+      g.strokeStyle = '#fff'; g.lineWidth = 4; roundRect(g, 10, 60, 236, 136, 10); g.stroke();
+      T(g, lake ? '星空湖' : '星空駅', 112, 108, 46, '#fff', { weight: 900 });
+      T(g, lake ? 'Hoshizora Lake' : 'Hoshizora Sta.', 112, 152, 22, '#cfe4ff', { weight: 600 });
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(200, 84); g.lineTo(232, 128); g.lineTo(212, 128); g.lineTo(212, 170); g.lineTo(188, 170); g.lineTo(188, 128); g.lineTo(168, 128); g.closePath(); g.fill();
     }
   });
 }
 
-function roadSign(parent, x, z, ry, kind, h = 2.6, size = 0.7) {
+export function roadSign(parent, x, z, ry, kind, h = 2.6, size = 0.7) {
   const g = grp(parent, x, Y0, z, ry);
   cy(g, toon('#8d96aa'), 0, 0, 0, 0.03, h, 8);
   const mat = new THREE.MeshBasicMaterial({ map: signTexture(kind), color: new THREE.Color(0.95, 0.95, 0.98), transparent: true, alphaTest: 0.1, side: THREE.DoubleSide });
@@ -553,7 +582,7 @@ export function buildStreet(parent, drips) {
 
   /* ---- traffic signals ---- */
   const near = mastSignals(g, 7.2, 6.0, 3.6, 4.7, [1.0, 2.5, 3.5], 'near');
-  const far = mastSignals(g, 11.55, -9.6, -3.2, 4.7, [-1.0, -2.4, -3.2], 'far');
+  const far = mastSignals(g, 12.45, -9.6, -4.1, 4.7, [-1.9, -3.3, -4.1], 'far'); // pole on the new east sidewalk
   // pedestrian signal boxes
   const peds = [];
   [[6.95, 5.5, Math.PI / 2], [5.85, 6.3, 0]].forEach(([x, z, ry]) => {

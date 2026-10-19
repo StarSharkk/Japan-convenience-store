@@ -6,6 +6,7 @@ import { buildWorld } from './world.js';
 import { makeTree, setFoliageDensity } from './tree.js';
 import { createEnvironment } from './env.js';
 import { createUI } from './ui.js';
+import { groundY, MAP } from './town/layout.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -39,8 +40,8 @@ const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerH
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
-controls.minDistance = 9;
-controls.maxDistance = 120;
+controls.minDistance = 6;
+controls.maxDistance = 165; // far enough to see the whole town
 controls.minPolarAngle = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.015;
 controls.rotateSpeed = 0.8;
@@ -49,8 +50,9 @@ controls.screenSpacePanning = true;
 const TARGET = new THREE.Vector3(0.4, 1.4, 0.2);
 controls.target.copy(TARGET);
 const clampPan = () => {
-  controls.target.x = THREE.MathUtils.clamp(controls.target.x, -11, 11);
-  controls.target.z = THREE.MathUtils.clamp(controls.target.z, -11, 11);
+  // panning explores the town, but the target never leaves the map
+  controls.target.x = THREE.MathUtils.clamp(controls.target.x, MAP.x0 + 2, MAP.x1 - 2);
+  controls.target.z = THREE.MathUtils.clamp(controls.target.z, MAP.z0 + 2, MAP.z1 - 2);
   controls.target.y = THREE.MathUtils.clamp(controls.target.y, -0.5, 9);
 };
 controls.addEventListener('change', clampPan);
@@ -78,7 +80,20 @@ if (VIEW === 'tree') {
   setCam(sph);
 } else setCam(from);
 controls.update();
-['pointerdown', 'wheel', 'touchstart', 'keydown'].forEach((e) => renderer.domElement.addEventListener(e, () => (intro = false), { passive: true }));
+['pointerdown', 'wheel', 'touchstart', 'keydown'].forEach((e) => renderer.domElement.addEventListener(e, () => { intro = false; fly = null; }, { passive: true }));
+
+/* ---- smooth camera moves: back to LAWSON / the whole town ---- */
+let fly = null;
+function flyTo(target, s, dur = 1.6) {
+  intro = false;
+  const cur = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  let dTheta = s.theta - cur.theta;
+  dTheta = ((dTheta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; // shortest way round
+  fly = { t: 0, dur, t0: controls.target.clone(), t1: target.clone(), s0: cur, s1: new THREE.Spherical(s.radius, s.phi, cur.theta + dTheta) };
+}
+const TOWN_TARGET = new THREE.Vector3(-6, 0, -6);
+const camHome = () => flyTo(TARGET, sph);
+const camTown = () => flyTo(TOWN_TARGET, new THREE.Spherical(Math.max(118, 118 * (1.5 / camera.aspect)), THREE.MathUtils.degToRad(48), THREE.MathUtils.degToRad(30)), 2.0);
 
 const pipe = createPipeline(renderer, scene, camera);
 const handles = buildWorld(scene, renderer, pipe.refl);
@@ -123,7 +138,7 @@ function setQuality(q) {
   pipe.refl.scale = c.refl;
   onResize();
 }
-const ui = createUI(env, { setQuality, reset: () => {} });
+const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown });
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -163,6 +178,32 @@ function adapt(dt, t) {
     if (perf.good >= 3 && (f === undefined || t - f > 25)) { lvl++; perf.good = 0; PR = LEVELS[lvl]; onResize(); }
   } else perf.good = 0;
 }
+/* ---- things that follow the camera around the town: shadow box, weather volume, lake visibility ---- */
+const SHADOW = { key: '', box: new THREE.Box3(new THREE.Vector3(-46.5, -1.2, -42.5), new THREE.Vector3(-19, 1.5, -24)) };
+const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
+reg.shadowCenter = new THREE.Vector3();
+reg.camera = camera;
+const LAKE_C = new THREE.Vector3(-32.5, 0, -33.5);
+function followCamera() {
+  const dist = camera.position.distanceTo(controls.target);
+  const half = dist < 55 ? 24 : dist < 95 ? 36 : 52;
+  const snap = half / 3;
+  const cx = Math.round(controls.target.x / snap) * snap, cz = Math.round(controls.target.z / snap) * snap;
+  const key = `${cx}|${cz}|${half}`;
+  if (key !== SHADOW.key) {
+    SHADOW.key = key;
+    reg.shadowCenter.set(cx, 0, cz);
+    const sc = handles.sun.shadow.camera;
+    sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.far = 60 + half * 2;
+    sc.updateProjectionMatrix();
+    reg.shadowDirty = true;
+  }
+  handles.particles.setCenter(controls.target.x, controls.target.z, THREE.MathUtils.clamp(dist * 0.62, 26, 64));
+  pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  frustum.setFromProjectionMatrix(pv);
+  // the lake earns a reflection pass only when it is on screen and near enough to matter
+  reg.lakeVisible = frustum.intersectsBox(SHADOW.box) && camera.position.distanceTo(LAKE_C) < 72;
+}
 const clock = new THREE.Clock();
 function frame() {
   const raw = clock.getDelta();
@@ -180,7 +221,21 @@ function frame() {
     setCam(cur);
     if (k >= 1) intro = false;
   }
+  if (fly) {
+    fly.t += raw;
+    const k = Math.min(1, fly.t / fly.dur);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    controls.target.lerpVectors(fly.t0, fly.t1, e);
+    setCam(new THREE.Spherical(THREE.MathUtils.lerp(fly.s0.radius, fly.s1.radius, e), THREE.MathUtils.lerp(fly.s0.phi, fly.s1.phi, e), THREE.MathUtils.lerp(fly.s0.theta, fly.s1.theta, e)));
+    if (k >= 1) fly = null;
+  }
   controls.update();
+  // never below the ground (the terrace and banks are not flat)
+  {
+    const gy = groundY(camera.position.x, camera.position.z) + 0.8;
+    if (camera.position.y < gy) { camera.position.y = gy; camera.lookAt(controls.target); }
+  }
+  followCamera();
   env.update(t, dt);
   for (const u of reg.updaters) u(t, dt);
   if (reg.groundUniforms) reg.groundUniforms.uTime.value = t;
@@ -191,4 +246,4 @@ function frame() {
 frame();
 
 // debug hook
-window.__konbini = { THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles };
+window.__konbini = { flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles };

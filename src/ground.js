@@ -190,6 +190,10 @@ function drawGround(g) {
   };
   gutter(-12, 7.5, 6.5, 6.85, false);
   gutter(7.5, 7.85, -12, 6.85, true);
+  gutter(-12, 12, 11.65, 12, false);
+  gutter(11.65, 12, -12, 11.65, true);
+  line(-12, 11.35, 4.6, 11.35, white, 0.1);
+  line(11.35, -12, 11.35, 3.9, white, 0.1);
   // storm grates
   const grate = (cx, cz, w, h) => {
     g.fillStyle = '#0a0d15';
@@ -279,18 +283,16 @@ function drawMask(g, w, h) {
 }
 
 /* ------------------------------------------------------------------ material */
-export function createGround(renderer, refl) {
-  const maxA = renderer.capabilities.getMaxAnisotropy();
-  const groundTex = canvasTex(S, S, drawGround, { aniso: maxA, scale: 4096 / S });
-  const maskTex = canvasTex(1536, 1536, drawMask, { aniso: 4, linear: true, scale: 4/3 });
-
+/** shared environment uniforms of every ground material (the original board + the town around it) */
+function groundShared(refl) {
+  if (reg.groundU) return reg.groundU;
   const uniforms = {
     tRefl: { value: refl.rt.texture },
     uTexMat: { value: refl.texMat },
-    tMask: { value: maskTex },
     uTime: { value: 0 },
     // --- environment (driven by env.js) ---
     uWet: { value: 1 }, // 0 dry .. 1 soaked
+    uReflOn: { value: 1 }, // the planar reflection was rendered this frame
     uPuddle: { value: 0.75 }, // puddle coverage
     uRipple: { value: 0.7 }, // rain-ring strength
     uSnow: { value: 0 }, // snow cover
@@ -302,8 +304,18 @@ export function createGround(renderer, refl) {
   };
   reg.groundU = uniforms;
   reg.groundUniforms = uniforms;
+  return uniforms;
+}
 
-  const mat = new THREE.MeshToonMaterial({ color: 0xffffff, map: groundTex, gradientMap: RAMP });
+/**
+ * The painted, wet-able ground material. `area` maps world xz to the canvas; `town` switches the parts
+ * that were hard-coded for the original board (lawn rectangle, gutter strips) to mask channels
+ * (mask.r puddles, mask.g lawn, mask.b gutters) and skips the original board's square.
+ */
+export function makeGroundMaterial(refl, map, mask, area = { x0: -12, z0: -12, w: 24, h: 24 }, town = false) {
+  const uniforms = { ...groundShared(refl), tMask: { value: mask } };
+  const A = (v) => v.toFixed(3);
+  const mat = new THREE.MeshToonMaterial({ color: 0xffffff, map, gradientMap: RAMP });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
@@ -315,7 +327,7 @@ export function createGround(renderer, refl) {
         /* glsl */ `
 varying vec3 vWPos;
 uniform sampler2D tRefl; uniform mat4 uTexMat; uniform sampler2D tMask; uniform float uTime;
-uniform float uWet; uniform float uPuddle; uniform float uRipple; uniform float uSnow; uniform float uDay; uniform vec3 uLawn; uniform vec3 uTintA; uniform vec3 uTintB; uniform vec3 uTintC;
+uniform float uWet; uniform float uPuddle; uniform float uRipple; uniform float uSnow; uniform float uDay; uniform float uReflOn; uniform vec3 uLawn; uniform vec3 uTintA; uniform vec3 uTintB; uniform vec3 uTintC;
 float gh21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
 float gnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(gh21(i),gh21(i+vec2(1,0)),f.x), mix(gh21(i+vec2(0,1)),gh21(i+vec2(1,1)),f.x), f.y); }
@@ -334,10 +346,11 @@ void main() {`
       )
       .replace(
         '#include <map_fragment>',
-        `vec2 gUv = vec2((vWPos.x+12.)/24., 1.-(vWPos.z+12.)/24.);
+        `vec2 gUv = vec2((vWPos.x-(${A(area.x0)}))/${A(area.w)}, 1.-(vWPos.z-(${A(area.z0)}))/${A(area.h)});
+         ${town ? 'if (abs(vWPos.x) < 11.995 && abs(vWPos.z) < 11.995) discard;' : ''}
          diffuseColor *= texture2D(map, gUv);
          {
-           float lawn = step(-12.0, vWPos.x) * step(vWPos.x, 4.5) * step(-12.0, vWPos.z) * step(vWPos.z, -7.3) * (1.0 - step(0.1, vWPos.y));
+           float lawn = ${town ? 'texture2D(tMask, gUv).g' : 'step(-12.0, vWPos.x) * step(vWPos.x, 4.5) * step(-12.0, vWPos.z) * step(vWPos.z, -7.3) * (1.0 - step(0.1, vWPos.y))'};
            diffuseColor.rgb *= mix(vec3(1.0), uLawn, lawn);
            // dry & sunny pavement is lighter and greyer than the soaked night asphalt
            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.6 + vec3(0.025, 0.027, 0.03), uDay * (1.0 - uWet * 0.55));
@@ -357,25 +370,30 @@ void main() {`
     float pm = smoothstep(0.38, 0.46, mv) * smoothstep(0.02, 0.22, uPuddle) * (1.0 - cover);
     float rim = smoothstep(0.30, 0.38, mv) * (1.0 - smoothstep(0.38, 0.45, mv)) * smoothstep(0.02, 0.22, uPuddle) * (1.0 - cover);
     // ripples
-    vec3 r1 = ripLayer(wp, uTime, 0.9, 1.0);
-    vec3 r2 = ripLayer(wp, uTime*1.13, 0.62, 7.0);
-    vec3 r3 = ripLayer(wp+3.7, uTime*0.91, 1.25, 13.0);
-    vec3 rp = r1 + r2 + r3;
+    vec3 rp = vec3(0.0);
+    if (uRipple > 0.002) { // rain rings only while it rains
+      rp = ripLayer(wp, uTime, 0.9, 1.0) + ripLayer(wp, uTime*1.13, 0.62, 7.0) + ripLayer(wp+3.7, uTime*0.91, 1.25, 13.0);
+    }
     // thinner ripples on merely wet ground
     float wetRip = (1.0-pm) * 0.45;
     float ripAmt = mix(wetRip, 1.0, pm) * uRipple;
     vec2 distort = rp.yz * 0.012 * ripAmt + (vec2(gnoise(wp*14.+uTime*0.6), gnoise(wp*14.-uTime*0.5))-0.5)*0.004;
-    // reflection
-    vec4 rc = uTexMat * vec4(vWPos, 1.0);
-    vec2 ruv = rc.xy / rc.w + distort;
-    float blur = mix(0.012, 0.006, pm);
-    vec3 refl = vec3(0.0); float tw = 0.0;
-    for(int i=-4;i<=4;i++){ float w = 1.0 - abs(float(i))/5.0; refl += texture2D(tRefl, ruv + vec2(0.0, float(i)*blur)).rgb * w; tw += w; }
-    refl /= tw;
     vec3 V = normalize(cameraPosition - vWPos);
     float fr = pow(1.0 - clamp(V.y, 0.0, 1.0), 2.2);
     float k = mix(0.20 + 0.45*fr, 0.78 + 0.2*fr, pm);
     k = mix(0.04 * fr, k, uWet) * (1.0 - cover * 0.9);
+    // only the near-street-level ground mirrors (the planar reflection is the y = 0 plane), and only when it was rendered
+    k *= smoothstep(0.55, 0.3, vWPos.y) * smoothstep(-0.6, -0.25, vWPos.y) * uReflOn;
+    // reflection (9 taps) - skipped on dry ground
+    vec3 refl = vec3(0.0);
+    if (k > 0.003) {
+      vec4 rc = uTexMat * vec4(vWPos, 1.0);
+      vec2 ruv = rc.xy / rc.w + distort;
+      float blur = mix(0.012, 0.006, pm);
+      float tw = 0.0;
+      for(int i=-4;i<=4;i++){ float w = 1.0 - abs(float(i))/5.0; refl += texture2D(tRefl, ruv + vec2(0.0, float(i)*blur)).rgb * w; tw += w; }
+      refl /= tw;
+    }
     vec3 wet = outgoingLight;
     vec3 puddleBase = wet * vec3(0.42, 0.5, 0.7);
     wet = mix(wet, puddleBase, pm * 0.75);
@@ -383,9 +401,10 @@ void main() {`
     outgoingLight += rp.x * vec3(0.55, 0.72, 1.0) * (0.10 + 0.34*pm);
     outgoingLight += rim * vec3(0.20, 0.28, 0.45) * 0.55;
     // gutter streams
-    float g1 = step(6.5, wp.y) * step(wp.y, 6.85) * step(wp.x, 7.5);
+    ${town ? `float g1 = texture2D(tMask, gUv).b; float g2 = 0.0;
+    float flow = g1 * (0.5+0.5*sin((wp.x+wp.y)*9.0 - uTime*3.2 + gnoise(wp*5.0)*5.0));` : `float g1 = step(6.5, wp.y) * step(wp.y, 6.85) * step(wp.x, 7.5);
     float g2 = step(7.5, wp.x) * step(wp.x, 7.85) * step(wp.y, 6.85);
-    float flow = g1 * (0.5+0.5*sin(wp.x*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0)) + g2 * (0.5+0.5*sin(wp.y*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0));
+    float flow = g1 * (0.5+0.5*sin(wp.x*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0)) + g2 * (0.5+0.5*sin(wp.y*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0));`}
     outgoingLight += ((g1+g2) * vec3(0.05,0.08,0.13) + flow * vec3(0.10, 0.17, 0.26) * (g1+g2)) * uWet * (1.0 - cover);
     // festive colour on wet ground: lantern / blossom / firework light pooled in puddles
     {
@@ -402,7 +421,15 @@ void main() {`
   #include <opaque_fragment>`
       );
   };
-  mat.customProgramCacheKey = () => 'ground';
+  mat.customProgramCacheKey = () => (town ? 'groundTown' : 'ground');
+  return mat;
+}
+
+export function createGround(renderer, refl) {
+  const maxA = renderer.capabilities.getMaxAnisotropy();
+  const groundTex = canvasTex(S, S, drawGround, { aniso: maxA, scale: 4096 / S });
+  const maskTex = canvasTex(1536, 1536, drawMask, { aniso: 4, linear: true, scale: 4/3 });
+  const mat = makeGroundMaterial(refl, groundTex, maskTex);
 
   const curb = toon('#5d6683');
   const curbTop = toon('#7a84a3');

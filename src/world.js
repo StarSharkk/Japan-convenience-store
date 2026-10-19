@@ -8,6 +8,7 @@ import { createDrips } from './fx.js';
 import { createParticles } from './particles.js';
 import { mergeStatic } from './merge.js';
 import { buildBackdrop } from './backdrop.js';
+import { buildTown } from './town/index.js';
 
 const flick = (period, dur, depth, seed = 0) => (t) => {
   const k = (t + seed) % period;
@@ -28,14 +29,15 @@ export function buildWorld(scene, renderer, refl) {
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   const sc = sun.shadow.camera;
-  sc.left = -17; sc.right = 17; sc.top = 17; sc.bottom = -17; sc.near = 1; sc.far = 90;
+  // the shadow box follows the camera target across the town (env.js re-centres it and re-renders the map)
+  sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24; sc.near = 1; sc.far = 110;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
 
   const ground = createGround(renderer, refl);
   world.add(ground.road, ground.plot);
-  createBase(world);
+  scene.add(sun.target);
 
   const drips = [];
   // emissive categories: what the environment dims by day / switches by store status
@@ -48,6 +50,8 @@ export function buildWorld(scene, renderer, refl) {
   setCat('street');
   buildBackdrop(world);
   setCat('shop');
+  // the town around the original board: roads, terrain, lake, railway, furniture, greenery (+ the new plinth)
+  buildTown(world, renderer, refl);
 
   mergeStatic(world);
 

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { reg, rng } from './core.js';
+import { createGroundPiles } from './groundPiles.js';
 
 /* ====================================================================================================
-   GPU particle systems for the environment: rain, snow, cherry petals, autumn leaves, ground litter.
+   GPU particle systems for the environment: rain, snow, cherry petals, autumn leaves (+ ground piles).
    Every system is ONE instanced draw call whose motion is computed in the vertex shader (no per-frame
    JS work per particle). The number of visible particles is a continuous 0..1 amount (so weather can
    fade in/out smoothly) and the allocated instance count is only a quality cap.
@@ -43,7 +44,10 @@ function instanced(N, fill) {
 
 export function createParticles(parent, occluders) {
   const box = boxUniforms(occluders);
-  const common = { uTime: { value: 0 }, uPx: { value: 0.001 }, ...box };
+  // uC / uSpan: the particle volume is a wrapped tile that follows the camera across the town
+  const common = { uTime: { value: 0 }, uPx: { value: 0.001 }, uC: { value: new THREE.Vector2() }, uSpan: { value: 26 }, ...box };
+  const WRAP = /* glsl */ `uniform vec2 uC; uniform float uSpan;
+  vec2 wrapXZ(vec2 a){ vec2 u = a / 26.0 + 0.5; return uC + (fract(u - uC / uSpan) - 0.5) * uSpan; }`;
   const sys = {};
   const flag = (m) => {
     m.frustumCulled = false;
@@ -70,13 +74,15 @@ export function createParticles(parent, occluders) {
       vertexShader: /* glsl */ `
         attribute vec4 aData; uniform float uTime, uPx, uAmt, uWind, uSpeed; varying float vA;
         ${BOX_GLSL}
+        ${WRAP}
         void main(){
           float rnd = fract(aData.x*7.31 + aData.y*3.17 + aData.w*11.3);
           float vis = step(rnd, uAmt);
           float H = 18.0;
           float y = H - mod(aData.w*H + uTime*aData.z*uSpeed, H);
           float slant = 0.07 + uWind;
-          vec3 pos = vec3(aData.x + (H-y)*slant, y, aData.y);
+          vec2 wp = wrapXZ(aData.xy);
+          vec3 pos = vec3(wp.x + (H-y)*slant, y, wp.y);
           vec3 dir = normalize(vec3(slant, -1.0, 0.0));
           float len = (0.55 + 0.35*fract(aData.z*7.13)) * (0.8 + 0.4*uSpeed);
           vec3 tail = pos - dir*len;
@@ -114,6 +120,7 @@ export function createParticles(parent, occluders) {
         attribute vec4 aData; attribute vec3 aCol;
         uniform float uTime, uPx, uAmt, uWind, uSize, uFall, uSway, uSpin, uH, uLift; varying vec2 vUv; varying vec3 vCol; varying float vA;
         ${BOX_GLSL}
+        ${WRAP}
         void main(){
           float rnd = fract(aData.x*5.13 + aData.y*9.71 + aData.w*3.3);
           float vis = step(rnd, uAmt);
@@ -121,7 +128,8 @@ export function createParticles(parent, occluders) {
           float spd = uFall*(0.55 + 0.9*aData.z);
           float y = uLift + H - mod(aData.w*H + uTime*spd, H);
           float ph = aData.w*40.0;
-          vec3 pos = vec3(aData.x + sin(uTime*0.55 + ph)*uSway + (H-y)*uWind*0.6, y, aData.y + cos(uTime*0.43 + ph*1.3)*uSway);
+          vec2 wp = wrapXZ(aData.xy);
+          vec3 pos = vec3(wp.x + sin(uTime*0.55 + ph)*uSway + (H-y)*uWind*0.6, y, wp.y + cos(uTime*0.43 + ph*1.3)*uSway);
           vis *= step(0.2, y) * (1.0 - roofHidden(pos, pos.y));
           vec4 mv = modelViewMatrix*vec4(pos,1.0);
           float ang = ph + uTime*uSpin*(0.6 + aData.z);
@@ -156,129 +164,11 @@ export function createParticles(parent, occluders) {
   sys.confetti = sprite({ N: 260, size: 0.055, fall: 0.55, sway: 1.1, spin: 2.4, shape: 3, palette: ['#e0343a', '#ffffff', '#ffd24a', '#e0343a', '#ffb347'], H: 9 });
   sys.motes = sprite({ N: 220, size: 0.05, fall: 0.09, sway: 1.5, spin: 0, shape: 0, palette: ['#ffffff', '#fff2dc'], H: 7, yLift: 0.5 });
 
-  /* ------------------------------------------------------------ litter lying on the ground (petals / leaves) */
-  {
-    const N = 420;
-    const R = rng(8801);
-    const zones = [
-      [4.9, 7.2, -6.5, 5.6, 0.152], // east pavement
-      [-5.6, 0.4, 2.8, 5.6, 0.152], // parking lot
-      [-5.6, 4.4, 1.6, 2.7, 0.152], // shop apron
-      [-8.3, -5.7, -7.0, 4.5, 0.152], // alley
-      [-8.4, 4.8, -9.8, -7.6, 0.152], // lawn under the trees
-      [-11.5, -8.6, 4.4, 5.6, 0.152], // front yard of the izakaya
-      [-5.8, 4.6, -7.0, -4.8, 0.152], // back yard
-    ];
-    const areas = zones.map((z) => (z[1] - z[0]) * (z[3] - z[2]));
-    const total = areas.reduce((a, b) => a + b, 0);
-    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    const rand = new Float32Array(N);
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial(), N);
-    const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    for (let i = 0; i < N; i++) {
-      let r = R() * total, zi = 0;
-      while (r > areas[zi]) { r -= areas[zi]; zi++; }
-      const z = zones[zi];
-      e.set(0, R() * 6.28, 0);
-      q.setFromEuler(e);
-      const s = 0.1 + R() * 0.1;
-      mtx.compose(new THREE.Vector3(z[0] + R() * (z[1] - z[0]), z[4] + 0.004, z[2] + R() * (z[3] - z[2])), q, new THREE.Vector3(s, 1, s * (0.55 + R() * 0.3)));
-      im.setMatrixAt(i, mtx);
-      rand[i] = R();
-    }
-    im.geometry = geo.clone();
-    im.geometry.setAttribute('aRand', new THREE.InstancedBufferAttribute(rand, 1));
-    const u = { uAmt: { value: 0 }, uKind: { value: 0 }, uBright: { value: 1 } };
-    im.material = new THREE.ShaderMaterial({
-      uniforms: u,
-      vertexShader: /* glsl */ `
-        attribute float aRand; uniform float uAmt; varying float vR; varying vec2 vUv;
-        void main(){
-          vR = aRand; vUv = uv;
-          float vis = step(aRand, uAmt);
-          vec3 p = position * vis;
-          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
-        }`,
-      fragmentShader: /* glsl */ `
-        uniform float uKind; uniform float uBright; varying float vR; varying vec2 vUv;
-        void main(){
-          vec2 p = vUv - 0.5;
-          float a = smoothstep(0.5, 0.25, length(vec2(p.x/0.5, p.y/0.36)));
-          if(a < 0.05) discard;
-          vec3 pet = mix(vec3(1.0,0.78,0.86), vec3(0.96,0.6,0.76), fract(vR*7.0));
-          float k = fract(vR*5.0);
-          vec3 lef = k < 0.25 ? vec3(0.82,0.42,0.1) : k < 0.5 ? vec3(0.7,0.2,0.1) : k < 0.75 ? vec3(0.9,0.64,0.16) : vec3(0.48,0.3,0.12);
-          gl_FragColor = vec4((fract(vR*13.7) < uKind ? lef : pet) * uBright, a);
-        }`,
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-    });
-    im.userData.noLine = true;
-    im.frustumCulled = false;
-    reg.noRefl.push(im);
-    parent.add(im);
-    sys.litter = { mesh: im, u, N };
-  }
-
-  /* ------------------------------------------------------------ petal / leaf / snow piles (mounds) */
-  {
-    const spots = [
-      // [x, z, radius] visible kerbside, corners, tree feet, doorways
-      [6.7, -4.3, 0.55], [6.2, 0.9, 0.45], [7.15, -2.4, 0.4], [7.1, 3.3, 0.5], [5.2, 4.7, 0.5], [4.6, 2.65, 0.4], [-5.4, 2.3, 0.45],
-      [0.2, 5.5, 0.5], [-5.6, 3.0, 0.4], [-1.0, 6.0, 0.55], [3.0, 6.05, 0.5], [-7.0, 5.1, 0.5], [-8.2, 3.6, 0.4], [-6.3, -1.3, 0.35],
-      [-11.4, 5.0, 0.5], [-9.0, 5.2, 0.4], [-2.2, 1.7, 0.4], [4.4, -4.7, 0.45],
-      [-6.5, -8.0, 0.6], [-3.5, -7.9, 0.55], [-0.4, -8.0, 0.6], [2.6, -7.9, 0.55], [5.0, -8.0, 0.5], [-8.2, -7.9, 0.5],
-    ];
-    const R = rng(5150);
-    const geo = new THREE.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-    const rand = new Float32Array(spots.length);
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial(), spots.length);
-    const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    spots.forEach(([x, z, r], i) => {
-      e.set(0, R() * 6.28, 0); q.setFromEuler(e);
-      mtx.compose(new THREE.Vector3(x, 0.15, z), q, new THREE.Vector3(r * (1.0 + R() * 0.5), r * (0.22 + R() * 0.12), r * (0.8 + R() * 0.4)));
-      im.setMatrixAt(i, mtx);
-      rand[i] = (i % 5) / 5 * 0.7 + R() * 0.3; // appears progressively as the amount grows
-    });
-    im.geometry = geo.clone();
-    im.geometry.setAttribute('aRand', new THREE.InstancedBufferAttribute(rand, 1));
-    const u = { uW: { value: new THREE.Vector3() }, uL: { value: new THREE.Vector3(0.3, 0.9, 0.3) }, uBright: { value: 1 } };
-    im.material = new THREE.ShaderMaterial({
-      uniforms: u,
-      vertexShader: /* glsl */ `
-        attribute float aRand; uniform vec3 uW; varying vec3 vN; varying vec3 vP;
-        void main(){
-          float amt = max(uW.x, max(uW.y, uW.z));
-          float vis = smoothstep(aRand - 0.2, aRand + 0.02, amt);
-          mat3 m = mat3(normalize(instanceMatrix[0].xyz), normalize(instanceMatrix[1].xyz), normalize(instanceMatrix[2].xyz));
-          vN = m * normal;
-          vec4 w = instanceMatrix * vec4(position * vis, 1.0);
-          vP = w.xyz;
-          gl_Position = projectionMatrix * viewMatrix * w;
-        }`,
-      fragmentShader: /* glsl */ `
-        uniform vec3 uW; uniform vec3 uL; uniform float uBright; varying vec3 vN; varying vec3 vP;
-        float h2(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-        void main(){
-          float n = h2(floor(vP.xz * 46.0 + vP.y * 20.0)); float n2 = h2(floor(vP.xz * 23.0));
-          vec3 pet = mix(vec3(1.0, 0.72, 0.82), vec3(1.0, 0.94, 0.96), n); pet = mix(pet, vec3(0.9, 0.45, 0.62), step(0.86, n2) * 0.6);
-          vec3 lef = n < 0.28 ? vec3(0.85, 0.42, 0.1) : n < 0.52 ? vec3(0.65, 0.2, 0.1) : n < 0.78 ? vec3(0.92, 0.66, 0.16) : vec3(0.42, 0.27, 0.12);
-          vec3 snw = mix(vec3(0.86, 0.9, 0.99), vec3(1.0), n) * (0.92 + 0.08 * step(0.97, n2));
-          float tot = max(uW.x + uW.y + uW.z, 1e-3);
-          vec3 col = (pet * uW.x + lef * uW.y + snw * uW.z) / tot;
-          float l = 0.32 + 0.68 * max(dot(normalize(vN), normalize(uL)), 0.0);
-          gl_FragColor = vec4(col * l * uBright, 1.0);
-        }`,
-    });
-    im.userData.noLine = true;
-    im.frustumCulled = false;
-    im.receiveShadow = false;
-    reg.noRefl.push(im);
-    parent.add(im);
-    sys.piles = { mesh: im, u, apply: (p) => { u.uW.value.set(p.pilePetal, p.pileLeaf, p.pileSnow); u.uBright.value = p.pileBright; u.uL.value.copy(p.lightDir); im.visible = p.pilePetal + p.pileLeaf + p.pileSnow > 0.01; } };
-  }
+  /* ------------------------------------------------------------ ground accumulation (snow drifts, leaf / petal piles)
+     generated from wind "collectors" with a seeded layout - see groundPiles.js */
+  sys.piles = createGroundPiles(parent);
+  // (the old uniformly scattered litter is now part of the piles' loose flakes; the handle stays for env.js)
+  sys.litter = { u: { uAmt: { value: 0 }, uKind: { value: 0 }, uBright: { value: 1 } } };
 
   /* ------------------------------------------------------------ control */
   sys.setDensity = (f) => {
@@ -289,6 +179,8 @@ export function createParticles(parent, occluders) {
     sys.confetti.mesh.geometry.instanceCount = Math.max(1, Math.floor(sys.confetti.N * Math.max(0.4, f)));
     sys.motes.mesh.geometry.instanceCount = Math.max(1, Math.floor(sys.motes.N * Math.max(0.4, f)));
   };
+  /** follow the camera: x, z = centre of the wrapped volume, span = its size (bigger = sparser, for wide views) */
+  sys.setCenter = (x, z, span = 26) => { common.uC.value.set(x, z); common.uSpan.value = span; };
   /** p: { rain, wind, speed, rainCol, rainAlpha, snow, petal, leaf, litterAmt, litterKind, bright } */
   sys.apply = (t, p) => {
     const px = reg.pxPerUnit || 0.001;
@@ -323,9 +215,8 @@ export function createParticles(parent, occluders) {
     sys.motes.mesh.visible = p.motes > 0.005;
     sys.litter.u.uAmt.value = p.litterAmt;
     sys.litter.u.uKind.value = p.litterKind;
-    sys.litter.u.uBright.value = p.bright;
-    sys.litter.mesh.visible = p.litterAmt > 0.005;
-    sys.piles.apply(p);
+    sys.piles.apply(p, Math.min(0.1, Math.max(0, t - (sys._t ?? t))));
+    sys._t = t;
   };
   return sys;
 }

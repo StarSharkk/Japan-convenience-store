@@ -82,6 +82,8 @@ export function createSky(scene) {
   mesh.renderOrder = -1000;
   mesh.frustumCulled = false;
   mesh.userData.noLine = true;
+  // the dome is centred on whichever camera renders it (main or reflection), so it is never clipped by the far plane
+  mesh.onBeforeRender = (r, sc, cam) => { mesh.position.copy(cam.position); mesh.updateMatrixWorld(); };
   scene.add(mesh);
   return { mesh, u };
 }

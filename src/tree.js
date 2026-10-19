@@ -28,7 +28,8 @@ export const SEASON_U = {
 
 /** every leaf InstancedMesh (so the quality setting can thin them) */
 export const FOLIAGE = [];
-export function setFoliageDensity(f) { FOLIAGE.forEach((m) => (m.count = Math.max(1, Math.floor(m.userData.total * f)))); }
+export function setFoliageDensity(f) { FOLIAGE.density = f; FOLIAGE.forEach((m) => (m.count = Math.max(1, Math.floor(m.userData.total * f * (m.userData.lod ?? 1))))); }
+FOLIAGE.density = 1;
 
 function leafMaterial(blossom, dropK) {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: RAMP, side: THREE.DoubleSide, emissive: '#0a241d' });
@@ -261,7 +262,7 @@ function crownCore(R, center, rx, ry, rz, color) {
 }
 
 /* ---------------------------------------------------------------- tree */
-export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, palette = 'deep', dens = 1, leafScale = 1, fill = 1, blossom = 0 } = {}) {
+export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, palette = 'deep', dens = 1, leafScale = 1, fill = 1, blossom = 0, evergreen = false } = {}) {
   const R = rng(seed * 7919 + 11);
   const root = new THREE.Group();
   const jitter = (a) => (R() - 0.5) * 2 * a;
@@ -362,7 +363,7 @@ export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, pa
     const c = new THREE.Vector3(cen.x + Math.cos(a) * half.x * 0.7, mn.y + baseR * 0.55, cen.z + Math.sin(a) * half.z * 0.7);
     place(c, baseR * (0.6 + R() * 0.25), null);
   }
-  root.add(F.mesh(true, blossom, 1));
+  root.add(F.mesh(true, blossom, evergreen ? 0.12 : 1)); // evergreens keep most leaves in winter
   // NOTE: no solid crown core any more - it showed through as big flat dark lumps. Depth now comes only
   // from real leaves (dark inner masses + bright outer masses).
   root.userData.leafCount = F.leaves.length;
