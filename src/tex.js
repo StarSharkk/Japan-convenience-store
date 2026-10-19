@@ -247,7 +247,7 @@ export function floorTex(W, H) {
       // scuffs
       const R = rng(5);
       for (let i = 0; i < 1800; i++) { g.fillStyle = `rgba(120,110,90,${R() * 0.06})`; g.fillRect(R() * w, R() * h, 3 + R() * 10, 2); }
-    }, { aniso: 8 })
+    }, { aniso: 16, scale: 1.5 })
   );
 }
 

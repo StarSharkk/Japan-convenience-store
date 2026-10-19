@@ -26,15 +26,16 @@ function drawGround(g) {
 
   /* ---- asphalt ---- */
   rect(-12, 12, -12, 12, '#1b2133');
-  for (let i = 0; i < 90; i++) {
+  // large soft tonal drifts only (no per-pixel grain: it reads as low-res noise, not as vector paint)
+  for (let i = 0; i < 40; i++) {
     const x = -12 + R() * 24, z = -12 + R() * 24;
-    g.fillStyle = `rgba(${R() < 0.5 ? '255,255,255' : '0,0,10'},${0.02 + R() * 0.035})`;
-    g.fillRect(X(x), Z(z), (0.6 + R() * 3.2) * K, (0.5 + R() * 2.6) * K);
-  }
-  for (let i = 0; i < 260000; i++) {
-    const v = R();
-    g.fillStyle = v < 0.5 ? `rgba(255,255,255,${0.04 + R() * 0.09})` : `rgba(0,0,12,${0.08 + R() * 0.15})`;
-    g.fillRect(R() * S, R() * S, 1 + (R() < 0.3 ? 1 : 0), 1 + (R() < 0.3 ? 1 : 0));
+    const rr = (1.5 + R() * 4) * K;
+    const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), rr);
+    const c = R() < 0.5 ? '255,255,255' : '0,0,14';
+    gr.addColorStop(0, `rgba(${c},${0.035 + R() * 0.03})`);
+    gr.addColorStop(1, `rgba(${c},0)`);
+    g.fillStyle = gr;
+    g.fillRect(X(x) - rr, Z(z) - rr, rr * 2, rr * 2);
   }
 
   /* ---- plot (raised pavement) ---- */
@@ -82,10 +83,6 @@ function drawGround(g) {
 
   // parking lot
   rect(-5.75, 0.55, 2.75, 5.75, '#242b3e');
-  for (let i = 0; i < 50000; i++) {
-    g.fillStyle = R() < 0.5 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,10,0.2)';
-    g.fillRect(X(-5.75) + R() * 6.3 * K, Z(2.75) + R() * 3 * K, 1.5, 1.5);
-  }
   g.fillStyle = 'rgba(0,0,0,0)';
   const stall = ['-5.75', '-4.05', '-2.35', '-0.65', '0.55'];
   stall.forEach((s) => line(+s, 2.9, +s, 5.6, '#cfd6e6', 0.07));
@@ -274,8 +271,8 @@ function drawMask(g, w, h) {
 /* ------------------------------------------------------------------ material */
 export function createGround(renderer, refl) {
   const maxA = renderer.capabilities.getMaxAnisotropy();
-  const groundTex = canvasTex(S, S, drawGround, { aniso: maxA });
-  const maskTex = canvasTex(1536, 1536, drawMask, { aniso: 4, linear: true });
+  const groundTex = canvasTex(S, S, drawGround, { aniso: maxA, scale: 4096 / S });
+  const maskTex = canvasTex(1536, 1536, drawMask, { aniso: 4, linear: true, scale: 4/3 });
 
   const uniforms = {
     tRefl: { value: refl.rt.texture },
@@ -307,7 +304,7 @@ vec3 ripLayer(vec2 p, float t, float cell, float seed){
   float ph = fract(t/per + h2);
   vec2 c = vec2(0.4+0.2*gh21(id+seed+3.1), 0.4+0.2*gh21(id+seed+9.7));
   vec2 d = (f - c)*cell; float dist = length(d);
-  float R = ph*cell*0.38; float w = 0.035 + ph*0.012;
+  float R = ph*cell*0.38; float w = 0.035 + ph*0.012 + fwidth(dist)*1.1;
   float ring = smoothstep(w, 0.0, abs(dist-R)) * (1.0-ph)*(1.0-ph) * step(0.3, h);
   return vec3(ring, d/(dist+1e-4)*ring);
 }

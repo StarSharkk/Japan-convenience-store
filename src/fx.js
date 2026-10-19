@@ -109,9 +109,9 @@ export function createRain(parent, occluders) {
     hs.push(o ? o[4] : 0);
   }
   const m = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uBoxes: { value: boxes }, uBoxH: { value: hs } },
+    uniforms: { uTime: { value: 0 }, uBoxes: { value: boxes }, uBoxH: { value: hs }, uPx: { value: 0.001 } },
     vertexShader: /* glsl */ `
-      attribute vec4 aData; uniform float uTime; uniform vec4 uBoxes[8]; uniform float uBoxH[8];
+      attribute vec4 aData; uniform float uTime; uniform vec4 uBoxes[8]; uniform float uBoxH[8]; uniform float uPx;
       varying float vA;
       void main(){
         float H = 18.0;
@@ -126,9 +126,11 @@ export function createRain(parent, occluders) {
         vec4 pt = modelViewMatrix*vec4(tail,1.0);
         vec3 d = normalize(pt.xyz-ph.xyz);
         vec3 side = normalize(cross(d, normalize(ph.xyz)));
-        vec3 vp = mix(ph.xyz, pt.xyz, uv.y*0.0 + (position.y*-1.0)) + side*position.x*0.02;
+        // streak is never thinner than ~1.4 device px, otherwise it shimmers/aliases at distance
+        float wd = max(0.02, uPx * (-ph.z) * 1.4);
+        vec3 vp = mix(ph.xyz, pt.xyz, uv.y*0.0 + (position.y*-1.0)) + side*position.x*wd;
         gl_Position = projectionMatrix*vec4(vp,1.0);
-        vA = vis*(1.0+position.y)*0.62;  // tail fades out
+        vA = vis*(1.0+position.y)*0.62*clamp(0.02/wd*1.0, 0.35, 1.0);  // tail fades out
       }`,
     fragmentShader: /* glsl */ `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.72,0.86,1.0)*1.5, vA*0.42); }`,
     transparent: true,
@@ -140,7 +142,7 @@ export function createRain(parent, occluders) {
   mesh.userData.noLine = true;
   parent.add(mesh);
   reg.noRefl.push(mesh);
-  reg.updaters.push((t) => (m.uniforms.uTime.value = t));
+  reg.updaters.push((t) => { m.uniforms.uTime.value = t; if (reg.pxPerUnit) m.uniforms.uPx.value = reg.pxPerUnit; });
   return mesh;
 }
 

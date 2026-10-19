@@ -22,9 +22,9 @@ export function buildWorld(scene, renderer, refl) {
   const moon = new THREE.DirectionalLight(0x93a8e8, 1.5);
   moon.position.set(-13, 21, 15);
   moon.castShadow = true;
-  moon.shadow.mapSize.set(2048, 2048);
+  moon.shadow.mapSize.set(4096, 4096);
   const sc = moon.shadow.camera;
-  sc.left = -20; sc.right = 20; sc.top = 20; sc.bottom = -20; sc.near = 1; sc.far = 70;
+  sc.left = -17; sc.right = 17; sc.top = 17; sc.bottom = -17; sc.near = 1; sc.far = 70;
   moon.shadow.bias = -0.0006;
   moon.shadow.normalBias = 0.03;
   scene.add(moon);

@@ -18,7 +18,7 @@ export class PlanarReflection {
     this.plane = new THREE.Plane();
     this.clip = new THREE.Vector4();
     this.q = new THREE.Vector4();
-    this.scale = 0.5;
+    this.scale = 0.75;
   }
   setSize(w, h) {
     this.rt.setSize(Math.max(2, Math.floor(w * this.scale)), Math.max(2, Math.floor(h * this.scale)));
@@ -99,7 +99,8 @@ class ScenePass extends Pass {
     this.needsSwap = false;
     this.noLine = [];
     this.nmat = new THREE.ShaderMaterial({ vertexShader: NORMAL_VS, fragmentShader: NORMAL_FS, side: THREE.DoubleSide });
-    this.nrt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    // MSAA + linear filtering: the edge detector then sees sub-pixel coverage, so ink lines come out anti-aliased
+    this.nrt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
     this.nrt.texture.colorSpace = THREE.LinearSRGBColorSpace;
     this._c = new THREE.Color();
   }
@@ -141,50 +142,63 @@ class ScenePass extends Pass {
   }
 }
 
-/* ------------------------------------------------------------------ outline / grading */
+/* ------------------------------------------------------------------ ink lines / grading */
 const OutlineShader = {
   uniforms: {
     tDiffuse: { value: null },
     tNormal: { value: null },
     uTexel: { value: new THREE.Vector2(1, 1) },
-    uWidth: { value: 1.0 },
-    uTime: { value: 0 },
+    uOffD: { value: 1.0 }, // silhouette ink half-width (physical px)
+    uOffN: { value: 0.7 }, // crease ink half-width (physical px)
   },
   vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: /* glsl */ `
-  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uWidth;
+  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN;
   varying vec2 vUv;
-  vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.001) c.a = 400.0; return c; }
+  vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.02) c.a = 400.0; return c; }
   vec3 dec(vec4 c){ return normalize(c.rgb*2.0-1.0 + 1e-5); }
+  // 8-tap ring so the ink line is round (no axis-aligned stair-stepping)
+  const vec2 DIRS[8] = vec2[8](vec2(1,0), vec2(-1,0), vec2(0,1), vec2(0,-1), vec2(.7071,.7071), vec2(-.7071,-.7071), vec2(.7071,-.7071), vec2(-.7071,.7071));
   void main(){
     vec4 base = texture2D(tDiffuse, vUv);
-    vec2 o = uTexel * uWidth;
     vec4 c0 = S(vUv);
-    vec4 c1 = S(vUv + vec2(o.x,0.)); vec4 c2 = S(vUv - vec2(o.x,0.));
-    vec4 c3 = S(vUv + vec2(0.,o.y)); vec4 c4 = S(vUv - vec2(0.,o.y));
     float d0 = c0.a;
-    // depth: second derivative, relative to distance
-    float lap = abs(c1.a + c2.a - 2.0*d0) + abs(c3.a + c4.a - 2.0*d0);
-    float dEdge = smoothstep(0.0055, 0.016, lap / d0);
-    // normal: compare to neighbours
     vec3 n0 = dec(c0);
-    float nd = (1.0 - dot(n0, dec(c1))) + (1.0 - dot(n0, dec(c2))) + (1.0 - dot(n0, dec(c3))) + (1.0 - dot(n0, dec(c4)));
-    // ignore normal edges between bg pixels
-    float bgMask = (c0.a > 300.0 && c1.a > 300.0 && c2.a > 300.0 && c3.a > 300.0 && c4.a > 300.0) ? 0.0 : 1.0;
-    float nEdge = smoothstep(0.35, 0.9, nd) * bgMask;
-    float e = max(dEdge, nEdge);
-    e *= mix(1.0, 0.55, smoothstep(34.0, 80.0, d0));
+    float lap = 0.0, nd = 0.0; float bgAll = 1.0;
+    for(int i=0;i<8;i+=2){
+      vec4 a = S(vUv + DIRS[i]*uTexel*uOffD);
+      vec4 a2 = S(vUv + DIRS[i+1]*uTexel*uOffD);
+      vec4 b = S(vUv + DIRS[i]*uTexel*uOffN);
+      vec4 b2 = S(vUv + DIRS[i+1]*uTexel*uOffN);
+      lap += abs(a.a + a2.a - 2.0*d0);          // second derivative: flat/grazing planes give ~0
+      nd += (1.0 - dot(n0, dec(b))) + (1.0 - dot(n0, dec(b2)));
+      if(a.a < 300.0 || a2.a < 300.0) bgAll = 0.0;
+    }
+    float dEdge = smoothstep(0.0055, 0.02, lap / (4.0 * d0) * 2.0);
+    float bgMask = (c0.a > 300.0 && bgAll > 0.5) ? 0.0 : 1.0;
+    float nEdge = smoothstep(0.55, 1.5, nd) * bgMask;
+    float e = max(dEdge, nEdge * 0.85);
+    e *= mix(1.0, 0.5, smoothstep(34.0, 90.0, d0));
     vec3 col = base.rgb;
-    vec3 lc = clamp(col, 0.0, 1.0) * 0.12 + vec3(0.012, 0.016, 0.045);
-    col = mix(col, lc, e * 0.92);
-    // gentle grade: cool shadows, a touch of contrast
+    // ink colour: deep tinted version of the local paint, like hand-inked vector linework
+    vec3 lc = clamp(col, 0.0, 1.0) * 0.14 + vec3(0.012, 0.016, 0.048);
+    col = mix(col, lc, e * 0.94);
     float l = dot(col, vec3(0.299,0.587,0.114));
     col = mix(col, col * vec3(0.94, 0.97, 1.08), (1.0 - smoothstep(0.0, 0.5, l)) * 0.6);
-    // vignette
     vec2 vv = vUv - 0.5;
-    col *= 1.0 - dot(vv, vv) * 0.42;
+    col *= 1.0 - dot(vv, vv) * 0.4;
     gl_FragColor = vec4(col, base.a);
   }`,
+};
+
+// last pass: 8-bit dither so the dark navy gradients never band
+const DitherShader = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: OutlineShader.vertexShader,
+  fragmentShader: /* glsl */ `
+  uniform sampler2D tDiffuse; varying vec2 vUv;
+  float h(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+  void main(){ vec4 c = texture2D(tDiffuse, vUv); c.rgb += (h(gl_FragCoord.xy) + h(gl_FragCoord.xy + 17.0) - 1.0) / 255.0; gl_FragColor = c; }`,
 };
 
 export function createPipeline(renderer, scene, camera) {
@@ -203,6 +217,7 @@ export function createPipeline(renderer, scene, camera) {
   bloom.setSize = (w, h) => bloomSetSize(Math.max(2, w >> 1), Math.max(2, h >> 1));
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+  composer.addPass(new ShaderPass(DitherShader));
 
   function resize(w, h, pr) {
     composer.setPixelRatio(pr);
@@ -212,7 +227,9 @@ export function createPipeline(renderer, scene, camera) {
     scenePass.setSize(bw, bh);
     refl.setSize(bw, bh);
     outline.material.uniforms.uTexel.value.set(1 / bw, 1 / bh);
-    outline.material.uniforms.uWidth.value = Math.max(1.0, Math.min(2.2, bh / 760));
+    // ink weight is defined in CSS pixels, so it looks the same on 1x, 2x and adaptive-scaled canvases
+    outline.material.uniforms.uOffD.value = 0.8 * pr;
+    outline.material.uniforms.uOffN.value = 0.55 * pr;
     bloom.resolution.set(bw, bh);
   }
   return { composer, refl, scenePass, outline, bloom, resize };

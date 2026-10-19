@@ -26,9 +26,26 @@ export function rng(seed = 1) {
 }
 
 /* ------------------------------------------------------------------ toon ramp */
-const rampData = new Uint8Array([78, 158, 222, 255]);
-export const RAMP = new THREE.DataTexture(rampData, 4, 1, THREE.RedFormat);
-RAMP.minFilter = RAMP.magFilter = THREE.NearestFilter;
+// Cel ramp with *smooth* band edges (linear filtered, 256 texels). A 4-texel NEAREST ramp makes every
+// light pool / shadow terminator a hard 1-pixel step, i.e. real shader aliasing; this keeps the same
+// four tones but anti-aliases the transitions like a vector gradient stop.
+const RAMP_LEVELS = [0.3, 0.62, 0.86, 1.0];
+const RAMP_EDGES = [0.25, 0.5, 0.75];
+const RAMP_W = 0.035;
+const rampData = new Uint8Array(256);
+for (let i = 0; i < 256; i++) {
+  const x = i / 255;
+  let v = RAMP_LEVELS[0];
+  RAMP_EDGES.forEach((e, k) => {
+    const t = Math.min(1, Math.max(0, (x - (e - RAMP_W)) / (2 * RAMP_W)));
+    v += (RAMP_LEVELS[k + 1] - RAMP_LEVELS[k]) * (t * t * (3 - 2 * t));
+  });
+  rampData[i] = Math.round(v * 255);
+}
+export const RAMP = new THREE.DataTexture(rampData, 256, 1, THREE.RedFormat);
+RAMP.minFilter = RAMP.magFilter = THREE.LinearFilter;
+RAMP.wrapS = RAMP.wrapT = THREE.ClampToEdgeWrapping;
+RAMP.generateMipmaps = false;
 RAMP.needsUpdate = true;
 
 /* ------------------------------------------------------------------ materials */
@@ -165,14 +182,19 @@ export function grp(parent, x = 0, y = 0, z = 0, ry = 0) {
 
 /* ------------------------------------------------------------------ textures */
 export function canvasTex(w, h, draw, o = {}) {
+  // Every procedural texture is painted at up to 2x its logical size (4096 px cap). Draw callbacks keep
+  // using logical coordinates; the context is scaled, so signs/posters/road paint stay crisp when zoomed in.
+  const s = o.scale ?? Math.min(2, 4096 / Math.max(w, h));
   const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
+  c.width = Math.round(w * s);
+  c.height = Math.round(h * s);
   const g = c.getContext('2d');
+  g.scale(c.width / w, c.height / h);
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = o.linear ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-  t.anisotropy = o.aniso ?? 8;
+  t.anisotropy = o.aniso ?? 16;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
   if (o.repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (o.nearest) t.magFilter = THREE.NearestFilter;
   t.needsUpdate = true;

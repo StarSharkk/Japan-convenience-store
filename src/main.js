@@ -6,9 +6,12 @@ import { buildWorld } from './world.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
-const LEVELS = [0.7, 0.85, 1, 1.25, 1.5, 1.75, 2].filter((l) => l <= DPR + 0.01);
-let lvl = Math.min(LEVELS.length - 1, LEVELS.findIndex((l) => l >= Math.min(DPR, 1.25)));
-if (lvl < 0) lvl = LEVELS.length - 1;
+// Render at the display's native density. The old code started at 1.25x and up-scaled it with the browser's
+// bilinear filter on retina screens, which is what made lines look soft / low-res. Resolution is now only
+// reduced as an emergency brake (<30 fps) and never below 1x unless the display itself is below 1x.
+const LEVELS = [1, 1.25, 1.5, 1.75, 2].filter((l) => l <= DPR + 0.01);
+if (!LEVELS.length) LEVELS.push(DPR);
+let lvl = LEVELS.length - 1;
 let PR = LEVELS[lvl];
 renderer.setPixelRatio(PR);
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -94,6 +97,7 @@ function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setPixelRatio(PR);
   renderer.setSize(w, h);
+  reg.pxPerUnit = (2 * Math.tan((30 * Math.PI) / 360)) / (h * PR);
   camera.aspect = w / h;
   sph.radius = BASE_R * Math.max(1, 1.5 / camera.aspect); // keep the whole diorama in frame on narrow windows
   camera.updateProjectionMatrix();
@@ -111,7 +115,7 @@ function adapt(dt, t) {
   const fps = perf.n / perf.acc;
   perf.acc = 0; perf.n = 0;
   if (t < 2.5) return;
-  if (fps < 40 && lvl > 0) {
+  if (fps < 30 && lvl > 0) {
     perf.fail.set(lvl, t);
     lvl--; perf.good = 0;
     PR = LEVELS[lvl]; onResize();

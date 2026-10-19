@@ -173,7 +173,7 @@ function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
   return p;
 }
 
-function wire(parent, a, b, sag = 0.5, r = 0.011) {
+function wire(parent, a, b, sag = 0.5, r = 0.017) {
   const pts = [];
   for (let i = 0; i <= 10; i++) {
     const t = i / 10;
@@ -528,12 +528,12 @@ export function buildStreet(parent, drips) {
   wire(g, [7.0, top(U[0]) - 0.95, 4.3], [-1.8, top(U[3]) - 0.95, 6.05], 1.0);
   wire(g, [6.2, top(U[0]) - 0.15, 4.3], [-1.8, top(U[3]) - 0.15, 5.25], 1.2);
   // service drop to the store roof
-  wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.01);
-  wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.01);
+  wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.015);
+  wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.015);
   // drop to the neighbour house
-  wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 3.6], 0.5, 0.01);
+  wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 3.6], 0.5, 0.015);
   // stray crossing wire at the alley
-  wire(g, [-8.5, 5.4, 3.0], [-5.5, 5.0, 3.0], 0.4, 0.008);
+  wire(g, [-8.5, 5.4, 3.0], [-5.5, 5.0, 3.0], 0.4, 0.013);
 
   /* ---- traffic signals ---- */
   const near = mastSignals(g, 7.2, 6.0, 3.6, 4.7, [1.0, 2.5, 3.5], 'near');
