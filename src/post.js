@@ -1,0 +1,219 @@
+import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { reg } from './core.js';
+
+/* ------------------------------------------------------------------ planar reflection (y = 0) */
+export class PlanarReflection {
+  constructor() {
+    this.rt = new THREE.WebGLRenderTarget(512, 512, { type: THREE.HalfFloatType, samples: 0 });
+    this.rt.texture.colorSpace = THREE.LinearSRGBColorSpace;
+    this.cam = new THREE.PerspectiveCamera();
+    this.texMat = new THREE.Matrix4();
+    this.n = new THREE.Vector3(0, 1, 0);
+    this.P = new THREE.Vector3(0, 0, 0);
+    this.plane = new THREE.Plane();
+    this.clip = new THREE.Vector4();
+    this.q = new THREE.Vector4();
+    this.scale = 0.5;
+  }
+  setSize(w, h) {
+    this.rt.setSize(Math.max(2, Math.floor(w * this.scale)), Math.max(2, Math.floor(h * this.scale)));
+  }
+  render(renderer, scene, camera, hide) {
+    const { n, P, cam, plane, clip, q } = this;
+    const camPos = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+    const view = new THREE.Vector3().subVectors(P, camPos);
+    if (view.dot(n) > 0) return;
+    view.reflect(n).negate().add(P);
+    const rot = new THREE.Matrix4().extractRotation(camera.matrixWorld);
+    const look = new THREE.Vector3(0, 0, -1).applyMatrix4(rot).add(camPos);
+    const target = new THREE.Vector3().subVectors(P, look).reflect(n).negate().add(P);
+    cam.position.copy(view);
+    cam.up.set(0, 1, 0).applyMatrix4(rot).reflect(n);
+    cam.lookAt(target);
+    cam.far = camera.far;
+    cam.near = camera.near;
+    cam.updateMatrixWorld();
+    cam.projectionMatrix.copy(camera.projectionMatrix);
+
+    this.texMat.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
+    this.texMat.multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
+
+    plane.setFromNormalAndCoplanarPoint(n, P).applyMatrix4(cam.matrixWorldInverse);
+    clip.set(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
+    const pm = cam.projectionMatrix;
+    q.x = (Math.sign(clip.x) + pm.elements[8]) / pm.elements[0];
+    q.y = (Math.sign(clip.y) + pm.elements[9]) / pm.elements[5];
+    q.z = -1.0;
+    q.w = (1.0 + pm.elements[10]) / pm.elements[14];
+    clip.multiplyScalar(2.0 / clip.dot(q));
+    pm.elements[2] = clip.x;
+    pm.elements[6] = clip.y;
+    pm.elements[10] = clip.z + 1.0 - 0.002;
+    pm.elements[14] = clip.w;
+
+    hide.forEach((o) => (o.visible = false));
+    const prevRT = renderer.getRenderTarget();
+    const sa = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.setRenderTarget(this.rt);
+    renderer.clear(true, true, true);
+    renderer.render(scene, cam);
+    renderer.shadowMap.autoUpdate = sa;
+    renderer.setRenderTarget(prevRT);
+    hide.forEach((o) => (o.visible = true));
+  }
+}
+
+/* ------------------------------------------------------------------ scene + normal/depth pass */
+const NORMAL_VS = /* glsl */ `
+varying vec3 vN;
+varying float vZ;
+void main(){
+  #include <beginnormal_vertex>
+  #include <defaultnormal_vertex>
+  #include <begin_vertex>
+  #include <project_vertex>
+  vN = normalize(transformedNormal);
+  vZ = -mvPosition.z;
+}`;
+const NORMAL_FS = /* glsl */ `
+varying vec3 vN;
+varying float vZ;
+void main(){
+  vec3 n = normalize(vN);
+  if(!gl_FrontFacing) n = -n;
+  gl_FragColor = vec4(n*0.5+0.5, vZ);
+}`;
+
+class ScenePass extends Pass {
+  constructor(scene, camera, refl) {
+    super();
+    this.scene = scene;
+    this.camera = camera;
+    this.refl = refl;
+    this.needsSwap = false;
+    this.noLine = [];
+    this.nmat = new THREE.ShaderMaterial({ vertexShader: NORMAL_VS, fragmentShader: NORMAL_FS, side: THREE.DoubleSide });
+    this.nrt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    this.nrt.texture.colorSpace = THREE.LinearSRGBColorSpace;
+    this._c = new THREE.Color();
+  }
+  collect() {
+    this.noLine = [];
+    this.scene.traverse((o) => {
+      if (o.userData && o.userData.noLine) this.noLine.push(o);
+    });
+  }
+  setSize(w, h) {
+    this.nrt.setSize(w, h);
+  }
+  render(renderer, writeBuffer, readBuffer) {
+    const { scene, camera } = this;
+    this.refl.render(renderer, scene, camera, reg.ground.concat(reg.noRefl));
+
+    renderer.setRenderTarget(readBuffer);
+    renderer.clear(true, true, true);
+    renderer.render(scene, camera);
+
+    // normal / depth
+    const bg = scene.background;
+    const fog = scene.fog;
+    scene.background = null;
+    scene.fog = null;
+    scene.overrideMaterial = this.nmat;
+    this.noLine.forEach((o) => (o.visible = false));
+    renderer.getClearColor(this._c);
+    const ca = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(this.nrt);
+    renderer.clear(true, true, true);
+    renderer.render(scene, camera);
+    renderer.setClearColor(this._c, ca);
+    this.noLine.forEach((o) => (o.visible = true));
+    scene.overrideMaterial = null;
+    scene.background = bg;
+    scene.fog = fog;
+  }
+}
+
+/* ------------------------------------------------------------------ outline / grading */
+const OutlineShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tNormal: { value: null },
+    uTexel: { value: new THREE.Vector2(1, 1) },
+    uWidth: { value: 1.0 },
+    uTime: { value: 0 },
+  },
+  vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: /* glsl */ `
+  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uWidth;
+  varying vec2 vUv;
+  vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.001) c.a = 400.0; return c; }
+  vec3 dec(vec4 c){ return normalize(c.rgb*2.0-1.0 + 1e-5); }
+  void main(){
+    vec4 base = texture2D(tDiffuse, vUv);
+    vec2 o = uTexel * uWidth;
+    vec4 c0 = S(vUv);
+    vec4 c1 = S(vUv + vec2(o.x,0.)); vec4 c2 = S(vUv - vec2(o.x,0.));
+    vec4 c3 = S(vUv + vec2(0.,o.y)); vec4 c4 = S(vUv - vec2(0.,o.y));
+    float d0 = c0.a;
+    // depth: second derivative, relative to distance
+    float lap = abs(c1.a + c2.a - 2.0*d0) + abs(c3.a + c4.a - 2.0*d0);
+    float dEdge = smoothstep(0.0055, 0.016, lap / d0);
+    // normal: compare to neighbours
+    vec3 n0 = dec(c0);
+    float nd = (1.0 - dot(n0, dec(c1))) + (1.0 - dot(n0, dec(c2))) + (1.0 - dot(n0, dec(c3))) + (1.0 - dot(n0, dec(c4)));
+    // ignore normal edges between bg pixels
+    float bgMask = (c0.a > 300.0 && c1.a > 300.0 && c2.a > 300.0 && c3.a > 300.0 && c4.a > 300.0) ? 0.0 : 1.0;
+    float nEdge = smoothstep(0.35, 0.9, nd) * bgMask;
+    float e = max(dEdge, nEdge);
+    e *= mix(1.0, 0.55, smoothstep(34.0, 80.0, d0));
+    vec3 col = base.rgb;
+    vec3 lc = clamp(col, 0.0, 1.0) * 0.12 + vec3(0.012, 0.016, 0.045);
+    col = mix(col, lc, e * 0.92);
+    // gentle grade: cool shadows, a touch of contrast
+    float l = dot(col, vec3(0.299,0.587,0.114));
+    col = mix(col, col * vec3(0.94, 0.97, 1.08), (1.0 - smoothstep(0.0, 0.5, l)) * 0.6);
+    // vignette
+    vec2 vv = vUv - 0.5;
+    col *= 1.0 - dot(vv, vv) * 0.42;
+    gl_FragColor = vec4(col, base.a);
+  }`,
+};
+
+export function createPipeline(renderer, scene, camera) {
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, rt);
+  const refl = new PlanarReflection();
+  const scenePass = new ScenePass(scene, camera, refl);
+  composer.addPass(scenePass);
+  const outline = new ShaderPass(OutlineShader);
+  outline.material.uniforms.tNormal.value = scenePass.nrt.texture;
+  composer.addPass(outline);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.5, 0.55, 1.0);
+  // bloom works at half resolution: soft glow does not need more and it saves a lot of fill rate
+  const bloomSetSize = bloom.setSize.bind(bloom);
+  bloom.setSize = (w, h) => bloomSetSize(Math.max(2, w >> 1), Math.max(2, h >> 1));
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  function resize(w, h, pr) {
+    composer.setPixelRatio(pr);
+    composer.setSize(w, h);
+    const bw = Math.floor(w * pr);
+    const bh = Math.floor(h * pr);
+    scenePass.setSize(bw, bh);
+    refl.setSize(bw, bh);
+    outline.material.uniforms.uTexel.value.set(1 / bw, 1 / bh);
+    outline.material.uniforms.uWidth.value = Math.max(1.0, Math.min(2.2, bh / 760));
+    bloom.resolution.set(bw, bh);
+  }
+  return { composer, refl, scenePass, outline, bloom, resize };
+}
