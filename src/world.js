@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { reg, plight } from './core.js';
+import { reg, plight, setCat, ENVK, lk } from './core.js';
 import { createBase, createGround } from './ground.js';
 import { buildStore } from './store.js';
 import { buildStreet } from './street.js';
 import { buildBuildings } from './buildings.js';
-import { createRain, createDrips } from './fx.js';
+import { createDrips } from './fx.js';
+import { createParticles } from './particles.js';
 import { mergeStatic } from './merge.js';
 import { buildBackdrop } from './backdrop.js';
 
@@ -14,46 +15,55 @@ const flick = (period, dur, depth, seed = 0) => (t) => {
   return 1 - 0.025 * Math.sin(t * 21 + seed * 3);
 };
 
+/** Builds the whole static scene ONCE. Returns the handles the environment system drives. */
 export function buildWorld(scene, renderer, refl) {
   const world = new THREE.Group();
   scene.add(world);
 
-  /* ---- global lighting ---- */
-  scene.add(new THREE.HemisphereLight(0x7b8fd0, 0x20264a, 2.1));
-  const moon = new THREE.DirectionalLight(0x93a8e8, 1.5);
-  moon.position.set(-13, 21, 15);
-  moon.castShadow = true;
-  moon.shadow.mapSize.set(4096, 4096);
-  const sc = moon.shadow.camera;
-  sc.left = -17; sc.right = 17; sc.top = 17; sc.bottom = -17; sc.near = 1; sc.far = 70;
-  moon.shadow.bias = -0.0006;
-  moon.shadow.normalBias = 0.03;
-  scene.add(moon);
+  /* ---- global lighting (colours / intensities are owned by env.js from here on) ---- */
+  const hemi = new THREE.HemisphereLight(0x7b8fd0, 0x20264a, 2.1);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0x93a8e8, 1.5);
+  sun.position.set(-13, 21, 15);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  const sc = sun.shadow.camera;
+  sc.left = -17; sc.right = 17; sc.top = 17; sc.bottom = -17; sc.near = 1; sc.far = 90;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.03;
+  scene.add(sun);
 
   const ground = createGround(renderer, refl);
   world.add(ground.road, ground.plot);
   createBase(world);
 
   const drips = [];
+  // emissive categories: what the environment dims by day / switches by store status
+  setCat('shop');
   buildStore(world, drips);
+  setCat('street');
   buildStreet(world, drips);
+  setCat('iza');
   buildBuildings(world, drips);
+  setCat('street');
   buildBackdrop(world);
+  setCat('shop');
 
   mergeStatic(world);
 
-  /* ---- rain + drips ---- */
-  createRain(world, [
+  /* ---- weather particles + eave drips ---- */
+  const particles = createParticles(world, [
     [-5.6, 4.6, -4.6, 1.6, 3.55], // store
     [-5.6, 5.5, 1.5, 2.5, 3.0], // south awning
     [4.5, 5.5, -4.6, 2.5, 3.0], // east awning
-    [-12.2, -8.3, -7.3, 3.6, 7.0], // izakaya
-    [-12.2, -8.2, 3.5, 4.55, 3.2], // izakaya eave
-    [-12.2, -8.2, 3.5, 4.3, 3.8], // izakaya balcony
+    [-12.2, -8.3, -7.3, 4.4, 7.0], // izakaya
+    [-12.2, -8.2, 4.3, 5.4, 3.2], // izakaya front eave
+    [-8.6, -7.6, -7.1, -1.9, 3.1], // izakaya alley eave
+    [-12.5, -11.4, -7.1, 4.3, 3.3], // izakaya west eave
   ]);
   createDrips(world, drips);
 
-  /* ---- flicker / animated emitters ---- */
+  /* ---- flicker / animated emitters (multiplied by the environment factors) ---- */
   const fSign = flick(11.3, 0.4, 0.5, 0.0);
   const fPylon = flick(8.2, 0.55, 0.65, 2.1);
   const fOpen = flick(5.9, 0.45, 0.85, 1.0);
@@ -61,23 +71,27 @@ export function buildWorld(scene, renderer, refl) {
   const fVend = flick(6.4, 0.5, 0.6, 3.3);
   const fAlley = flick(3.4, 0.6, 0.7, 1.7);
   reg.updaters.push((t) => {
-    const s = fSign(t);
+    const sg = ENVK.sign;
+    const s = fSign(t) * sg;
     reg.signS.color.setRGB(1.05 * s, 1.03 * s, 0.98 * s);
     reg.signE.color.setRGB(1.05 * s, 1.03 * s, 0.98 * s);
-    const p = fPylon(t);
+    const p = fPylon(t) * (0.35 + 0.65 * sg);
     reg.pylonMat.color.setRGB(1.05 * p, 1.03 * p, 0.98 * p);
-    if (reg.lights.pylon) reg.lights.pylon.intensity = reg.lights.pylon.userData.base * p;
-    const o = fOpen(t);
+    const o = fOpen(t) * ENVK.open;
     reg.neonOpen.color.setScalar(1.6 * o);
-    if (reg.lights.neonOpen) reg.lights.neonOpen.intensity = reg.lights.neonOpen.userData.base * o;
-    const n = fIza(t);
+    const n = fIza(t) * ENVK.iza;
     reg.neonIza.color.setScalar(1.5 * n);
-    if (reg.lights.neonPink) reg.lights.neonPink.intensity = reg.lights.neonPink.userData.base * n;
-    const v = fVend(t);
+    if (reg.lights.neonPink) reg.lights.neonPink.intensity = reg.lights.neonPink.userData.base * fIza(t) * lk(reg.lights.neonPink);
+    const v = fVend(t) * ENVK.street;
     if (reg.vend && reg.vend[0]) reg.vend[0].tube.color.setScalar(2.6 * v);
     const a = fAlley(t);
     if (reg.lights.alleyEnd) reg.lights.alleyEnd.intensity = reg.lights.alleyEnd.userData.base * a;
     // faint fluorescent hum in the shop
-    ['inA', 'inB', 'inC'].forEach((k, i) => { if (reg.lights[k]) reg.lights[k].intensity = reg.lights[k].userData.base * (1 + 0.012 * Math.sin(t * 60 + i)); });
+    ['inA', 'inB', 'inC'].forEach((k, i) => {
+      const l = reg.lights[k];
+      if (l) l.intensity = l.userData.base * lk(l) * (1 + 0.012 * Math.sin(t * 60 + i));
+    });
   });
+
+  return { world, hemi, sun, particles };
 }

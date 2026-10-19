@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, Pool, rng } from './core.js';
+import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, Pool, rng, ENVK } from './core.js';
 import { makeGlass } from './fx.js';
 import { posterTex, magAtlas, packWall, hangSignTex, exitSignTex, T, BRAND } from './tex.js';
 
@@ -130,7 +130,7 @@ export function buildInterior(parent, ST) {
     }
     const hb = canvasTex(1024, 128, (c, w, h) => {
       const gr = c.createLinearGradient(0, 0, w, 0);
-      gr.addColorStop(0, '#1f7fe0'); gr.addColorStop(1, '#19b6a6');
+      gr.addColorStop(0, '#1c63c4'); gr.addColorStop(1, '#3a93e0');
       c.fillStyle = gr; c.fillRect(0, 0, w, h);
       T(c, 'ひえひえドリンク   COLD DRINKS   お茶・ジュース・コーヒー', w / 2, h / 2 + 3, 62, '#fff', { weight: 800 });
     });
@@ -210,7 +210,7 @@ export function buildInterior(parent, ST) {
     // baskets of impulse buys
     for (let i = 0; i < 4; i++) pool.box(1.65 + i * 0.12, top + 0.075, -1.4, 0.1, 0.05, 0.08, pick(snackPal));
     // register hanging sign
-    lbl(g, hangSignTex('レジ', '#19b6a6', '#fff'), 0.6, 0.19, 2.4, Y + 2.62, -1.2, 0, 1.0, { side: THREE.DoubleSide });
+    lbl(g, hangSignTex('レジ', '#1c63c4', '#fff'), 0.6, 0.19, 2.4, Y + 2.62, -1.2, 0, 1.0, { side: THREE.DoubleSide });
     cyl2(g, toon('#8c95a8'), [2.15, ST.CEIL, -1.2], [2.15, Y + 2.72, -1.2], 0.01, 4);
     cyl2(g, toon('#8c95a8'), [2.65, ST.CEIL, -1.2], [2.65, Y + 2.72, -1.2], 0.01, 4);
   }
@@ -305,7 +305,7 @@ export function buildInterior(parent, ST) {
       s.position.set(3.4 + s.userData.ox + Math.sin(k * 6 + s.userData.ph * 9) * 0.04, Y + 1.25 + k * 0.7, -1.72);
       const sc = 0.12 + k * 0.28;
       s.scale.set(sc, sc, 1);
-      s.material.opacity = Math.sin(k * Math.PI) * 0.35;
+      s.material.opacity = Math.sin(k * Math.PI) * 0.35 * ENVK.open;
     });
   });
   return g;

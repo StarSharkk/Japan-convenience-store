@@ -21,56 +21,66 @@ export function T(g, s, x, y, size, color, o = {}) {
   g.fillText(s, x, y);
 }
 
-/* ---------------------------------------------------------------- brand sign */
-export const BRAND = { teal: '#13b5a3', orange: '#ff8a3d', navy: '#12263f', cream: '#f7f5ec' };
+/* ---------------------------------------------------------------- brand sign (LAWSON style: blue / white / pink-red line) */
+// (BRAND.teal / BRAND.orange are kept as property names because the rest of the scene already uses them;
+//  they now hold LAWSON blue and the thin red-pink accent.)
+export const BRAND = { teal: '#1c63c4', orange: '#e0386a', navy: '#0d2a5e', cream: '#f6f9fd', sky: '#3a93e0' };
+const SLAB = '"Rockwell Extra Bold","Rockwell","Roboto Slab","Georgia","Times New Roman",serif';
 
-function star(g, cx, cy, r, color) {
-  g.fillStyle = color;
-  g.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 ? r * 0.42 : r;
-    g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
-  }
-  g.closePath();
-  g.fill();
-}
-
+/** blue milk-bottle shield ("LAWSON STATION") */
 export function logo(g, cx, cy, r) {
-  g.fillStyle = BRAND.teal;
-  g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
-  g.fillStyle = BRAND.navy;
-  g.beginPath(); g.arc(cx + r * 0.22, cy - r * 0.1, r * 0.82, 0, 7); g.fill();
-  g.fillStyle = BRAND.teal;
-  g.beginPath(); g.arc(cx + r * 0.42, cy - r * 0.18, r * 0.78, 0, 7); g.fill();
-  star(g, cx - r * 0.05, cy + r * 0.05, r * 0.46, BRAND.cream);
-  g.fillStyle = BRAND.orange;
-  g.beginPath(); g.arc(cx + r * 0.45, cy - r * 0.5, r * 0.13, 0, 7); g.fill();
+  g.save();
+  g.translate(cx, cy);
+  const sh = () => {
+    g.beginPath();
+    g.moveTo(-r * 0.78, -r * 0.82);
+    g.quadraticCurveTo(0, -r * 1.02, r * 0.78, -r * 0.82);
+    g.lineTo(r * 0.86, r * 0.35);
+    g.quadraticCurveTo(r * 0.78, r * 0.82, 0, r * 1.0);
+    g.quadraticCurveTo(-r * 0.78, r * 0.82, -r * 0.86, r * 0.35);
+    g.closePath();
+  };
+  sh(); g.fillStyle = '#f6f9fd'; g.fill();
+  g.save(); g.scale(0.92, 0.92); sh(); g.fillStyle = '#1c63c4'; g.fill(); g.restore();
+  g.save(); g.scale(0.82, 0.82); sh(); g.lineWidth = r * 0.045; g.strokeStyle = '#f6f9fd'; g.stroke(); g.restore();
+  // milk bottle
+  g.fillStyle = '#f6f9fd';
+  roundRect(g, -r * 0.2, -r * 0.18, r * 0.4, r * 0.62, r * 0.1); g.fill();
+  roundRect(g, -r * 0.11, -r * 0.4, r * 0.22, r * 0.28, r * 0.05); g.fill();
+  g.fillStyle = '#1c63c4'; g.fillRect(-r * 0.13, -r * 0.43, r * 0.26, r * 0.06);
+  g.fillStyle = '#f6f9fd';
+  g.font = `900 ${r * 0.25}px ${SLAB}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('LAWSON', 0, -r * 0.62);
+  g.font = `800 ${r * 0.2}px ${SLAB}`;
+  g.fillText('STATION', 0, r * 0.66);
+  g.restore();
 }
 
 export function signTex(w, h) {
   return canvasTex(w, h, (g) => {
-    g.fillStyle = BRAND.cream;
-    g.fillRect(0, 0, w, h);
     const s = h / 240;
-    // stripes
-    g.fillStyle = BRAND.teal; g.fillRect(0, 0, w, 20 * s);
-    g.fillStyle = BRAND.orange; g.fillRect(0, 20 * s, w, 9 * s);
-    g.fillStyle = BRAND.orange; g.fillRect(0, h - 29 * s, w, 9 * s);
-    g.fillStyle = BRAND.teal; g.fillRect(0, h - 20 * s, w, 20 * s);
-    logo(g, 112 * s, h / 2, 74 * s);
-    T(g, 'ホシゾラマート', 220 * s, h / 2 - 6 * s, 112 * s, BRAND.navy, { align: 'left', weight: 800 });
-    g.fillStyle = BRAND.teal;
-    g.font = `700 ${26 * s}px ${FONT}`;
-    g.textAlign = 'left';
-    g.fillText('H O S H I Z O R A   M A R T', 226 * s, h / 2 + 62 * s);
-    if (w > 1500) {
-      g.fillStyle = BRAND.orange;
-      roundRect(g, w - 330 * s, 56 * s, 250 * s, 128 * s, 24 * s); g.fill();
-      T(g, '24', w - 262 * s, h / 2, 86 * s, '#fff', { weight: 900 });
-      T(g, '時間', w - 150 * s, h / 2 - 22 * s, 34 * s, '#fff');
-      T(g, '営業', w - 150 * s, h / 2 + 22 * s, 34 * s, '#fff');
-    }
+    // blue fascia, built from panels with fine white seams (like the real modular fascia)
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#1f6fd2'); gr.addColorStop(1, '#1858b4');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,0.9)';
+    const pw = 205 * s;
+    for (let x = pw; x < w - 4; x += pw) g.fillRect(x - 1.5 * s, 14 * s, 3 * s, h - 28 * s);
+    // white trim top / bottom + thin pink-red line
+    g.fillStyle = '#f6f9fd'; g.fillRect(0, 0, w, 14 * s); g.fillRect(0, h - 26 * s, w, 26 * s);
+    g.fillStyle = BRAND.orange; g.fillRect(0, h - 36 * s, w, 7 * s);
+    // wordmark
+    g.fillStyle = '#f6f9fd';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const logoR = 86 * s;
+    const cxText = w > 1500 ? w * 0.47 : w * 0.43;
+    g.font = `900 ${128 * s}px ${SLAB}`;
+    g.lineJoin = 'round'; g.lineWidth = 7 * s; g.strokeStyle = '#f6f9fd';
+    g.strokeText('LAWSON', cxText, h / 2 - 8 * s);
+    g.fillText('LAWSON', cxText, h / 2 - 8 * s);
+    g.font = `800 ${34 * s}px ${FONT}`;
+    g.fillText('ローソン', cxText + (w > 1500 ? 300 : 230) * s, h / 2 + 66 * s * 0.0 + 52 * s);
+    logo(g, w - logoR - 22 * s, h / 2 - 6 * s, logoR);
   });
 }
 
@@ -234,7 +244,7 @@ export function floorTex(W, H) {
       g.strokeStyle = '#f2c230'; g.lineWidth = 0.07 * ppm; g.lineCap = 'round';
       g.beginPath(); g.moveTo(X(2.2), Z(0.5)); g.lineTo(X(2.2), Z(-0.55)); g.lineTo(X(1.6), Z(-0.55)); g.stroke();
       const arrow = (x, z, a) => {
-        g.save(); g.translate(X(x), Z(z)); g.rotate(a); g.fillStyle = '#19b6a6';
+        g.save(); g.translate(X(x), Z(z)); g.rotate(a); g.fillStyle = '#1f6fd0';
         g.beginPath(); g.moveTo(-0.28 * ppm, -0.07 * ppm); g.lineTo(0.05 * ppm, -0.07 * ppm); g.lineTo(0.05 * ppm, -0.2 * ppm); g.lineTo(0.3 * ppm, 0); g.lineTo(0.05 * ppm, 0.2 * ppm); g.lineTo(0.05 * ppm, 0.07 * ppm); g.lineTo(-0.28 * ppm, 0.07 * ppm); g.closePath(); g.fill(); g.restore();
       };
       arrow(-1.6, -1.4, 0); arrow(-1.6, 0.0, 0); arrow(-1.9, -2.9, Math.PI);
@@ -242,7 +252,7 @@ export function floorTex(W, H) {
       g.strokeStyle = '#f2c230'; g.lineWidth = 0.05 * ppm; g.setLineDash([0.2 * ppm, 0.12 * ppm]);
       g.beginPath(); g.moveTo(X(0.9), Z(-0.55)); g.lineTo(X(3.9), Z(-0.55)); g.stroke();
       g.setLineDash([]);
-      T(g, 'レジ →', X(3.3), Z(-0.32), 0.17 * ppm, '#19b6a6', { weight: 800 });
+      T(g, 'レジ →', X(3.3), Z(-0.32), 0.17 * ppm, '#1f6fd0', { weight: 800 });
       T(g, 'いらっしゃいませ', X(2.2), Z(1.12), 0.17 * ppm, '#e9f4f4', { weight: 700 });
       // scuffs
       const R = rng(5);

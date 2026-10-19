@@ -81,6 +81,32 @@ void main(){
   vN = normalize(transformedNormal);
   vZ = -mvPosition.z;
 }`;
+// cut-out decals (road signs, stickers ...) write normal/depth only where their texture is opaque, so the
+// ink line follows the painted shape instead of the plane's rectangle
+const CUT_VS = /* glsl */ `
+varying vec3 vN;
+varying float vZ;
+varying vec2 vUv;
+void main(){
+  vUv = uv;
+  #include <beginnormal_vertex>
+  #include <defaultnormal_vertex>
+  #include <begin_vertex>
+  #include <project_vertex>
+  vN = normalize(transformedNormal);
+  vZ = -mvPosition.z;
+}`;
+const CUT_FS = /* glsl */ `
+uniform sampler2D map; uniform mat3 uvT; uniform float cut;
+varying vec3 vN;
+varying float vZ;
+varying vec2 vUv;
+void main(){
+  if(texture2D(map, (uvT * vec3(vUv, 1.0)).xy).a < cut) discard;
+  vec3 n = normalize(vN);
+  if(!gl_FrontFacing) n = -n;
+  gl_FragColor = vec4(n*0.5+0.5, vZ);
+}`;
 const NORMAL_FS = /* glsl */ `
 varying vec3 vN;
 varying float vZ;
@@ -98,24 +124,42 @@ class ScenePass extends Pass {
     this.refl = refl;
     this.needsSwap = false;
     this.noLine = [];
+    this.cut = [];
     this.nmat = new THREE.ShaderMaterial({ vertexShader: NORMAL_VS, fragmentShader: NORMAL_FS, side: THREE.DoubleSide });
     // MSAA + linear filtering: the edge detector then sees sub-pixel coverage, so ink lines come out anti-aliased
     this.nrt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
     this.nrt.texture.colorSpace = THREE.LinearSRGBColorSpace;
     this._c = new THREE.Color();
   }
+  /** sort the scene into: ink-less objects, alpha cut-outs (ink follows the texture's alpha), everything else.
+      Re-run whenever objects are added later (holiday props are built lazily) - see reg.sceneDirty. */
   collect() {
     this.noLine = [];
+    this.cut = [];
     this.scene.traverse((o) => {
-      if (o.userData && o.userData.noLine) this.noLine.push(o);
+      if (!o.userData) return;
+      if (o.userData.noLine) { this.noLine.push(o); return; }
+      const m = o.isMesh && !Array.isArray(o.material) ? o.material : null;
+      if (m && m.map && (m.alphaTest > 0 || m.transparent) && !o.isInstancedMesh) {
+        if (!o.userData.cutMat) {
+          o.userData.cutMat = new THREE.ShaderMaterial({
+            vertexShader: CUT_VS, fragmentShader: CUT_FS, side: THREE.DoubleSide,
+            uniforms: { map: { value: m.map }, uvT: { value: m.map.matrix }, cut: { value: Math.max(0.35, m.alphaTest) } },
+          });
+        }
+        o.layers.enable(1);
+        this.cut.push(o);
+      }
     });
+    reg.sceneDirty = false;
   }
   setSize(w, h) {
     this.nrt.setSize(w, h);
   }
   render(renderer, writeBuffer, readBuffer) {
     const { scene, camera } = this;
-    this.refl.render(renderer, scene, camera, reg.ground.concat(reg.noRefl));
+    if (reg.sceneDirty) this.collect();
+    if (reg.reflOn !== false) this.refl.render(renderer, scene, camera, reg.ground.concat(reg.noRefl)); // dry / snowy ground has nothing to mirror
 
     renderer.setRenderTarget(readBuffer);
     renderer.clear(true, true, true);
@@ -128,12 +172,29 @@ class ScenePass extends Pass {
     scene.fog = null;
     scene.overrideMaterial = this.nmat;
     this.noLine.forEach((o) => (o.visible = false));
+    const cutVis = this.cut.map((o) => o.visible);
+    this.cut.forEach((o) => (o.visible = false));
     renderer.getClearColor(this._c);
     const ca = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.nrt);
     renderer.clear(true, true, true);
     renderer.render(scene, camera);
+    if (this.cut.length) {
+      // second draw on top: only the cut-out decals (layer 1), each with its alpha-tested normal material
+      scene.overrideMaterial = null;
+      const mask = camera.layers.mask;
+      const ac = renderer.autoClear;
+      camera.layers.set(1);
+      renderer.autoClear = false;
+      this.cut.forEach((o, i) => { o.visible = cutVis[i]; o.userData.realMat = o.material; o.material = o.userData.cutMat; });
+      renderer.render(scene, camera);
+      this.cut.forEach((o) => { o.material = o.userData.realMat; });
+      renderer.autoClear = ac;
+      camera.layers.mask = mask;
+      scene.overrideMaterial = this.nmat;
+    }
+    this.cut.forEach((o, i) => (o.visible = cutVis[i]));
     renderer.setClearColor(this._c, ca);
     this.noLine.forEach((o) => (o.visible = true));
     scene.overrideMaterial = null;
@@ -150,10 +211,11 @@ const OutlineShader = {
     uTexel: { value: new THREE.Vector2(1, 1) },
     uOffD: { value: 1.0 }, // silhouette ink half-width (physical px)
     uOffN: { value: 0.7 }, // crease ink half-width (physical px)
+    uFog: { value: 0 }, // scene fog density: ink lines dissolve into fog like everything else
   },
   vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: /* glsl */ `
-  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN;
+  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN; uniform float uFog;
   varying vec2 vUv;
   vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.02) c.a = 400.0; return c; }
   vec3 dec(vec4 c){ return normalize(c.rgb*2.0-1.0 + 1e-5); }
@@ -179,6 +241,7 @@ const OutlineShader = {
     float nEdge = smoothstep(0.55, 1.5, nd) * bgMask;
     float e = max(dEdge, nEdge * 0.85);
     e *= mix(1.0, 0.5, smoothstep(34.0, 90.0, d0));
+    e *= exp(-pow(d0 * uFog, 2.0) * 1.6);
     vec3 col = base.rgb;
     // ink colour: deep tinted version of the local paint, like hand-inked vector linework
     vec3 lc = clamp(col, 0.0, 1.0) * 0.14 + vec3(0.012, 0.016, 0.048);

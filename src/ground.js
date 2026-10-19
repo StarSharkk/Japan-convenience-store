@@ -289,7 +289,18 @@ export function createGround(renderer, refl) {
     uTexMat: { value: refl.texMat },
     tMask: { value: maskTex },
     uTime: { value: 0 },
+    // --- environment (driven by env.js) ---
+    uWet: { value: 1 }, // 0 dry .. 1 soaked
+    uPuddle: { value: 0.75 }, // puddle coverage
+    uRipple: { value: 0.7 }, // rain-ring strength
+    uSnow: { value: 0 }, // snow cover
+    uDay: { value: 0 }, // daylight lift
+    uLawn: { value: new THREE.Color(1, 1, 1) }, // seasonal lawn tint
+    uTintA: { value: new THREE.Vector3() }, // colours the wet ground mirrors: A = tree zone (north)
+    uTintB: { value: new THREE.Vector3() }, //                                   B = shop front
+    uTintC: { value: new THREE.Vector3() }, //                                   C = everywhere (fireworks)
   };
+  reg.groundU = uniforms;
   reg.groundUniforms = uniforms;
 
   const mat = new THREE.MeshToonMaterial({ color: 0xffffff, map: groundTex, gradientMap: RAMP });
@@ -304,6 +315,7 @@ export function createGround(renderer, refl) {
         /* glsl */ `
 varying vec3 vWPos;
 uniform sampler2D tRefl; uniform mat4 uTexMat; uniform sampler2D tMask; uniform float uTime;
+uniform float uWet; uniform float uPuddle; uniform float uRipple; uniform float uSnow; uniform float uDay; uniform vec3 uLawn; uniform vec3 uTintA; uniform vec3 uTintB; uniform vec3 uTintC;
 float gh21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
 float gnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(gh21(i),gh21(i+vec2(1,0)),f.x), mix(gh21(i+vec2(0,1)),gh21(i+vec2(1,1)),f.x), f.y); }
@@ -324,7 +336,13 @@ void main() {`
         '#include <map_fragment>',
         `vec2 gUv = vec2((vWPos.x+12.)/24., 1.-(vWPos.z+12.)/24.);
          diffuseColor *= texture2D(map, gUv);
-         diffuseColor.rgb *= 0.82;`
+         {
+           float lawn = step(-12.0, vWPos.x) * step(vWPos.x, 4.5) * step(-12.0, vWPos.z) * step(vWPos.z, -7.3) * (1.0 - step(0.1, vWPos.y));
+           diffuseColor.rgb *= mix(vec3(1.0), uLawn, lawn);
+           // dry & sunny pavement is lighter and greyer than the soaked night asphalt
+           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 2.6 + vec3(0.025, 0.027, 0.03), uDay * (1.0 - uWet * 0.55));
+           diffuseColor.rgb *= mix(1.0, 0.82, uWet);
+         }`
       )
       .replace(
         '#include <opaque_fragment>',
@@ -333,9 +351,11 @@ void main() {`
     vec2 wp = vWPos.xz;
     float m = texture2D(tMask, gUv).r;
     float nz = gnoise(wp*2.7)*0.20 + gnoise(wp*8.0)*0.07;
-    float mv = m + nz - 0.13;
-    float pm = smoothstep(0.38, 0.46, mv);
-    float rim = smoothstep(0.30, 0.38, mv) * (1.0 - smoothstep(0.38, 0.45, mv));
+    float snoise = gnoise(wp*1.7)*0.6 + gnoise(wp*6.0)*0.4;
+    float cover = smoothstep(0.12, 0.5, uSnow*1.25 - snoise*0.5 + (vWPos.y > 0.1 ? 0.28 : -0.12));
+    float mv = m + nz - 0.13 + (uPuddle - 0.75) * 0.34;
+    float pm = smoothstep(0.38, 0.46, mv) * smoothstep(0.02, 0.22, uPuddle) * (1.0 - cover);
+    float rim = smoothstep(0.30, 0.38, mv) * (1.0 - smoothstep(0.38, 0.45, mv)) * smoothstep(0.02, 0.22, uPuddle) * (1.0 - cover);
     // ripples
     vec3 r1 = ripLayer(wp, uTime, 0.9, 1.0);
     vec3 r2 = ripLayer(wp, uTime*1.13, 0.62, 7.0);
@@ -343,7 +363,7 @@ void main() {`
     vec3 rp = r1 + r2 + r3;
     // thinner ripples on merely wet ground
     float wetRip = (1.0-pm) * 0.45;
-    float ripAmt = mix(wetRip, 1.0, pm);
+    float ripAmt = mix(wetRip, 1.0, pm) * uRipple;
     vec2 distort = rp.yz * 0.012 * ripAmt + (vec2(gnoise(wp*14.+uTime*0.6), gnoise(wp*14.-uTime*0.5))-0.5)*0.004;
     // reflection
     vec4 rc = uTexMat * vec4(vWPos, 1.0);
@@ -355,6 +375,7 @@ void main() {`
     vec3 V = normalize(cameraPosition - vWPos);
     float fr = pow(1.0 - clamp(V.y, 0.0, 1.0), 2.2);
     float k = mix(0.20 + 0.45*fr, 0.78 + 0.2*fr, pm);
+    k = mix(0.04 * fr, k, uWet) * (1.0 - cover * 0.9);
     vec3 wet = outgoingLight;
     vec3 puddleBase = wet * vec3(0.42, 0.5, 0.7);
     wet = mix(wet, puddleBase, pm * 0.75);
@@ -365,7 +386,18 @@ void main() {`
     float g1 = step(6.5, wp.y) * step(wp.y, 6.85) * step(wp.x, 7.5);
     float g2 = step(7.5, wp.x) * step(wp.x, 7.85) * step(wp.y, 6.85);
     float flow = g1 * (0.5+0.5*sin(wp.x*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0)) + g2 * (0.5+0.5*sin(wp.y*13.0 - uTime*3.2 + gnoise(wp*5.0)*5.0));
-    outgoingLight += (g1+g2) * vec3(0.05,0.08,0.13) + flow * vec3(0.10, 0.17, 0.26) * (g1+g2);
+    outgoingLight += ((g1+g2) * vec3(0.05,0.08,0.13) + flow * vec3(0.10, 0.17, 0.26) * (g1+g2)) * uWet * (1.0 - cover);
+    // festive colour on wet ground: lantern / blossom / firework light pooled in puddles
+    {
+      float zoneA = smoothstep(2.0, -7.0, vWPos.z);
+      float zoneB = exp(-length(vWPos.xz - vec2(0.5, 3.2)) * 0.16);
+      vec3 tint = uTintA * zoneA + uTintB * zoneB + uTintC * 0.7;
+      outgoingLight += tint * (pm * 0.95 + uWet * 0.14 + rim * 0.4) * (1.0 - cover) * (1.0 - uDay * 0.6);
+    }
+    // snow: lit like white paint so it picks up lamps, moon and sun consistently
+    vec3 irr = (reflectedLight.directDiffuse + reflectedLight.indirectDiffuse) / max(diffuseColor.rgb, vec3(0.05));
+    vec3 snowCol = irr * vec3(0.93, 0.95, 1.0) * 0.92 + totalEmissiveRadiance;
+    outgoingLight = mix(outgoingLight, snowCol, cover * 0.97);
   }
   #include <opaque_fragment>`
       );

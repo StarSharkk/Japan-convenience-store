@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import { reg, rng } from './core.js';
+import { reg, rng, ENVK } from './core.js';
 
 /* ------------------------------------------------------------------ rain on glass */
 const glassTime = { value: 0 };
+/** shared by every window: rain on the glass, sky reflection by day, frost in winter */
+export const GLASS_U = { uRain: { value: 1 }, uSkyCol: { value: new THREE.Color(0.6, 0.72, 0.95) }, uDay: { value: 0 }, uFrost: { value: 0 }, uFw: { value: new THREE.Vector4(0, 0, 0, 0) } };
 reg.updaters.push((t) => (glassTime.value = t));
 
 const GLASS_VS = /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
@@ -10,6 +12,7 @@ const GLASS_FS = /* glsl */ `
 varying vec2 vUv;
 uniform float uTime; uniform float uSeed; uniform float uDrops; uniform float uAlpha;
 uniform vec2 uSize; uniform vec3 uTint;
+uniform float uRain; uniform vec3 uSkyCol; uniform float uDay; uniform float uFrost; uniform vec4 uFw;
 float h21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
 // static beads : x body, y rim, z highlight
 vec3 beads(vec2 p, float cell, float seed){
@@ -47,20 +50,32 @@ void main(){
   vec2 p=vUv*uSize;
   vec3 b1=beads(p,0.24,uSeed), b2=beads(p+vec2(3.3,1.7),0.13,uSeed+3.0);
   vec3 s1=slides(p,uTime,0.34,uSeed), s2=slides(p+vec2(0.37,0.0),uTime*1.25+11.0,0.5,uSeed+2.0);
-  float body=max(max(b1.x,b2.x*0.8),max(s1.x,s2.x))*uDrops;
-  float rim=max(max(b1.y,b2.y),max(s1.x*0.55,s2.x*0.55))*uDrops;
-  float trail=max(s1.y,s2.y)*uDrops;
-  float hl=max(max(b1.z,b2.z),max(s1.z,s2.z))*uDrops;
+  float dr=uDrops*uRain;
+  float body=max(max(b1.x,b2.x*0.8),max(s1.x,s2.x))*dr;
+  float rim=max(max(b1.y,b2.y),max(s1.x*0.55,s2.x*0.55))*dr;
+  float trail=max(s1.y,s2.y)*dr;
+  float hl=max(max(b1.z,b2.z),max(s1.z,s2.z))*dr;
   // anime-style diagonal glass sheen
   float q=p.x+p.y*0.62+uSeed*1.7;
   float m=mod(q,3.1);
   float sheen=smoothstep(0.30,0.34,m)*smoothstep(0.66,0.62,m)*0.085+smoothstep(0.78,0.80,m)*smoothstep(0.92,0.90,m)*0.075;
-  float haze=(1.0-smoothstep(0.0,0.45,vUv.y))*0.07*uDrops;
+  float haze=(1.0-smoothstep(0.0,0.45,vUv.y))*0.07*uDrops*uRain;
+  // winter: frosted rim along the edges and bottom
+  vec2 ed=min(vUv,1.0-vUv);
+  float frost=uFrost*(1.0-smoothstep(0.0,0.22,min(ed.x*0.6,ed.y*0.45)))*(0.5+0.5*sin(vUv.x*60.0+vUv.y*40.0))*uDrops;
   vec3 col=uTint;
-  float a=uAlpha+sheen+haze;
+  float a=uAlpha+sheen+haze+frost*0.35;
+  // daylight: the glass mirrors the sky
+  float skyR=uDay*(0.55+0.45*(1.0-vUv.y));
+  a+=skyR*0.16;
   a+=body*0.2+rim*0.5+trail*0.24;
   col=mix(col, vec3(0.04,0.09,0.22), rim*0.55);
   col=mix(col, vec3(1.0), clamp(hl*0.95+sheen*2.2+trail*0.25,0.0,1.0));
+  col=mix(col, uSkyCol, skyR*0.55);
+  col=mix(col, vec3(0.9,0.96,1.0), clamp(frost,0.0,1.0));
+  // firework flashes mirrored in the glass
+  col=mix(col, uFw.rgb*1.2, uFw.a*0.45*(0.4+0.6*vUv.y));
+  a+=uFw.a*0.12*(0.4+0.6*vUv.y);
   gl_FragColor=vec4(col,min(a,0.9));
 }`;
 
@@ -73,6 +88,11 @@ export function makeGlass(w, h, seed = 0, o = {}) {
       uDrops: { value: o.drops ?? 1 },
       uAlpha: { value: o.alpha ?? 0.06 },
       uTint: { value: new THREE.Color(o.tint ?? 0xa9d2ff) },
+      uRain: GLASS_U.uRain,
+      uSkyCol: GLASS_U.uSkyCol,
+      uDay: GLASS_U.uDay,
+      uFrost: GLASS_U.uFrost,
+      uFw: GLASS_U.uFw,
     },
     vertexShader: GLASS_VS,
     fragmentShader: GLASS_FS,
@@ -81,69 +101,6 @@ export function makeGlass(w, h, seed = 0, o = {}) {
     side: THREE.DoubleSide,
   });
   return m;
-}
-
-/* ------------------------------------------------------------------ rain */
-export function createRain(parent, occluders) {
-  const N = 2000;
-  const R = rng(123);
-  const base = new THREE.PlaneGeometry(1, 1);
-  base.translate(0, -0.5, 0);
-  const g = new THREE.InstancedBufferGeometry();
-  g.index = base.index;
-  g.setAttribute('position', base.attributes.position);
-  g.setAttribute('uv', base.attributes.uv);
-  const data = new Float32Array(N * 4);
-  for (let i = 0; i < N; i++) {
-    data[i * 4 + 0] = (R() - 0.5) * 26;
-    data[i * 4 + 1] = (R() - 0.5) * 26;
-    data[i * 4 + 2] = 11 + R() * 5;
-    data[i * 4 + 3] = R();
-  }
-  g.setAttribute('aData', new THREE.InstancedBufferAttribute(data, 4));
-  g.instanceCount = N;
-  const boxes = [], hs = [];
-  for (let i = 0; i < 8; i++) {
-    const o = occluders[i];
-    boxes.push(o ? new THREE.Vector4(o[0], o[1], o[2], o[3]) : new THREE.Vector4(0, 0, 0, 0));
-    hs.push(o ? o[4] : 0);
-  }
-  const m = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uBoxes: { value: boxes }, uBoxH: { value: hs }, uPx: { value: 0.001 } },
-    vertexShader: /* glsl */ `
-      attribute vec4 aData; uniform float uTime; uniform vec4 uBoxes[8]; uniform float uBoxH[8]; uniform float uPx;
-      varying float vA;
-      void main(){
-        float H = 18.0;
-        float y = H - mod(aData.w*H + uTime*aData.z, H);
-        vec3 pos = vec3(aData.x + (H-y)*0.07, y, aData.y);
-        vec3 dir = normalize(vec3(0.07,-1.0,0.0));
-        float len = 0.55 + 0.35*fract(aData.z*7.13);
-        vec3 tail = pos - dir*len;
-        float vis = step(0.2, y);
-        for(int i=0;i<8;i++){ vec4 b=uBoxes[i]; if(pos.x>b.x && pos.x<b.y && pos.z>b.z && pos.z<b.w && tail.y<uBoxH[i]) vis=0.0; }
-        vec4 ph = modelViewMatrix*vec4(pos,1.0);
-        vec4 pt = modelViewMatrix*vec4(tail,1.0);
-        vec3 d = normalize(pt.xyz-ph.xyz);
-        vec3 side = normalize(cross(d, normalize(ph.xyz)));
-        // streak is never thinner than ~1.4 device px, otherwise it shimmers/aliases at distance
-        float wd = max(0.02, uPx * (-ph.z) * 1.4);
-        vec3 vp = mix(ph.xyz, pt.xyz, uv.y*0.0 + (position.y*-1.0)) + side*position.x*wd;
-        gl_Position = projectionMatrix*vec4(vp,1.0);
-        vA = vis*(1.0+position.y)*0.62*clamp(0.02/wd*1.0, 0.35, 1.0);  // tail fades out
-      }`,
-    fragmentShader: /* glsl */ `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.72,0.86,1.0)*1.5, vA*0.42); }`,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const mesh = new THREE.Mesh(g, m);
-  mesh.frustumCulled = false;
-  mesh.userData.noLine = true;
-  parent.add(mesh);
-  reg.noRefl.push(mesh);
-  reg.updaters.push((t) => { m.uniforms.uTime.value = t; if (reg.pxPerUnit) m.uniforms.uPx.value = reg.pxPerUnit; });
-  return mesh;
 }
 
 /* ------------------------------------------------------------------ eave drips + splash rings */
@@ -161,9 +118,9 @@ export function createDrips(parent, list) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('aInfo', new THREE.BufferAttribute(info, 4));
   const m = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uScale: { value: 600 } },
+    uniforms: { uTime: { value: 0 }, uScale: { value: 600 }, uAmt: { value: 1 } },
     vertexShader: /* glsl */ `
-      attribute vec4 aInfo; uniform float uTime; uniform float uScale; varying float vA;
+      attribute vec4 aInfo; uniform float uTime; uniform float uScale; uniform float uAmt; varying float vA;
       void main(){
         float t = fract(uTime/aInfo.z + aInfo.y);
         float hang = 0.55;
@@ -172,6 +129,7 @@ export function createDrips(parent, list) {
         else { float k = (t-hang)/(1.0-hang); s = 1.0; p.y = mix(position.y-0.03, aInfo.x, k*k); vA = 1.0 - smoothstep(0.92,1.0,k); }
         vec4 mv = modelViewMatrix*vec4(p,1.0);
         gl_Position = projectionMatrix*mv;
+        vA *= smoothstep(0.04, 0.3, uAmt);
         gl_PointSize = max(2.0, uScale*0.045*s*aInfo.w/(-mv.z));
       }`,
     fragmentShader: /* glsl */ `varying float vA; void main(){ vec2 c=gl_PointCoord-0.5; float d=length(c); if(d>0.5) discard; float a=smoothstep(0.5,0.15,d); gl_FragColor=vec4(vec3(0.8,0.92,1.0)*1.6, a*vA); }`,
@@ -199,6 +157,7 @@ export function createDrips(parent, list) {
 
   reg.updaters.push((t, dt) => {
     m.uniforms.uTime.value = t;
+    m.uniforms.uAmt.value = ENVK.drip;
     m.uniforms.uScale.value = (window.innerHeight * Math.min(window.devicePixelRatio || 1, 2)) / (2 * Math.tan((30 * Math.PI) / 360));
     list.forEach((d, i) => {
       const per = info[i * 4 + 2], ph = info[i * 4 + 1];
@@ -208,11 +167,11 @@ export function createDrips(parent, list) {
       ring.last = tt;
       ring.age += dt;
       const k = ring.age / 0.75;
-      if (k < 1) {
+      if (k < 1 && ENVK.drip > 0.08) {
         ring.mesh.visible = true;
         const s = 0.05 + k * 0.34;
         ring.mesh.scale.set(s, 1, s);
-        ring.mesh.material.opacity = (1 - k) * (1 - k) * 0.75;
+        ring.mesh.material.opacity = (1 - k) * (1 - k) * 0.75 * Math.min(1, ENVK.drip * 1.6);
       } else ring.mesh.visible = false;
     });
   });

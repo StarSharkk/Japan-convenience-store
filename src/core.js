@@ -8,7 +8,24 @@ export const reg = {
   ground: [], // meshes using the reflective ground shader (hidden while rendering reflection)
   noRefl: [], // objects that are skipped in the reflection pass (rain, drips...)
   lights: {}, // named lights for animation
+  emis: [], // tracked emissive (glow) materials: { m, base, cat }
+  halos: [], // tracked light-halo sprites: { s, op, size, cat }
+  litMats: [], // toon materials with the self-lit hack (interior / warm wood...)
+  reflOn: true, // false while the ground is dry: the planar reflection pass is skipped
 };
+
+/* ------------------------------------------------------------------ environment hooks (written by env.js) */
+// factors 0..1 that scene code may read each frame
+export const ENVK = { shop: 1, street: 1, iza: 1, deco: 1, open: 1, sign: 1, rain: 0, drip: 0, day: 0, fog: 0, wind: 0 };
+// emissive category used by materials / halos / lit-materials created from now on
+export const CAT = { glow: 'shop', lit: 'shop' };
+export function setCat(c) {
+  CAT.glow = c;
+  CAT.lit = c;
+}
+// shared snow-cover amount for every toon material (white on up-facing surfaces)
+export const SNOW_U = { value: 0 };
+export const lk = (l) => (l.userData.k === undefined ? 1 : l.userData.k);
 
 export const FONT =
   '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","PingFang SC","Microsoft YaHei",sans-serif';
@@ -57,7 +74,8 @@ const col = (c) => new THREE.Color(c);
  */
 export function toon(color, o = {}) {
   const cacheable = !o.map && !o.nocache;
-  const key = cacheable ? `${col(color).getHexString()}|${o.lit || 0}|${o.e || ''}|${o.ei || 1}|${o.op ?? 1}|${o.side || 0}` : null;
+  const litCat = o.lit ? CAT.lit : '';
+  const key = cacheable ? `${col(color).getHexString()}|${o.lit || 0}|${litCat}|${o.e || ''}|${o.ei || 1}|${o.op ?? 1}|${o.side || 0}|${o.nosnow ? 1 : 0}` : null;
   if (key && cache.has(key)) return cache.get(key);
   const m = new THREE.MeshToonMaterial({
     color: col(color),
@@ -69,17 +87,45 @@ export function toon(color, o = {}) {
     opacity: o.op ?? 1,
     side: o.side ?? THREE.FrontSide,
   });
-  if (o.lit) {
-    const k = o.lit * 0.85;
-    m.onBeforeCompile = (sh) => {
-      sh.uniforms.uLit = { value: k };
-      sh.fragmentShader = sh.fragmentShader
+  // interior (shop) materials never get snow; everything exterior does
+  patchToon(m, o.lit ? o.lit * 0.85 : 0, litCat !== 'shop' && !o.nosnow, litCat);
+  if (key) cache.set(key, m);
+  return m;
+}
+
+/**
+ * Adds to a MeshToonMaterial: (a) the "self-lit" emissive hack (litK), (b) shared snow cover on up-facing
+ * surfaces. One shader program per flag combination is shared by all materials.
+ */
+export function patchToon(m, litK = 0, snow = true, litCat = '') {
+  m.userData.litBase = litK;
+  m.userData.litCat = litCat;
+  if (litK) reg.litMats.push(m);
+  m.onBeforeCompile = (sh) => {
+    let fs = sh.fragmentShader;
+    if (snow) {
+      sh.uniforms.uSnow = SNOW_U;
+      fs = fs.replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uSnow;');
+      fs = fs.replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+         {
+           float topn = dot(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
+           float sn = uSnow * smoothstep(0.38, 0.82, topn);
+           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.9, 0.99), sn * 0.96);
+         }`
+      );
+    }
+    if (litK) {
+      sh.uniforms.uLit = { value: litK };
+      m.userData.litU = sh.uniforms.uLit;
+      fs = fs
         .replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uLit;')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * uLit;');
-    };
-    m.customProgramCacheKey = () => 'toonlit';
-  }
-  if (key) cache.set(key, m);
+    }
+    sh.fragmentShader = fs;
+  };
+  m.customProgramCacheKey = () => 'toon' + (litK ? 'L' : '') + (snow ? 'S' : '');
   return m;
 }
 
@@ -94,8 +140,9 @@ export function glow(color, k = 1, o = {}) {
     side: o.side ?? THREE.FrontSide,
     depthWrite: o.depthWrite ?? true,
     blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-    fog: o.fog ?? false,
+    fog: o.fog ?? true,
   });
+  if (o.track !== false) reg.emis.push({ m, base: c.clone(), cat: o.cat || CAT.glow });
   return m;
 }
 
@@ -253,6 +300,7 @@ export function halo(parent, x, y, z, color, size = 1.5, op = 0.6) {
   s.userData.noLine = true;
   s.userData.baseOp = op;
   parent.add(s);
+  reg.halos.push({ s, op, size, cat: CAT.glow });
   return s;
 }
 
@@ -261,6 +309,7 @@ export function plight(parent, color, intensity, dist, x, y, z, name) {
   const l = new THREE.PointLight(col(color), intensity, dist, 2);
   l.position.set(x, y, z);
   l.userData.base = intensity;
+  l.userData.k = 1;
   parent.add(l);
   if (name) reg.lights[name] = l;
   return l;

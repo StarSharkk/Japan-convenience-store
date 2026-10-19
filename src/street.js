@@ -64,15 +64,15 @@ function vendingMachine(parent, x, z, ry, theme, seed, light = false) {
   const mat = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.15, 1.15, 1.15) });
   const front = pl(m, mat, 0.98, 1.84, 0, 0.92, 0.384, 0, 0);
   pl(m, makeGlass(0.7, 1.2, seed, { drops: 0.7, alpha: 0.03 }), 0.7, 1.2, -0.12, 1.15, 0.39, 0, 0, { noLine: true });
-  const tube = glow('#eaf6ff', 2.6);
+  const tube = glow('#eaf6ff', 2.6, { track: false });
   bx(m, tube, -0.4, 0.4, 1.8, 1.84, 0.384, 0.395, { cast: false });
   halo(m, 0, 1.0, 0.7, theme === 0 ? '#ffd0c0' : '#c8e4ff', 2.4, 0.22);
-  const L = light ? plight(m, '#cfe6ff', 7, 6, 0, 1.2, 1.2) : null;
+  const L = light ? plight(m, '#cfe6ff', 7, 6, 0, 1.2, 1.2, 'vend') : null;
   return { m, mat, tube, L };
 }
 
 /* ================================================================ bicycle */
-function bicycle(parent, x, z, ry, color = '#3aa0c8', tilt = 0.12) {
+export function bicycle(parent, x, z, ry, color = '#3aa0c8', tilt = 0.12) {
   const b = grp(parent, x, Y0, z, ry);
   const inner = grp(b, 0, 0, 0, 0);
   inner.rotation.z = tilt;
@@ -283,7 +283,7 @@ function planter(parent, x, z, r = 0.3, plant = '#2f6f4e') {
   return g;
 }
 
-function nobori(parent, x, z, text, bg, seed) {
+export function nobori(parent, x, z, text, bg, seed) {
   const g = grp(parent, x, Y0, z);
   cy(g, toon('#c9ced8'), 0, 0, 0, 0.03, 2.5, 6);
   cy(g, toon('#c9ced8'), 0, 0, 0, 0.12, 0.05, 10);
@@ -364,29 +364,40 @@ function pylonSign(parent, x, z) {
   cy(g, toon('#c9ced8'), 0, 0, 0, 0.14, 3.8, 12);
   cy(g, toon('#99a2b6'), 0, 0, 0, 0.3, 0.22, 12, { rt: 0.6 });
   const tex = canvasTex(400, 900, (c, w, h) => {
-    c.fillStyle = BRAND.cream; c.fillRect(0, 0, w, h);
-    c.fillStyle = BRAND.teal; c.fillRect(0, 0, w, 40); c.fillRect(0, h - 40, w, 40);
-    c.fillStyle = BRAND.orange; c.fillRect(0, 40, w, 14); c.fillRect(0, h - 54, w, 14);
-    logo(c, w / 2, 220, 120);
-    T(c, 'ホシゾラ', w / 2, 430, 100, BRAND.navy, { weight: 900 });
-    T(c, 'マート', w / 2, 540, 100, BRAND.navy, { weight: 900 });
-    c.fillStyle = BRAND.orange; roundRect(c, 70, 640, 260, 140, 26); c.fill();
-    T(c, '24', 160, 710, 100, '#fff', { weight: 900 });
-    T(c, '営業', 270, 686, 40, '#fff'); T(c, '中', 270, 736, 40, '#fff');
-    T(c, 'HOSHIZORA MART', w / 2, 835, 34, BRAND.teal, { weight: 800 });
+    const gr = c.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#1f6fd2'); gr.addColorStop(1, '#1858b4');
+    c.fillStyle = gr; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#f6f9fd'; c.fillRect(0, 0, w, 26); c.fillRect(0, h - 40, w, 40);
+    c.fillStyle = BRAND.orange; c.fillRect(0, h - 52, w, 8);
+    logo(c, w / 2, 250, 150);
+    c.fillStyle = '#f6f9fd'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineJoin = 'round'; c.lineWidth = 6; c.strokeStyle = '#f6f9fd';
+    c.font = `900 96px "Rockwell Extra Bold","Rockwell","Roboto Slab","Georgia",serif`;
+    c.strokeText('LAWSON', w / 2, 520); c.fillText('LAWSON', w / 2, 520);
+    c.font = `800 40px sans-serif`;
+    c.fillText('ローソン', w / 2, 600);
+    c.fillStyle = '#f6f9fd'; roundRect(c, 90, 665, 220, 120, 26); c.fill();
+    c.fillStyle = BRAND.teal; c.font = `900 84px sans-serif`; c.fillText('24h', w / 2, 722);
+    c.font = `800 26px sans-serif`; c.fillText('OPEN', w / 2, 768);
   });
   const mat = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.05, 1.03, 0.98) });
-  const box = bx(g, toon('#e6e1d4', { e: '#8a8676', ei: 0.4 }), -0.6, 0.6, 3.7, 6.0, -0.17, 0.17);
+  const box = bx(g, toon('#eef3fa', { e: '#8a93a6', ei: 0.4 }), -0.6, 0.6, 3.7, 6.0, -0.17, 0.17);
   const f = pl(g, mat, 1.14, 2.22, 0, 4.85, 0.172, 0, 0);
   const b = pl(g, mat, 1.14, 2.22, 0, 4.85, -0.172, Math.PI, 0);
-  bx(g, toon(BRAND.teal, { e: '#0b4a43', ei: 0.6 }), -0.62, 0.62, 6.0, 6.08, -0.19, 0.19, { cast: false });
-  halo(g, 0, 4.85, 0.5, '#fff0d0', 4.2, 0.26);
+  bx(g, toon(BRAND.teal, { e: '#0a2a5c', ei: 0.6 }), -0.62, 0.62, 6.0, 6.08, -0.19, 0.19, { cast: false });
+  halo(g, 0, 4.85, 0.5, '#dcecff', 4.2, 0.26);
   reg.pylonMat = mat;
+  {
+    const ct = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#c9342b'; roundRect(c, 4, 4, w - 8, h - 8, 22); c.fill(); c.fillStyle = '#fff'; c.font = '900 52px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('CLOSED', w / 2, h * 0.38); c.font = '800 34px sans-serif'; c.fillText('準備中', w / 2, h * 0.76); });
+    const badge = pl(g, new THREE.MeshBasicMaterial({ map: ct, color: new THREE.Color(1.1, 1.1, 1.1) }), 0.66, 0.33, 0, 4.17, 0.176, 0, 0);
+    badge.visible = false;
+    reg.pylonClosed = badge;
+  }
   return g;
 }
 
 /* ================================================================ cat */
-function cat(parent, x, y, z, ry) {
+export function cat(parent, x, y, z, ry) {
   const g = grp(parent, x, y, z, ry);
   const fur = toon('#171a26');
   sph(g, fur, 0.13, 0, 0.14, 0, 1, 1.0, 1.35);
@@ -490,8 +501,16 @@ export function buildStreet(parent, drips) {
 
   /* ---- flags / signs ---- */
   nobori(g, 0.75, 3.05, 'おでん始めました', '#c2181c', 1.3);
-  nobori(g, 4.8, 3.05, 'あたたかコーヒー', '#19a898', 4.2);
+  nobori(g, 4.8, 3.05, 'あたたかコーヒー', '#1c63c4', 4.2);
   pylonSign(g, -5.0, 6.0);
+
+  /* ---- two short yellow pipe barriers on the apron (as in the reference) ---- */
+  [[-2.1, 2.45], [-0.5, 2.45]].forEach(([x, z]) => {
+    const ym = toon('#e8b82a', { e: '#4a3808', ei: 0.4 });
+    [-0.4, 0.4].forEach((dx) => cy(g, ym, x + dx, Y0, z, 0.025, 0.55, 8));
+    cyl2(g, ym, [x - 0.4, Y0 + 0.55, z], [x + 0.4, Y0 + 0.55, z], 0.025, 8);
+    cyl2(g, ym, [x - 0.4, Y0 + 0.28, z], [x + 0.4, Y0 + 0.28, z], 0.02, 8);
+  });
 
   /* ---- guardrails ---- */
   guardrail(g, 1.0, 6.2, 4.9, 6.2);
@@ -529,7 +548,7 @@ export function buildStreet(parent, drips) {
   wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.015);
   wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.015);
   // drop to the neighbour house
-  wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 3.6], 0.5, 0.015);
+  wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 4.3], 0.5, 0.015);
   // stray crossing wire at the alley
 
   /* ---- traffic signals ---- */
@@ -583,10 +602,9 @@ export function buildStreet(parent, drips) {
   pl(g, new THREE.MeshBasicMaterial({ map: signTexture('street'), color: new THREE.Color(1.0, 1.0, 1.05), transparent: true, alphaTest: 0.1 }), 0.7, 0.7, 7.2, Y0 + 3.6, 2.7 + 0.1, 0, 0);
 
   /* ---- bulletin board + planters ---- */
-  bulletinBoard(g, -10.6, 4.9, 0);
   planter(g, -4.55, 1.75, 0.22, '#2f6f4e');
-  planter(g, -9.3, 4.2, 0.3, '#2f6f4e');
-  planter(g, -8.6, 5.3, 0.22, '#4a7f4a');
+  planter(g, -11.55, 5.2, 0.26, '#2f6f4e');
+  planter(g, -8.75, 5.15, 0.22, '#4a7f4a');
 
   /* ---- cat watching the rain ---- */
   cat(g, -6.0, Y0 + 0.5, 2.9, 0.4);
