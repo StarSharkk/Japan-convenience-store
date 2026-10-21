@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { reg, rng } from './core.js';
 import { createGroundPiles } from './groundPiles.js';
+import { createRoofPiles } from './roofPiles.js';
 
 /* ====================================================================================================
    GPU particle systems for the environment: rain, snow, cherry petals, autumn leaves (+ ground piles).
@@ -167,6 +168,8 @@ export function createParticles(parent, occluders) {
   /* ------------------------------------------------------------ ground accumulation (snow drifts, leaf / petal piles)
      generated from wind "collectors" with a seeded layout - see groundPiles.js */
   sys.piles = createGroundPiles(parent);
+  // the same on the roofs / eaves / awnings, plus the snow layer and the lamp snow caps (see roofPiles.js)
+  sys.roof = createRoofPiles(parent, parent);
   // (the old uniformly scattered litter is now part of the piles' loose flakes; the handle stays for env.js)
   sys.litter = { u: { uAmt: { value: 0 }, uKind: { value: 0 }, uBright: { value: 1 } } };
 
@@ -216,6 +219,7 @@ export function createParticles(parent, occluders) {
     sys.litter.u.uAmt.value = p.litterAmt;
     sys.litter.u.uKind.value = p.litterKind;
     sys.piles.apply(p, Math.min(0.1, Math.max(0, t - (sys._t ?? t))));
+    sys.roof.apply(p);
     sys._t = t;
   };
   return sys;

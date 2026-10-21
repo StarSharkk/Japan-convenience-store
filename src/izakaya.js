@@ -1,17 +1,23 @@
 import * as THREE from 'three';
-import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect } from './core.js';
+import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect, RAMP } from './core.js';
 import { makeGlass } from './fx.js';
 import { T, posterTex } from './tex.js';
-import { bicycle } from './street.js';
+import { bicycle, vendingMachine, planter, nobori } from './street.js';
+import { snowCapLine } from './roofPiles.js';
 
 /* ====================================================================================================
    Izakaya next to the convenience store (3.5 m wide, 2 storeys, tiled gable roof)
 
-   south  = FRONT  (same side as the shop front)  -> reference 1: wooden facade, daruma, big wooden sign,
-            menu plaques, lantern row, white noren, lit menu boards, chalkboard, spot lights
-   east   = alley side (visible from the street)  -> reference 2: wooden street-shop side: lean-to tile eave,
-            lantern string, lattice windows, hanging sign, bicycle, A-frame sign, steel stairs
-   west / north = lived-in too (door, lanterns, windows, kitchen duct, AC, crates), no blank walls
+   south = FRONT on the main road (reference 1): tiled lean-to eave, lantern row, white noren, lit photo menus,
+           営業中 plate, ranma lattice band; upstairs a silver daruma, the big wooden sign under goose-neck lamps,
+           vertical menu plaques and a lamp beam
+   west  = STREET SIDE on the back lane (reference 2): the front eave turns the corner on a hip and runs the
+           whole length; shop bays (food-sample case, side entrance with indigo noren, counter lattice window,
+           vending corner), electric stand sign, A-frame menu, bikes, nobori; upstairs a balcony with lanterns,
+           a gold-framed board and the projecting shop-name sign at the corner
+   east  = BACK of house facing the LAWSON: kitchen windows with grilles, staff door, propane, meters, AC,
+           steel stairs to the flat upstairs
+   north = kitchen side (duct, door)
    ==================================================================================================== */
 
 const MINCHO = '"Hiragino Mincho ProN","Yu Mincho","Kaiti SC","STKaiti","Songti SC",serif';
@@ -188,19 +194,119 @@ function cafeTex() { // warm interior seen through the open door
     g.fillStyle = 'rgba(60,30,10,0.5)'; g.fillRect(0, h * 0.3, w, 5);
   });
 }
+/* ---------------------------------------------------------------- textures (round 2: storefront kit) */
+let _sudare;
+function sudareTex() {
+  return (_sudare ||= canvasTex(64, 128, (g, w, h) => {
+    for (let y = 0; y < h; y += 4) { g.fillStyle = y % 8 ? '#c9a873' : '#b38d58'; g.fillRect(0, y, w, 3); }
+    g.fillStyle = 'rgba(60,40,20,0.45)'; g.fillRect(14, 0, 3, h); g.fillRect(46, 0, 3, h);
+  }, { repeat: true }));
+}
+let _rib;
+/** pan-tile texture for the lean-to eaves: a rounded rib running down the slope + the course shadow */
+function ribTileMat() {
+  if (!_rib) {
+    _rib = canvasTex(64, 64, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, w, 0);
+      gr.addColorStop(0, '#2c303d'); gr.addColorStop(0.2, '#3c4252'); gr.addColorStop(0.5, '#4f5668'); gr.addColorStop(0.8, '#3c4252'); gr.addColorStop(1, '#2a2e3a');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      const sh = g.createLinearGradient(0, h - 14, 0, h);
+      sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.42)');
+      g.fillStyle = sh; g.fillRect(0, h - 14, w, 14);
+      g.fillStyle = '#5d6578'; g.fillRect(0, 0, w, 3);
+    }, { repeat: true });
+  }
+  return toon('#ffffff', { map: _rib, lit: 0.12, nocache: true });
+}
+const texOnce = new Map();
+const once = (k, f) => { if (!texOnce.has(k)) texOnce.set(k, f()); return texOnce.get(k); };
+/** paper lantern (chochin) skin: ribs + a brush character front and back */
+function chochinTex(text, red) {
+  return once(`cho|${text}|${red}`, () => canvasTex(512, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    if (red) { gr.addColorStop(0, '#9a1c14'); gr.addColorStop(0.5, '#e0442c'); gr.addColorStop(1, '#9a1c14'); }
+    else { gr.addColorStop(0, '#e9d9b8'); gr.addColorStop(0.5, '#fff6e2'); gr.addColorStop(1, '#e6d4b0'); }
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let y = 10; y < h; y += 15) { g.fillStyle = red ? 'rgba(70,10,5,0.28)' : 'rgba(120,85,40,0.22)'; g.fillRect(0, y, w, 2); }
+    const ink = red ? '#1a0d0a' : '#17110d';
+    [w / 2, 0, w].forEach((x) => {
+      if ([...text].length === 1) brush(g, text, x, h / 2 + 4, 132, ink);
+      else vbrush(g, text, x, h / 2 - 64, 60, 64, ink);
+    });
+  }));
+}
+let _lanGeo;
+function lanternGeo() {
+  if (_lanGeo) return _lanGeo;
+  const pts = [];
+  for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(0.5 * (0.66 + 0.34 * Math.sin(Math.PI * t)), t - 0.5)); }
+  // phiStart -PI: u = 0.5 faces +z, so the character sits on the front
+  return (_lanGeo = new THREE.LatheGeometry(pts, 26, -Math.PI, Math.PI * 2));
+}
+function lightBoxTex() {
+  return once('lightbox', () => canvasTex(256, 512, (g, w, h) => {
+    g.fillStyle = '#fbf7ee'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#c4261d'; g.fillRect(0, 0, w, 92);
+    g.fillStyle = '#fff'; g.font = `900 54px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('炭火', w / 2, 48);
+    vbrush(g, 'やきとり', w / 2, 150, 70, 76, '#17110d');
+    g.fillStyle = '#c4261d'; g.fillRect(16, h - 74, w - 32, 4);
+    g.fillStyle = '#17110d'; g.font = `800 30px ${MINCHO}`; g.fillText('生ビール ¥390', w / 2, h - 40);
+  }));
+}
+function norenBlueTex(ch) {
+  return once('nb' + ch, () => canvasTex(256, 320, (g, w, h) => {
+    g.fillStyle = '#1d2f5c'; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,0.08)'; for (let y = 0; y < h; y += 8) g.fillRect(0, y, w, 1.5);
+    g.fillStyle = '#16244a'; g.fillRect(0, 0, w, 26);
+    brush(g, ch, w / 2, h * 0.55, 170, '#f3eee2');
+  }));
+}
+function goldSignTex(text) {
+  // dark lacquered board with a gold frame and gold lettering (the horizontal shop board of reference 2)
+  return once('gold' + text, () => canvasTex(1024, 280, (g, w, h) => {
+    g.fillStyle = '#3a2216'; g.fillRect(0, 0, w, h);
+    const R = rng(5);
+    for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(0,0,0,${0.1 + R() * 0.15})`; g.lineWidth = 1; g.beginPath(); const y = R() * h; g.moveTo(0, y); g.lineTo(w, y + R() * 6 - 3); g.stroke(); }
+    g.strokeStyle = '#e2b450'; g.lineWidth = 14; g.strokeRect(14, 14, w - 28, h - 28);
+    g.strokeStyle = '#8a6420'; g.lineWidth = 3; g.strokeRect(34, 34, w - 68, h - 68);
+    brush(g, text, w / 2, h / 2 + 6, 170, '#f0c45a');
+  }));
+}
+function sodeTex() {
+  // vertical projecting sign (袖看板): name of the shop
+  return once('sode', () => canvasTex(200, 640, (g, w, h) => {
+    g.fillStyle = '#f7efe0'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#b4221b'; g.fillRect(0, 0, w, 120);
+    g.fillStyle = '#fff'; g.font = `900 56px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('居酒屋', w / 2, 62);
+    vbrush(g, 'ほたる', w / 2, 220, 140, 150, '#17110d');
+    g.strokeStyle = '#3a2314'; g.lineWidth = 10; g.strokeRect(5, 5, w - 10, h - 10);
+  }));
+}
+function bannerTex() {
+  return once('banner', () => canvasTex(512, 128, (g, w, h) => {
+    g.fillStyle = '#b4221b'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f7d36a'; g.fillRect(0, 8, w, 4); g.fillRect(0, h - 12, w, 4);
+    g.fillStyle = '#fff'; g.font = `900 64px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('やきとり・おでん', w / 2, h / 2 + 2);
+  }));
+}
 
-/* ---------------------------------------------------------------- helpers */
+/* ---------------------------------------------------------------- the building */
 export function buildIzakaya(parent, drips) {
   const g = grp(parent);
   const { X0, X1, Z0, Z1, H } = IZA;
   const cx = (X0 + X1) / 2;
   const R = rng(61);
 
-  const wood = toon('#6a4328', { lit: 0.42 });
   const woodD = toon('#3b2415', { lit: 0.3 });
+  const woodM = toon('#6a4328', { lit: 0.35 });
   const plaster = toon('#c8bcaa', { lit: 0.2 });
   const roofTile = toon('#272c46');
+  const tileDark = toon('#262a36');
   const iron = toon('#6f788c');
+  const stone = toon('#6d665f');
+  const stoneL = toon('#a59d92');
+  const capM = toon('#15110e');
+  const ribM = ribTileMat();
 
   // axis helpers: face = 's' (front, +z), 'e' (alley, +x), 'w' (-x), 'n' (-z). u runs along the face, o = outward offset
   const bxo = (f, u0, u1, y0, y1, o0, o1, mat, op) => {
@@ -215,39 +321,108 @@ export function buildIzakaya(parent, drips) {
     if (f === 'e') return pl(g, mat, w, h, X1 + o, y, u, Math.PI / 2, 0, op);
     return pl(g, mat, w, h, X0 - o, y, u, -Math.PI / 2, 0, op);
   };
-  const posOf = (f, u, o) => (f === 's' ? [u, Z1 + o] : f === 'n' ? [u, Z0 - o] : f === 'e' ? [X1 + o, u] : [X0 - o, u]);
   const L = (hex, k = 1.5) => {
     const c = new THREE.Color(hex).multiplyScalar(k);
     const m = new THREE.MeshBasicMaterial({ color: c });
     reg.emis.push({ m, base: c.clone(), cat: 'iza' }); // windows dim in daylight like every other emitter
     return m;
   };
+  /** a squared timber from p to q (w across, h tall) */
+  const beam = (mat, p, q, w, h, op = {}) => {
+    const d = new THREE.Vector3(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+    const len = d.length();
+    const b = new THREE.Group();
+    b.position.set((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2);
+    b.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.normalize());
+    g.add(b);
+    bx(b, mat, -len / 2, len / 2, -h / 2, h / 2, -w / 2, w / 2, op);
+    return b;
+  };
+  /** paper lantern; r = radius, text on the front */
+  const chochin = (parent, x, y, z, r, text, red = false, ry = 0) => {
+    const m = new THREE.Mesh(lanternGeo(), glow('#ffffff', red ? 1.9 : 1.75, { map: chochinTex(text, red), cat: 'iza' }));
+    m.scale.set(r * 2, r * 2.5, r * 2); m.position.set(x, y, z); m.rotation.y = ry;
+    m.castShadow = false; parent.add(m);
+    cy(parent, capM, x, y + r * 1.12, z, r * 0.72, r * 0.2, 12, { cast: false });
+    cy(parent, capM, x, y - r * 1.32, z, r * 0.72, r * 0.2, 12, { cast: false });
+    return m;
+  };
+
+  /** lean-to tile eave (庇) along the wall a -> b (world x/z), sloping out along n by D and dropping `drop`.
+      ends: { hip: true } meets a perpendicular eave on a 45° hip, { ov } runs past the wall end */
+  const pent = ({ a, b, n, D, y, drop, end0, end1 }) => {
+    const t = [b[0] - a[0], b[1] - a[1]]; const tl = Math.hypot(t[0], t[1]); t[0] /= tl; t[1] /= tl;
+    const A = end0.hip ? a : [a[0] - t[0] * end0.ov, a[1] - t[1] * end0.ov];
+    const B = end1.hip ? b : [b[0] + t[0] * end1.ov, b[1] + t[1] * end1.ov];
+    const A2 = end0.hip ? [a[0] + n[0] * D - t[0] * D, a[1] + n[1] * D - t[1] * D] : [A[0] + n[0] * D, A[1] + n[1] * D];
+    const B2 = end1.hip ? [b[0] + n[0] * D + t[0] * D, b[1] + n[1] * D + t[1] * D] : [B[0] + n[0] * D, B[1] + n[1] * D];
+    const slope = Math.hypot(D, drop);
+    const quad = (yIn, yOut, mat, up, uvs) => {
+      const P = [[A[0], yIn, A[1]], [B[0], yIn, B[1]], [B2[0], yOut, B2[1]], [A2[0], yOut, A2[1]]];
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+      if (uvs) {
+        const uv = P.map((p) => { const dx = p[0] - a[0], dz = p[2] - a[1]; const along = dx * t[0] + dz * t[1], out = dx * n[0] + dz * n[1]; return [along / 0.24, (D - out) / D * slope / 0.2]; });
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv.flat(), 2));
+      } else geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+      // wind the quad so its face points up (tiles) or down (soffit)
+      const e1 = new THREE.Vector3(...P[1]).sub(new THREE.Vector3(...P[0])), e2 = new THREE.Vector3(...P[2]).sub(new THREE.Vector3(...P[0]));
+      const ny = e1.cross(e2).y;
+      geo.setIndex((ny > 0) === up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; g.add(m);
+      return m;
+    };
+    quad(y, y - drop, ribM, true, true);
+    quad(y - 0.09, y - drop - 0.09, woodM, false, false);
+    // fascia board along the eave edge, rafters underneath, round tile ends on the edge
+    beam(woodD, [A2[0], y - drop - 0.06, A2[1]], [B2[0], y - drop - 0.06, B2[1]], 0.06, 0.14);
+    if (!end0.hip) beam(woodD, [A[0], y - 0.06, A[1]], [A2[0], y - drop - 0.06, A2[1]], 0.05, 0.12);
+    if (!end1.hip) beam(woodD, [B[0], y - 0.06, B[1]], [B2[0], y - drop - 0.06, B2[1]], 0.05, 0.12);
+    const el = Math.hypot(B2[0] - A2[0], B2[1] - A2[1]);
+    for (let s = 0.11; s < el; s += 0.24) {
+      const px = A2[0] + ((B2[0] - A2[0]) * s) / el, pz = A2[1] + ((B2[1] - A2[1]) * s) / el;
+      cyl2(g, tileDark, [px - n[0] * 0.06, y - drop + 0.03, pz - n[1] * 0.06], [px + n[0] * 0.015, y - drop + 0.012, pz + n[1] * 0.015], 0.04, 7, { cast: false });
+    }
+    for (let s = 0.15; s < tl - 0.05; s += 0.34) {
+      const px = a[0] + t[0] * s, pz = a[1] + t[1] * s;
+      beam(woodD, [px, y - 0.13, pz], [px + n[0] * (D - 0.1), y - drop - 0.11, pz + n[1] * (D - 0.1)], 0.045, 0.06, { cast: false });
+    }
+    // flashing along the wall, hip ridge with a small end tile
+    beam(tileDark, [A[0] + n[0] * 0.04, y + 0.03, A[1] + n[1] * 0.04], [B[0] + n[0] * 0.04, y + 0.03, B[1] + n[1] * 0.04], 0.1, 0.07);
+    if (end0.hip) {
+      beam(tileDark, [a[0], y + 0.05, a[1]], [A2[0], y - drop + 0.05, A2[1]], 0.11, 0.09);
+      sph(g, tileDark, 0.075, A2[0], y - drop + 0.06, A2[1], 1, 0.8, 1);
+      snowCapLine(g, [a[0], y + 0.1, a[1]], [A2[0], y - drop + 0.1, A2[1]], 0.07); // covers the seam of the two snow layers
+    }
+    return { A, B, A2, B2 };
+  };
 
   /* ---- structure ---- */
   bx(g, plaster, X0, X1, Y0, H, Z0, Z1);
-  // wooden cladding on every face (planes with a planked texture)
-  const clad = (f, len, u0) => {
-    const m1 = f === 's' ? woodMat(len / 1.4, (H - 3.2) / 1.4) : plasterMat(len / 1.6, (H - 3.2) / 1.6);
+  // wooden cladding / plaster with a half-timber frame; posts = where the timber posts go
+  const clad = (f, len, u0, posts) => {
+    const m1 = f === 's' ? woodMat(len / 1.2, (H - 3.2) / 1.2, 0.3, '#9c7454') : plasterMat(len / 1.6, (H - 3.2) / 1.6);
     plo(f, len, H - 3.2, u0 + len / 2, 3.2 + (H - 3.2) / 2, 0.012, m1, { cast: false, recv: true });
     if (f !== 's') {
-      // half-timber frame: posts every ~1.45 m, beam under the eave and a mid rail
-      const n = Math.max(2, Math.round(len / 1.45));
-      for (let i = 0; i <= n; i++) bxo(f, u0 + (len * i) / n - 0.05, u0 + (len * i) / n + 0.05, 3.3, H, 0.01, 0.075, woodD, { cast: false });
+      const np = Math.max(2, Math.round(len / 1.45));
+      const ps = posts || Array.from({ length: np + 1 }, (_, i) => u0 + (len * i) / np);
+      ps.forEach((u) => bxo(f, u - 0.05, u + 0.05, 3.3, H, 0.01, 0.075, woodD, { cast: false }));
       bxo(f, u0, u0 + len, H - 0.22, H - 0.1, 0.01, 0.08, woodD, { cast: false });
-      bxo(f, u0, u0 + len, 4.3, 4.37, 0.01, 0.075, woodD, { cast: false });
+      bxo(f, u0, u0 + len, 5.95, 6.02, 0.01, 0.075, woodD, { cast: false });
     }
     const m0 = woodMat(len / 1.4, 3.05 / 1.4, 0.4, '#d8c3a8');
     plo(f, len, 3.05, u0 + len / 2, Y0 + 3.05 / 2, 0.012, m0, { cast: false, recv: true });
   };
   clad('s', X1 - X0, X0);
   clad('e', Z1 - Z0, Z0);
-  clad('w', Z1 - Z0, Z0);
+  clad('w', Z1 - Z0, Z0, [-7.15, -4.95, -2.85, -0.7, 0.2, 3.2, 4.25]);
   clad('n', X1 - X0, X0);
   // floor band + corner posts (dark timber frame)
-  [['s', X0, X1], ['n', X0, X1]].forEach(([f]) => bxo(f, X0 - 0.04, X1 + 0.04, 3.14, 3.3, 0, 0.12, woodD));
-  [['e', Z0, Z1], ['w', Z0, Z1]].forEach(([f]) => bxo(f, Z0 - 0.04, Z1 + 0.04, 3.14, 3.3, 0, 0.12, woodD));
-  [X0, X1].forEach((x) => bx(g, woodD, x - 0.07, x + 0.07, Y0, H, Z1 - 0.02, Z1 + 0.13));
-  [Z0, Z1].forEach((z) => { bx(g, woodD, X0 - 0.06, X0 + 0.07, Y0, H, z - 0.07, z + 0.07); bx(g, woodD, X1 - 0.07, X1 + 0.06, Y0, H, z - 0.07, z + 0.07); });
+  [['s'], ['n']].forEach(([f]) => bxo(f, X0 - 0.04, X1 + 0.04, 3.14, 3.3, 0, 0.12, woodD));
+  [['e'], ['w']].forEach(([f]) => bxo(f, Z0 - 0.04, Z1 + 0.04, 3.14, 3.3, 0, 0.12, woodD));
+  [X0, X1].forEach((x) => bx(g, woodD, x - 0.08, x + 0.08, Y0, H, Z1 - 0.02, Z1 + 0.16));
+  [Z0, Z1].forEach((z) => { bx(g, woodD, X0 - 0.16, X0 + 0.07, Y0, H, z - 0.07, z + 0.07); bx(g, woodD, X1 - 0.07, X1 + 0.06, Y0, H, z - 0.07, z + 0.07); });
 
   /* ---- tiled gable roof (ridge north-south), wooden gable ends ---- */
   {
@@ -270,210 +445,350 @@ export function buildIzakaya(parent, drips) {
     [0.5, 0.95, 1.35].forEach((d, i) => cyl2(g, iron, [-10.55 - i * 0.04, H + 1.4 + d, 0], [-9.85 + i * 0.04, H + 1.4 + d, 0], 0.018, 4));
   }
 
-  /* ==================================================================== FRONT (south) */
+  /* ---- lean-to tile eaves: front + street side meet on a hip at the south-west corner ---- */
+  const PY = 3.42, PD = 1.0, PDROP = 0.36;
+  pent({ a: [X0, Z1], b: [X1, Z1], n: [0, 1], D: PD, y: PY, drop: PDROP, end0: { hip: true }, end1: { ov: 0.3 } });
+  pent({ a: [X0, Z1], b: [X0, Z0], n: [-1, 0], D: PD, y: PY, drop: PDROP, end0: { hip: true }, end1: { ov: 0.2 } });
+  const EDGE_Y = PY - PDROP - 0.13; // fascia bottom
+
+  /* ==================================================================== FRONT (south) - reference 1 */
   {
-    // lower tile eave projecting 1.0 m, with exposed rafters and a lantern rail
-    const ez = Z1 + 1.05;
-    bx(g, roofTile, X0 - 0.2, X1 + 0.35, 2.98, 3.14, Z1, ez);
-    const eaveTop = new THREE.Mesh(new THREE.PlaneGeometry(X1 - X0 + 0.55, 1.05), tileMat(3, 2));
-    eaveTop.rotation.x = -Math.PI / 2; eaveTop.position.set((X0 + X1) / 2 + 0.075, 3.145, Z1 + 0.525); g.add(eaveTop);
-    for (let x = X0 - 0.1; x < X1 + 0.3; x += 0.32) bx(g, woodD, x, x + 0.07, 2.88, 2.98, Z1, ez - 0.05, { cast: false });
-    bx(g, woodD, X0 - 0.2, X1 + 0.35, 2.84, 2.98, ez - 0.07, ez);
-    [X0 + 0.1, X1 - 0.05].forEach((x) => cy(g, woodD, x, Y0, ez - 0.12, 0.05, 2.72, 7));
-    // door opening with warm interior, sliding lattice leaves
-    const dx0 = -10.78, dx1 = -9.52;
-    pl(g, new THREE.MeshBasicMaterial({ map: cafeTex(), color: new THREE.Color(1.25, 1.1, 0.85) }), dx1 - dx0, 2.1, (dx0 + dx1) / 2, 1.2, Z1 + 0.03, 0, 0);
-    bx(g, woodD, dx0 - 0.08, dx0 + 0.02, Y0, 2.4, Z1, Z1 + 0.12); bx(g, woodD, dx1 - 0.02, dx1 + 0.08, Y0, 2.4, Z1, Z1 + 0.12);
-    bx(g, woodD, dx0 - 0.08, dx1 + 0.08, 2.3, 2.42, Z1, Z1 + 0.12);
-    // lattice door leaf (half open on the left)
-    for (let i = 0; i < 4; i++) bx(g, woodD, dx0 + 0.02 + i * 0.07, dx0 + 0.05 + i * 0.07, Y0, 2.3, Z1 + 0.05, Z1 + 0.08, { cast: false });
-    pl(g, makeGlass(1.2, 2.1, 31, { alpha: 0.02 }), 1.2, 2.1, (dx0 + dx1) / 2, 1.2, Z1 + 0.14, 0, 0, { noLine: true });
-    // white noren: three panels with 居 酒 屋
+    const fz = Z1;
+    const dx0 = -10.86, dx1 = -9.44; // entrance (centre -10.15, holiday props line up with it)
+    // stone skirting + low wooden panels (腰板) either side of the door, mullion posts, transom
+    [[X0 + 0.08, -10.98], [-9.32, X1 - 0.08]].forEach(([a, b]) => {
+      bx(g, stone, a, b, Y0, 0.36, fz, fz + 0.1);
+      pl(g, woodMat((b - a) / 0.5, 0.55 / 0.9, 0.35, '#b08a66'), b - a, 0.55, (a + b) / 2, 0.36 + 0.275, fz + 0.06, 0, 0, { cast: false });
+      bx(g, woodD, a, b, 0.9, 0.96, fz, fz + 0.12);
+    });
+    [-10.94, -9.36].forEach((x) => bx(g, woodD, x - 0.065, x + 0.065, Y0, 2.62, fz, fz + 0.16));
+    bx(g, woodD, X0, X1, 2.5, 2.62, fz, fz + 0.17);
+    // ranma: warm light through a band of vertical slats above the transom
+    pl(g, L('#ffcf8a', 1.05), X1 - X0 - 0.2, 0.5, cx, 2.88, fz + 0.03, 0, 0, { noLine: true });
+    for (let x = X0 + 0.14; x < X1 - 0.1; x += 0.085) bx(g, woodD, x - 0.014, x + 0.014, 2.62, 3.14, fz + 0.04, fz + 0.08, { cast: false });
+    bx(g, woodD, X0, X1, 3.08, 3.16, fz, fz + 0.12);
+
+    // entrance: warm interior, stone step, one sliding lattice-glass leaf (the other is open), white noren
+    pl(g, new THREE.MeshBasicMaterial({ map: cafeTex(), color: new THREE.Color(1.25, 1.1, 0.85) }), dx1 - dx0, 2.35, (dx0 + dx1) / 2, Y0 + 1.175, fz + 0.02, 0, 0);
+    bx(g, stoneL, dx0 - 0.08, dx1 + 0.08, Y0, Y0 + 0.07, fz, fz + 0.42);
+    {
+      const l0 = -10.15, l1 = dx1 - 0.02, lz = fz + 0.08;
+      bx(g, woodD, l0, l0 + 0.05, Y0, 2.48, lz - 0.025, lz + 0.025); bx(g, woodD, l1 - 0.05, l1, Y0, 2.48, lz - 0.025, lz + 0.025);
+      bx(g, woodD, l0, l1, Y0, Y0 + 0.08, lz - 0.025, lz + 0.025); bx(g, woodD, l0, l1, 2.42, 2.48, lz - 0.025, lz + 0.025);
+      bx(g, woodM, l0 + 0.05, l1 - 0.05, Y0 + 0.08, 0.62, lz - 0.015, lz + 0.015);
+      pl(g, makeGlass(l1 - l0 - 0.1, 1.8, 31, { alpha: 0.03 }), l1 - l0 - 0.1, 1.8, (l0 + l1) / 2, 1.52, lz + 0.02, 0, 0, { noLine: true });
+      for (let k = 1; k < 4; k++) bx(g, woodD, (l0 + l1) / 2 - 0.012 + (k - 2) * 0.17, (l0 + l1) / 2 + 0.012 + (k - 2) * 0.17, 0.62, 2.42, lz, lz + 0.03, { cast: false });
+      for (let k = 1; k < 5; k++) bx(g, woodD, l0 + 0.05, l1 - 0.05, 0.62 + k * 0.36 - 0.012, 0.62 + k * 0.36 + 0.012, lz, lz + 0.03, { cast: false });
+    }
     const norens = [];
     for (let i = 0; i < 3; i++) {
-      const n = grp(g, dx0 + 0.02 + (i + 0.5) * ((dx1 - dx0 - 0.04) / 3), 2.32, Z1 + 0.24);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry((dx1 - dx0 - 0.04) / 3 - 0.01, 0.62), new THREE.MeshBasicMaterial({ map: norenTex(i), color: new THREE.Color(0.78, 0.72, 0.62), side: THREE.DoubleSide }));
-      m.position.y = -0.31; n.add(m); n.userData.keep = true; norens.push(n);
+      const w = (dx1 - dx0 - 0.04) / 3;
+      const n = grp(g, dx0 + 0.02 + (i + 0.5) * w, 2.44, fz + 0.24);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.012, 0.8), new THREE.MeshBasicMaterial({ map: norenTex(i), color: new THREE.Color(0.86, 0.82, 0.74), side: THREE.DoubleSide }));
+      m.position.y = -0.4; n.add(m); n.userData.keep = true; norens.push(n);
     }
-    cyl2(g, woodD, [dx0 - 0.05, 2.34, Z1 + 0.24], [dx1 + 0.05, 2.34, Z1 + 0.24], 0.02, 5);
+    cyl2(g, woodD, [dx0 - 0.06, 2.46, fz + 0.24], [dx1 + 0.06, 2.46, fz + 0.24], 0.022, 6);
+    [dx0 - 0.06, dx1 + 0.06].forEach((x) => bx(g, woodD, x - 0.02, x + 0.02, 2.44, 2.5, fz, fz + 0.26, { cast: false }));
     reg.updaters.push((t) => norens.forEach((n, i) => (n.rotation.x = Math.sin(t * 1.25 + i * 1.3) * 0.045)));
 
-    // left menu window (lit photo board) and right small board
+    // lit photo menu (left), recommendation poster (right), each with a small spot lamp
     const board = (x, w, h, y, tex) => {
-      bx(g, woodD, x - w / 2 - 0.06, x + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, Z1, Z1 + 0.1);
-      pl(g, new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.2, 1.1, 0.95) }), w, h, x, y, Z1 + 0.105, 0, 0);
+      bx(g, woodD, x - w / 2 - 0.06, x + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, fz, fz + 0.1);
+      pl(g, new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.15, 1.08, 0.95) }), w, h, x, y, fz + 0.105, 0, 0);
+      cyl2(g, capM, [x, y + h / 2 + 0.06, fz + 0.06], [x, y + h / 2 + 0.2, fz + 0.3], 0.012, 4, { cast: false });
+      bx(g, capM, x - 0.05, x + 0.05, y + h / 2 + 0.14, y + h / 2 + 0.22, fz + 0.26, fz + 0.36, { cast: false });
+      bx(g, glow('#ffe7b0', 2.4, { cat: 'iza' }), x - 0.035, x + 0.035, y + h / 2 + 0.13, y + h / 2 + 0.14, fz + 0.27, fz + 0.35, { cast: false });
     };
-    board(-11.4, 1.0, 1.5, 1.7, foodBoardTex(360, 520));
-    board(-9.0, 0.7, 1.15, 1.6, foodBoardTex(250, 410, 'おすすめ'));
-    // tall wooden vertical sign (営業中) on a post by the door
+    board(-11.45, 0.8, 1.32, 1.66, foodBoardTex(360, 600));
+    board(-8.96, 0.58, 0.9, 1.7, foodBoardTex(250, 400, 'おすすめ'));
+    // 営業中 plate hanging on the left mullion
     {
-      const px = -9.42, pz = Z1 + 0.42;
-      const t = canvasTex(96, 360, (c, w, h) => { c.fillStyle = '#e9dcc0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#4b2e17'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6); vbrush(c, '営業中', w / 2, 70, 66, 92); });
-      bx(g, woodD, px - 0.015, px + 0.015, 0.9, 2.65, pz - 0.02, pz + 0.02);
-      pl(g, new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(0.95, 0.9, 0.8) }), 0.26, 1.0, px, 1.9, pz + 0.03, 0, 0);
+      const t = canvasTex(96, 360, (c, w, h) => { c.fillStyle = '#efe3c6'; c.fillRect(0, 0, w, h); c.strokeStyle = '#4b2e17'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6); vbrush(c, '営業中', w / 2, 70, 66, 92); });
+      bx(g, woodD, -11.06, -10.82, 1.25, 2.12, fz + 0.16, fz + 0.19);
+      pl(g, new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(0.95, 0.9, 0.8) }), 0.2, 0.82, -10.94, 1.685, fz + 0.195, 0, 0);
+      cyl2(g, capM, [-10.94, 2.12, fz + 0.18], [-10.94, 2.3, fz + 0.12], 0.006, 3, { cast: false, noLine: true });
     }
-    // lantern row (white paper chochin) + warm spot lights under the eave
-    const lm = L('#fff0cc', 1.5);
-    const capM = toon('#15110e');
-    [-11.65, -10.95, -10.25, -9.55, -8.85].forEach((x, i) => {
-      const l = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), lm);
-      l.scale.set(0.9, 1.15, 0.9); l.position.set(x, 2.58, ez - 0.2); g.add(l);
-      cy(g, capM, x, 2.73, ez - 0.2, 0.07, 0.05, 8); cy(g, capM, x, 2.37, ez - 0.2, 0.07, 0.04, 8);
-      pl(g, new THREE.MeshBasicMaterial({ map: lanternTex(i % 2 ? '居酒屋' : '酒'), transparent: true, depthWrite: false }), 0.24, 0.24, x, 2.58, ez - 0.2 + 0.15, 0, 0, { noLine: true });
-    });
-    halo(g, cx, 2.6, ez - 0.1, '#ffd9a0', 4.2, 0.32);
-    [-11.5, -10.5, -9.5, -8.8].forEach((x) => { cy(g, capM, x, 2.8, Z1 + 0.5, 0.045, 0.06, 8, { cast: false }); cy(g, glow('#ffe7b0', 2.6), x, 2.77, Z1 + 0.5, 0.04, 0.02, 8, { cast: false }); });
+    // lantern row hanging from a rail under the eave (alternating 酒 / 居酒屋), soffit down-lights
+    beam(woodD, [X0 + 0.04, 2.98, fz + 0.6], [X1 - 0.04, 2.98, fz + 0.6], 0.045, 0.045, { cast: false });
+    for (let i = 0; i < 9; i++) {
+      const x = X0 + 0.18 + i * ((X1 - X0 - 0.36) / 8);
+      chochin(g, x, 2.6, fz + 0.6, 0.145, i % 2 ? '居酒屋' : '酒');
+      cyl2(g, capM, [x, 2.82, fz + 0.6], [x, 2.98, fz + 0.6], 0.006, 3, { cast: false, noLine: true });
+      halo(g, x, 2.6, fz + 0.75, '#ffd9a0', 0.75, 0.3);
+    }
+    [-11.6, -10.85, -10.15, -9.45, -8.75].forEach((x) => { cy(g, glow('#ffe7b0', 2.4, { cat: 'iza' }), x, 3.17, fz + 0.32, 0.05, 0.015, 10, { cast: false }); });
+    halo(g, cx, 2.5, fz + 0.9, '#ffd9a0', 4.4, 0.3);
     plight(g, '#ffc77a', 8, 7.5, cx, 2.3, Z1 + 1.4, 'izaFront');
-    // red chochin accent at the left corner
+    // big red chochin hanging from the hip at the corner
     {
-      const lm2 = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 0.34, 0.2) });
-      const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), lm2); l.scale.set(0.9, 1.15, 0.9); l.position.set(-8.7, 1.55, Z1 + 0.62); g.add(l);
-      cy(g, capM, -8.7, 1.75, Z1 + 0.62, 0.1, 0.06, 10); cy(g, capM, -8.7, 1.27, Z1 + 0.62, 0.1, 0.06, 10);
-      halo(g, -8.7, 1.55, Z1 + 0.62, '#ff4a2a', 2.0, 0.55);
-      plight(g, '#ff5a30', 5, 5.5, -8.7, 1.6, Z1 + 1.0, 'lantern');
+      const x = X0 - 0.42, z = fz + 0.42;
+      chochin(g, x, 2.42, z, 0.24, '酒', true, Math.PI / 4);
+      cyl2(g, capM, [x, 2.78, z], [x, 3.12, z], 0.008, 3, { cast: false, noLine: true });
+      halo(g, x, 2.42, z, '#ff4a2a', 1.8, 0.5);
+      plight(g, '#ff5a30', 5, 5.5, x + 0.2, 2.2, z + 0.4, 'lantern');
     }
     // standing chalkboard menu
     {
-      const a = grp(g, -10.0, Y0, Z1 + 1.35, 0.1);
+      const a = grp(g, -8.9, Y0, Z1 + 1.55, -0.15);
       bx(a, woodD, -0.3, -0.26, 0, 1.0, -0.14, 0.14); bx(a, woodD, 0.26, 0.3, 0, 1.0, -0.14, 0.14);
       pl(a, new THREE.MeshBasicMaterial({ map: chalkTex(), color: new THREE.Color(0.85, 0.85, 0.82) }), 0.52, 0.8, 0, 0.55, 0.045, 0, 0);
       bx(a, woodD, -0.3, 0.3, 0.97, 1.02, -0.05, 0.05);
     }
 
-    // ---- upper facade ----
-    // giant daruma (left), big wooden sign (centre/right), menu plaques row, window band
+    // ---- upper facade: daruma, big wooden sign, menu plaques, lamp beam ----
     {
-      const D = grp(g, -11.28, 4.85, Z1 + 0.5);
-      // own, finer sphere: the shared 20x14 one showed facets on a body this large
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), toon('#d9d6cf', { lit: 0.18 }));
-      body.scale.set(0.64, 0.64 * 1.22, 0.64 * 0.76); body.castShadow = body.receiveShadow = true; D.add(body);
-      sph(D, toon('#c4c1ba', { lit: 0.15 }), 0.5, 0, -0.78, 0.0, 1.0, 0.16, 0.7); // silver base rim
-      // face paint is wrapped onto the body (a flat card in front of the round daruma showed its rectangle
-      // as an ink frame and floated off the body when seen from the side)
-      const fg = new THREE.PlaneGeometry(1.16, 1.5, 40, 52);
+      const RX = 0.72, RY = 0.88, RZ = 0.5;
+      const D = grp(g, -11.13, 4.72, fz + 0.42);
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), toon('#d2d1cd', { lit: 0.1 }));
+      body.scale.set(RX, RY, RZ); body.castShadow = body.receiveShadow = true; D.add(body);
+      sph(D, toon('#b9bcc2', { lit: 0.15 }), 0.56, 0, -RY + 0.06, -0.02, 1.0, 0.14, 0.72); // silver base rim
+      bx(g, woodD, -11.7, -10.56, 3.72, 3.84, fz, fz + 0.62); // the shelf it sits on
+      // face paint wrapped onto the body
+      const fg = new THREE.PlaneGeometry(RX * 1.8, RY * 1.72, 40, 52);
       const pa = fg.attributes.position;
-      const RX = 0.64, RY = 0.64 * 1.22, RZ = 0.64 * 0.76;
       for (let i = 0; i < pa.count; i++) {
         let x = pa.getX(i), y = pa.getY(i) - 0.02;
         let s2 = (x / RX) ** 2 + (y / RY) ** 2;
-        if (s2 > 0.995) { const f = Math.sqrt(0.995 / s2); x *= f; y *= f; s2 = 0.995; } // paint past the rim folds onto the rim
+        if (s2 > 0.995) { const f = Math.sqrt(0.995 / s2); x *= f; y *= f; s2 = 0.995; }
         const z = RZ * Math.sqrt(1 - s2);
-        // lift the paint a hair off the surface along the ellipsoid normal
         const nx = x / (RX * RX), ny = y / (RY * RY), nz = z / (RZ * RZ);
         const nl = Math.hypot(nx, ny, nz) || 1;
         pa.setXYZ(i, x + (nx / nl) * 0.004, y + (ny / nl) * 0.004, z + (nz / nl) * 0.004);
       }
       fg.computeVertexNormals();
       const face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ map: darumaTex(), transparent: true, color: new THREE.Color(0.8, 0.78, 0.74), depthWrite: false }));
-      face.userData.noLine = true; // the body carries the silhouette ink; the paint itself never draws a frame
+      face.userData.noLine = true;
       D.add(face);
+      // two spots lighting it from below
+      [-11.5, -10.75].forEach((x) => { bx(g, capM, x - 0.05, x + 0.05, 3.84, 3.92, fz + 0.5, fz + 0.62, { cast: false }); });
     }
-    // sign board
-    const sgn = grp(g, -9.62, 4.2, Z1);
-    bx(sgn, woodD, -1.08, 1.08, -0.62, 0.62, 0, 0.1);
-    pl(sgn, new THREE.MeshBasicMaterial({ map: signBoardTex('居酒屋'), color: new THREE.Color(1.05, 0.98, 0.88) }), 2.0, 1.1, 0, 0, 0.105, 0, 0);
-    // menu plaques row
-    ['焼き鳥', '刺身', '枝豆', '唐揚げ', 'だし巻き', '日本酒'].forEach((t, i) => {
-      const x = -11.45 + i * 0.56 + 0.1;
-      bx(g, woodD, x - 0.17, x + 0.17, 5.28, 6.1, Z1, Z1 + 0.06);
-      pl(g, new THREE.MeshBasicMaterial({ map: plaqueTex(t), color: new THREE.Color(1.0, 0.92, 0.78) }), 0.3, 0.76, x, 5.69, Z1 + 0.065, 0, 0);
+    {
+      const sgn = grp(g, -9.52, 4.32, fz);
+      bx(sgn, woodD, -0.94, 0.94, -0.62, 0.62, 0, 0.11);
+      pl(sgn, new THREE.MeshBasicMaterial({ map: signBoardTex('居酒屋'), color: new THREE.Color(1.08, 1.0, 0.9) }), 1.8, 1.14, 0, 0, 0.115, 0, 0);
+      bx(sgn, tileDark, -1.0, 1.0, 0.62, 0.68, -0.02, 0.18); // little cap so rain runs off
+      // three lamps on goose-neck arms over the sign
+      [-0.62, 0, 0.62].forEach((x) => {
+        cyl2(sgn, capM, [x, 0.68, 0.04], [x, 0.84, 0.36], 0.012, 4, { cast: false });
+        bx(sgn, capM, x - 0.06, x + 0.06, 0.74, 0.84, 0.32, 0.46, { cast: false });
+        bx(sgn, glow('#fff0c8', 2.6, { cat: 'iza' }), x - 0.045, x + 0.045, 0.735, 0.745, 0.33, 0.45, { cast: false });
+      });
+      halo(g, -9.52, 4.4, fz + 0.45, '#ffd59a', 3.0, 0.26);
+    }
+    ['ハイボール', 'レモンサワー', '焼き鳥', 'もつ煮', '刺身', '唐揚げ', '日本酒'].forEach((t, i) => {
+      const x = -10.32 + i * 0.267;
+      bx(g, woodD, x - 0.125, x + 0.125, 5.16, 6.0, fz, fz + 0.06);
+      pl(g, new THREE.MeshBasicMaterial({ map: plaqueTex(t), color: new THREE.Color(1.0, 0.92, 0.78) }), 0.22, 0.8, x, 5.58, fz + 0.065, 0, 0);
     });
-    // spot lights over the sign
-    [-10.6, -9.7, -8.8].forEach((x) => { bx(g, capM, x - 0.06, x + 0.06, 5.08, 5.2, Z1 + 0.05, Z1 + 0.22, { cast: false }); bx(g, glow('#ffe7b0', 2.6), x - 0.04, x + 0.04, 5.05, 5.08, Z1 + 0.08, Z1 + 0.2, { cast: false }); });
-    // upper window band with lattice
-    [[-11.55, 0.8], [-10.25, 0.9], [-9.0, 0.8]].forEach(([x, w]) => {
-      bx(g, woodD, x - w / 2 - 0.06, x + w / 2 + 0.06, 6.0, 6.45, Z1, Z1 + 0.08);
-      pl(g, L('#ffcf86', 1.0), w, 0.37, x, 6.225, Z1 + 0.085, 0, 0);
-      for (let k = 1; k < 4; k++) bx(g, woodD, x - w / 2 + (k * w) / 4 - 0.012, x - w / 2 + (k * w) / 4 + 0.012, 6.0, 6.45, Z1 + 0.085, Z1 + 0.1, { cast: false });
-    });
+    // top beam with a row of spot lamps shining down on the plaques
+    bx(g, woodD, X0 - 0.06, X1 + 0.06, 6.08, 6.24, fz, fz + 0.34);
+    for (let i = 0; i < 6; i++) {
+      const x = X0 + 0.35 + i * ((X1 - X0 - 0.7) / 5);
+      bx(g, capM, x - 0.06, x + 0.06, 5.96, 6.08, fz + 0.2, fz + 0.32, { cast: false });
+      cy(g, glow('#fff0c8', 2.6, { cat: 'iza' }), x, 5.95, fz + 0.26, 0.04, 0.012, 10, { cast: false });
+    }
+    halo(g, -9.5, 5.6, fz + 0.4, '#ffd59a', 2.6, 0.2);
   }
 
-  /* ==================================================================== EAST (alley) side */
+  /* ==================================================================== WEST - street side on the back lane (reference 2) */
+  {
+    const f = 'w';
+    const W = grp(g, X0, 0, 0, -Math.PI / 2); // local x = world z (u), local z = out of the wall
+    const ox = (o) => X0 - o; // world x of an outward offset
+    // timber frame of the shopfront: posts between bays, head beam, top plate
+    [3.4, 1.55, -0.35, -3.75].forEach((u) => bx(W, woodD, u - 0.065, u + 0.065, Y0, 3.16, 0, 0.15));
+    bx(W, woodD, Z0, Z1, 2.48, 2.6, 0, 0.16);
+    bx(W, woodD, Z0, Z1, 3.08, 3.16, 0, 0.12);
+    bx(W, stone, Z0 + 0.05, Z1 - 0.05, Y0, 0.3, 0, 0.08);
+    // ranma band over bays A-C
+    pl(W, L('#ffcf8a', 1.0), 7.1, 0.46, -0.17, 2.85, 0.03, 0, 0, { noLine: true });
+    for (let u = -3.68; u < 3.36; u += 0.085) if (Math.abs(u - 1.55) > 0.08 && Math.abs(u + 0.35) > 0.08) bx(W, woodD, u - 0.014, u + 0.014, 2.6, 3.08, 0.04, 0.08, { cast: false });
+    // lantern row under the street-side eave
+    beam(woodD, [ox(0.6), 2.98, Z1 - 0.1], [ox(0.6), 2.98, Z0 + 0.3], 0.045, 0.045, { cast: false });
+    for (let z = Z1 - 0.45, i = 0; z > Z0 + 0.4; z -= 0.62, i++) {
+      if (z > -4.2 && z < -3.3) continue; // leave room above the vending machine's light
+      chochin(g, ox(0.6), 2.62, z, 0.13, i % 3 === 1 ? '居酒屋' : '酒', false, -Math.PI / 2);
+      cyl2(g, capM, [ox(0.6), 2.82, z], [ox(0.6), 2.98, z], 0.006, 3, { cast: false, noLine: true });
+    }
+    halo(g, ox(0.8), 2.6, 1.5, '#ffd9a0', 4.6, 0.26);
+    halo(g, ox(0.8), 2.6, -3.0, '#ffd9a0', 4.0, 0.22);
+    plight(g, '#ffc77a', 6, 7, ox(1.3), 2.3, 0.6, 'izaSide');
+
+    // bay A (u 1.55..3.4): food-sample display case + banner
+    {
+      bx(W, woodM, 1.7, 3.25, Y0, 0.7, 0, 0.36);
+      bx(W, woodD, 1.66, 3.29, 0.7, 0.76, 0, 0.44);
+      bx(W, woodD, 1.66, 3.29, 1.7, 1.76, 0, 0.44);
+      [1.69, 3.26].forEach((u) => bx(W, woodD, u - 0.03, u + 0.03, 0.76, 1.7, 0.38, 0.44, { cast: false }));
+      pl(W, L('#fff1d6', 1.15), 1.5, 0.94, 2.475, 1.23, 0.02, 0, 0, { noLine: true });
+      bx(W, toon('#e8eef4', { lit: 0.3 }), 1.72, 3.23, 1.22, 1.24, 0.03, 0.4, { cast: false });
+      const foods = [['#e8a23a', 'bowl'], ['#c43d2f', 'plate'], ['#f2e3b3', 'bowl'], ['#7aa04a', 'plate'], ['#d9782b', 'plate'], ['#b8542b', 'bowl'], ['#f4c9a8', 'plate'], ['#e0b84a', 'bowl']];
+      foods.forEach(([c, kind], i) => {
+        const u = 1.9 + (i % 4) * 0.38, y = i < 4 ? 0.77 : 1.25, o = 0.22;
+        if (kind === 'bowl') { cy(W, toon('#2a2220'), u, y, o, 0.11, 0.1, 14, { rt: 1.25, cast: false }); cy(W, toon(c, { lit: 0.25 }), u, y + 0.1, o, 0.125, 0.012, 14, { cast: false }); sph(W, toon(c, { lit: 0.25 }), 0.05, u + 0.03, y + 0.12, o + 0.02, 1, 0.6, 1); }
+        else { cy(W, toon('#f4f2ec'), u, y, o, 0.14, 0.02, 16, { cast: false }); for (let k = 0; k < 3; k++) sph(W, toon(c, { lit: 0.25 }), 0.045, u - 0.05 + k * 0.05, y + 0.045, o + (k % 2) * 0.03, 1.3, 0.7, 1); }
+        bx(W, toon('#ffffff'), u - 0.05, u + 0.05, y + 0.005, y + 0.035, o + 0.13, o + 0.15, { cast: false });
+      });
+      pl(W, makeGlass(1.55, 0.94, 77, { drops: 0, alpha: 0.03 }), 1.55, 0.94, 2.475, 1.23, 0.445, 0, 0, { noLine: true });
+      pl(W, new THREE.MeshBasicMaterial({ map: bannerTex(), color: new THREE.Color(1.05, 1.0, 0.95) }), 1.5, 0.36, 2.475, 2.12, 0.03, 0, 0);
+    }
+    // bay B (u -0.35..1.55): side entrance, indigo noren, lattice leaf, light-box stand sign, A-frame menu
+    {
+      const d0 = -0.2, d1 = 1.4;
+      pl(W, new THREE.MeshBasicMaterial({ map: cafeTex(), color: new THREE.Color(1.2, 1.05, 0.82) }), d1 - d0, 2.3, (d0 + d1) / 2, Y0 + 1.15, 0.02, 0, 0);
+      bx(W, stoneL, d0 - 0.05, d1 + 0.05, Y0, Y0 + 0.06, 0, 0.4);
+      const l0 = 0.62, lz = 0.07;
+      bx(W, woodD, l0, l0 + 0.05, Y0, 2.46, lz - 0.025, lz + 0.025); bx(W, woodD, d1 - 0.07, d1 - 0.02, Y0, 2.46, lz - 0.025, lz + 0.025);
+      bx(W, woodD, l0, d1 - 0.02, Y0, Y0 + 0.08, lz - 0.025, lz + 0.025);
+      pl(W, L('#ffb870', 0.85), d1 - l0 - 0.1, 2.25, (l0 + d1) / 2 - 0.02, Y0 + 1.2, lz - 0.01, 0, 0, { noLine: true });
+      for (let k = 0; k < 7; k++) bx(W, woodD, l0 + 0.08 + k * 0.1, l0 + 0.1 + k * 0.1, Y0 + 0.08, 2.42, lz, lz + 0.03, { cast: false });
+      for (let i = 0; i < 2; i++) {
+        const n = new THREE.Mesh(new THREE.PlaneGeometry((d1 - d0) / 2 - 0.02, 0.66), new THREE.MeshBasicMaterial({ map: norenBlueTex('酒処'[i]), color: new THREE.Color(0.95, 0.95, 0.95), side: THREE.DoubleSide }));
+        n.position.set(d0 + (i + 0.5) * ((d1 - d0) / 2), 2.12, 0.22); W.add(n);
+      }
+      cyl2(W, woodD, [d0 - 0.05, 2.46, 0.22], [d1 + 0.05, 2.46, 0.22], 0.02, 6);
+      // electric stand sign (電飾スタンド看板)
+      const sb = grp(W, 1.78, 0, 0.5);
+      bx(sb, capM, -0.24, 0.24, Y0, Y0 + 0.08, -0.17, 0.17);
+      bx(sb, toon('#f2f2ee'), -0.22, 0.22, Y0 + 0.08, Y0 + 0.98, -0.13, 0.13);
+      const lbm = glow('#ffffff', 1.45, { map: lightBoxTex(), cat: 'iza' });
+      [1, -1].forEach((s) => pl(sb, lbm, 0.4, 0.86, 0, Y0 + 0.53, s * 0.132, s > 0 ? 0 : Math.PI, 0));
+      [1, -1].forEach((s) => pl(sb, lbm, 0.24, 0.86, s * 0.222, Y0 + 0.53, 0, s * Math.PI / 2, 0));
+      halo(sb, 0, Y0 + 0.55, 0.2, '#fff4e0', 1.2, 0.18);
+      // A-frame chalk menu
+      const a = grp(W, -0.12, 0, 0.62, 0.25);
+      bx(a, woodD, -0.28, -0.24, Y0, Y0 + 0.95, -0.14, 0.14); bx(a, woodD, 0.24, 0.28, Y0, Y0 + 0.95, -0.14, 0.14);
+      pl(a, new THREE.MeshBasicMaterial({ map: chalkTex(), color: new THREE.Color(0.85, 0.85, 0.82) }), 0.5, 0.78, 0, Y0 + 0.52, 0.045, 0, 0);
+      // a bracket lamp by the door
+      bx(W, capM, -0.3, -0.18, 2.05, 2.3, 0.0, 0.14, { cast: false });
+      bx(W, glow('#ffd59a', 2.2, { cat: 'iza' }), -0.29, -0.19, 2.08, 2.27, 0.14, 0.17, { cast: false });
+    }
+    // bay C (u -3.75..-0.35): long tategoshi lattice window onto the counter, sudare, bikes in front
+    {
+      const u0 = -3.6, u1 = -0.5, y0 = 0.95, y1 = 2.38;
+      bx(W, woodM, u0, u1, Y0, y0, 0, 0.08);
+      bx(W, woodD, u0 - 0.04, u1 + 0.04, y0 - 0.06, y0, 0, 0.18);
+      pl(W, L('#ffc980', 1.0), u1 - u0, y1 - y0, (u0 + u1) / 2, (y0 + y1) / 2, 0.03, 0, 0, { noLine: true });
+      for (let u = u0 + 0.05; u < u1; u += 0.075) bx(W, woodD, u - 0.016, u + 0.016, y0, y1, 0.05, 0.1, { cast: false });
+      bx(W, woodD, u0, u1, 1.62, 1.66, 0.05, 0.11, { cast: false });
+      pl(W, new THREE.MeshToonMaterial({ map: sudareTex(), gradientMap: RAMP }), 1.3, 0.5, -1.4, 2.14, 0.115, 0, 0);
+      bicycle(g, ox(0.55), -3.45, 0.03, '#d8c7a0', 0, { type: 'basket', steer: -0.15, case: '#c9b88f' });
+      bicycle(g, ox(0.62), -1.75, Math.PI + 0.04, '#2e5a3a', 0.11, { type: 'cross', steer: 0.12 });
+    }
+    // bay D (u -7.2..-3.75): drink vending machine, crates, planters, kitchen window, AC unit
+    {
+      vendingMachine(g, ox(0.42), -5.0, -Math.PI / 2, 1, 13);
+      const crate = (u, y, c) => bx(W, toon(c), u - 0.22, u + 0.22, y, y + 0.28, 0.12, 0.46);
+      crate(-6.05, Y0, '#c4552f'); crate(-6.05, Y0 + 0.28, '#d8643a'); crate(-6.55, Y0, '#2f6fb0');
+      planter(W, -7.0, 0.28, 0.16, '#4a7f4a');
+      bx(W, woodD, -6.75, -5.75, 1.45, 2.25, 0, 0.09);
+      pl(W, L('#ffd8a0', 0.95), 0.88, 0.68, -6.25, 1.85, 0.095, 0, 0);
+      for (let k = 1; k < 5; k++) bx(W, iron, -6.75 + k * 0.2 - 0.008, -6.75 + k * 0.2 + 0.008, 1.5, 2.2, 0.1, 0.12, { cast: false });
+    }
+    // corner: projecting shop-name sign (袖看板) on the upper floor + a nobori by the kerb
+    {
+      const u = 3.78, o0 = 0.06, o1 = 0.7;
+      bx(W, woodD, u - 0.08, u + 0.08, 3.86, 5.76, o0, o1);
+      const sm = glow('#ffffff', 1.4, { map: sodeTex(), cat: 'iza' });
+      [1, -1].forEach((s) => pl(W, sm, o1 - o0 - 0.08, 1.8, u + s * 0.082, 4.81, (o0 + o1) / 2, s * Math.PI / 2, 0));
+      [4.0, 5.6].forEach((y) => cyl2(W, iron, [u, y, 0], [u, y + 0.1, o0 + 0.1], 0.02, 4, { cast: false }));
+      halo(W, u, 4.8, o1 * 0.6, '#ffe9c8', 2.4, 0.22);
+      const nb = grp(g, ox(1.3), 0, 3.95, -Math.PI / 2);
+      nobori(nb, 0, 0, '生ビール', '#c2181c', 4.4);
+    }
+    // ---- upper floor: balcony with lanterns, gold-framed shop board under goose-neck lamps, windows ----
+    {
+      const b0 = -7.0, b1 = -0.1, by = 3.56, bo = 0.5;
+      bx(W, woodD, b0, b1, by, by + 0.1, 0, bo);
+      for (let u = b0 + 0.05; u <= b1; u += 0.38) bx(W, woodD, u - 0.022, u + 0.022, by + 0.1, by + 0.95, bo - 0.06, bo - 0.02, { cast: false });
+      bx(W, woodD, b0, b1, by + 0.9, by + 0.98, bo - 0.08, bo, { cast: false });
+      bx(W, woodD, b0, b1, by + 0.42, by + 0.46, bo - 0.06, bo - 0.02, { cast: false });
+      [-6.2, -4.3, -2.4, -0.7].forEach((u) => {
+        chochin(W, u, by + 1.3, bo - 0.04, 0.11, '酒');
+        cyl2(W, capM, [u, by + 1.44, bo - 0.04], [u, by + 1.62, bo - 0.04], 0.006, 3, { cast: false, noLine: true });
+        bx(W, woodD, u - 0.02, u + 0.02, by + 1.6, by + 1.64, 0, bo, { cast: false });
+      });
+      halo(g, ox(0.6), by + 1.3, -3.5, '#ffd9a0', 3.6, 0.2);
+      const latticeWin = (u, y, w, h, hex, sud) => {
+        bx(W, woodD, u - w / 2 - 0.06, u + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, 0, 0.09);
+        pl(W, L(hex, 1.0), w, h, u, y, 0.095, 0, 0);
+        for (let k = 1; k < 4; k++) bx(W, woodD, u - w / 2 + (k * w) / 4 - 0.012, u - w / 2 + (k * w) / 4 + 0.012, y - h / 2, y + h / 2, 0.095, 0.115, { cast: false });
+        for (let k = 1; k < 3; k++) bx(W, woodD, u - w / 2, u + w / 2, y - h / 2 + (k * h) / 3 - 0.012, y - h / 2 + (k * h) / 3 + 0.012, 0.095, 0.115, { cast: false });
+        if (sud) pl(W, new THREE.MeshToonMaterial({ map: sudareTex(), gradientMap: RAMP }), w, h * 0.55, u, y + h * 0.22, 0.12, 0, 0);
+      };
+      latticeWin(-6.05, 4.85, 1.0, 1.15, '#ffc980', false);
+      latticeWin(-3.9, 4.85, 1.0, 1.15, '#ffb0c8', true);
+      latticeWin(-1.78, 4.85, 1.0, 1.15, '#ffc27a', false);
+      latticeWin(0.95, 5.05, 0.9, 0.95, '#ffc980', true);
+      latticeWin(2.45, 5.05, 0.9, 0.95, '#ffc27a', false);
+      // gold-framed board
+      const s0 = 0.35, s1 = 3.05;
+      bx(W, woodD, s0 - 0.06, s1 + 0.06, 3.62, 4.42, 0, 0.12);
+      pl(W, new THREE.MeshBasicMaterial({ map: goldSignTex('炭火焼鳥'), color: new THREE.Color(1.1, 1.05, 0.95) }), s1 - s0, 0.74, (s0 + s1) / 2, 4.02, 0.125, 0, 0, { cast: false });
+      [0.8, 1.7, 2.6].forEach((u) => {
+        cyl2(W, capM, [u, 4.42, 0.06], [u, 4.62, 0.38], 0.012, 4, { cast: false });
+        bx(W, capM, u - 0.06, u + 0.06, 4.52, 4.62, 0.32, 0.46, { cast: false });
+        bx(W, glow('#fff0c8', 2.6, { cat: 'iza' }), u - 0.045, u + 0.045, 4.515, 4.525, 0.33, 0.45, { cast: false });
+      });
+      halo(g, ox(0.4), 4.05, 1.7, '#ffd59a', 3.2, 0.24);
+      // upstairs AC unit + downpipe
+      bx(W, toon('#d6dae3', { lit: 0.35 }), -6.95, -6.35, 5.85, 6.25, 0, 0.3);
+      cyl2(g, toon('#7b8498'), [X0 - 0.08, Y0, -7.05], [X0 - 0.08, 6.3, -7.05], 0.04, 6);
+    }
+  }
+
+  /* ==================================================================== EAST - back of house (faces the LAWSON) */
   {
     const f = 'e';
-    // lean-to tile eave over the shop part of the alley wall (stops before the stair landing)
-    const ez0 = Z0 + 0.1, ez1 = -1.95, ew = 0.85;
-    bx(g, roofTile, X1, X1 + ew, 2.98, 3.14, ez0, ez1);
-    const top = new THREE.Mesh(new THREE.PlaneGeometry(ez1 - ez0, ew), tileMat(3, 1));
-    top.rotation.set(-Math.PI / 2, 0, Math.PI / 2); top.position.set(X1 + ew / 2, 3.145, (ez0 + ez1) / 2); g.add(top);
-    for (let z = ez0 + 0.1; z < ez1; z += 0.34) bx(g, woodD, X1, X1 + ew - 0.05, 2.88, 2.98, z, z + 0.07, { cast: false });
-    bx(g, woodD, X1 + ew - 0.06, X1 + ew + 0.01, 2.84, 2.98, ez0, ez1);
-    // lantern string
-    const lm = L('#fff0cc', 1.4);
-    for (let z = -6.6; z < ez1 - 0.2; z += 0.62) {
-      const l = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), lm); l.scale.set(0.9, 1.15, 0.9); l.position.set(X1 + ew - 0.2, 2.6, z); g.add(l);
-      cy(g, toon('#15110e'), X1 + ew - 0.2, 2.73, z, 0.06, 0.05, 8);
-    }
-    halo(g, X1 + 0.6, 2.6, -4.2, '#ffd9a0', 3.6, 0.3);
-    // shop wall: lattice windows (shoji glow), sliding door, noren
+    // kitchen windows: frosted glass behind iron grilles
+    const kWin = (z, y, w, h) => {
+      bxo(f, z - w / 2 - 0.06, z + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, 0, 0.08, woodD);
+      plo(f, w, h, z, y, 0.085, L('#ffe2b8', 0.75));
+      for (let k = 1; k < 6; k++) bxo(f, z - w / 2 + (k * w) / 6 - 0.01, z - w / 2 + (k * w) / 6 + 0.01, y - h / 2, y + h / 2, 0.1, 0.12, iron, { cast: false });
+      bxo(f, z - w / 2, z + w / 2, y - 0.01, y + 0.01, 0.1, 0.12, iron, { cast: false });
+    };
+    kWin(-5.45, 1.8, 0.8, 0.6);
+    kWin(-2.5, 1.8, 0.8, 0.6);
+    // staff door with a small steel hood and a bare bulb
+    bxo(f, -4.85, -3.85, Y0, 2.25, 0, 0.08, toon('#4d5c58'));
+    bxo(f, -4.9, -3.8, 2.25, 2.32, 0, 0.1, woodD);
+    bxo(f, -4.8, -4.7, 1.0, 1.2, 0.08, 0.11, iron, { cast: false });
+    bxo(f, -5.05, -3.65, 2.5, 2.56, 0, 0.55, iron);
+    bxo(f, -4.4, -4.3, 2.36, 2.5, 0.25, 0.35, capM, { cast: false });
+    bxo(f, -4.39, -4.31, 2.3, 2.36, 0.26, 0.34, glow('#ffe6b0', 2.2, { cat: 'iza' }), { cast: false });
+    halo(g, X1 + 0.3, 2.3, -4.35, '#ffe0a0', 1.4, 0.35);
+    // propane cylinders chained to the wall, gas meter, utility boxes
+    [-6.55, -6.22].forEach((z) => { cy(g, toon('#c9ccd2'), X1 + 0.2, Y0, z, 0.15, 1.15, 14); cy(g, toon('#8a919c'), X1 + 0.2, Y0 + 1.15, z, 0.07, 0.12, 8); });
+    bxo(f, -6.72, -6.05, 0.95, 0.98, 0.05, 0.37, iron, { cast: false });
+    bxo(f, -3.5, -3.15, 1.15, 1.6, 0, 0.18, toon('#c7ccd4'));
+    // AC outdoor units under the stair landing
+    [-1.25, -2.0].forEach((z) => { bxo(f, z - 0.32, z + 0.32, Y0, Y0 + 0.55, 0, 0.3, toon('#d6dae3', { lit: 0.35 })); });
+    // 2F: plain lattice windows of the flat upstairs, one with a bamboo blind
     const latticeWin = (z, y, w, h, hex = '#ffc980') => {
       bxo(f, z - w / 2 - 0.06, z + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, 0, 0.09, woodD);
-      plo(f, w, h, z, y, 0.095, L(hex, 1.05));
+      plo(f, w, h, z, y, 0.095, L(hex, 0.9));
       for (let k = 1; k < 4; k++) bxo(f, z - w / 2 + (k * w) / 4 - 0.012, z - w / 2 + (k * w) / 4 + 0.012, y - h / 2, y + h / 2, 0.095, 0.115, woodD, { cast: false });
       for (let k = 1; k < 3; k++) bxo(f, z - w / 2, z + w / 2, y - h / 2 + (k * h) / 3 - 0.012, y - h / 2 + (k * h) / 3 + 0.012, 0.095, 0.115, woodD, { cast: false });
     };
-    latticeWin(-6.2, 1.6, 1.1, 0.9);
-    latticeWin(-2.9, 1.6, 1.1, 0.9);
-    // sliding lattice door
-    bxo(f, -4.85, -3.55, Y0, 2.4, 0, 0.1, woodD);
-    plo(f, 1.16, 2.18, -4.2, 1.24, 0.105, L('#ffb870', 0.95));
-    for (let k = 0; k <= 6; k++) bxo(f, -4.78 + k * 0.19, -4.76 + k * 0.19, Y0 + 0.05, 2.35, 0.105, 0.125, woodD, { cast: false });
-    for (let k = 0; k < 7; k++) bxo(f, -4.8, -3.6, Y0 + 0.3 + k * 0.3, Y0 + 0.32 + k * 0.3, 0.105, 0.125, woodD, { cast: false });
-    // short noren over the door
-    for (let i = 0; i < 2; i++) {
-      const n = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.5), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.18, 0.42), side: THREE.DoubleSide }));
-      n.rotation.y = Math.PI / 2; n.position.set(X1 + 0.16, 2.0, -4.5 + i * 0.6); g.add(n);
-    }
-    // hanging wooden signboard (perpendicular to the wall, like reference 2)
-    {
-      const sx = X1 + 0.62, sz = -5.55;
-      bx(g, woodD, X1, sx + 0.02, 3.02, 3.06, sz - 0.02, sz + 0.02, { cast: false });
-      const t = canvasTex(160, 400, (c, w, h) => { c.fillStyle = '#c99a5a'; c.fillRect(0, 0, w, h); c.strokeStyle = '#3a2314'; c.lineWidth = 8; c.strokeRect(4, 4, w - 8, h - 8); vbrush(c, '炭火焼', w / 2, 90, 90, 105); });
-      [-1, 1].forEach((s) => pl(g, new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(1.0, 0.9, 0.75) }), 0.3, 0.74, sx, 2.6, sz + s * 0.025, s > 0 ? 0 : Math.PI, 0));
-      cyl2(g, toon('#15110e'), [sx, 2.98, sz], [sx, 2.96, sz], 0.01, 4);
-    }
-    // A-frame menu + bicycle parked at the wall + beer crates (ground)
-    {
-      const a = grp(g, X1 + 0.65, Y0, -2.55, Math.PI / 2 - 0.2);
-      bx(a, woodD, -0.28, -0.24, 0, 0.95, -0.14, 0.14); bx(a, woodD, 0.24, 0.28, 0, 0.95, -0.14, 0.14);
-      pl(a, new THREE.MeshBasicMaterial({ map: chalkTex(), color: new THREE.Color(0.85, 0.85, 0.82) }), 0.5, 0.78, 0, 0.52, 0.045, 0, 0);
-    }
-    // 2F: lattice windows, wooden board, big orange-lit hanging sign
     latticeWin(2.6, 4.9, 1.0, 1.1, '#ffc27a');
     latticeWin(0.55, 4.9, 1.0, 1.1, '#ffb0c8');
     latticeWin(-5.6, 4.9, 1.0, 1.1, '#ffc980');
     latticeWin(-3.2, 4.9, 1.0, 1.1, '#ffc27a');
-    // bamboo blind on one window
     {
       const t = canvasTex(128, 128, (c, w, h) => { c.fillStyle = '#d9b36a'; c.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 8) { c.fillStyle = x % 16 ? '#c79a4c' : '#e3c27c'; c.fillRect(x, 0, 6, h); } c.fillStyle = '#6b4a2a'; c.fillRect(0, h * 0.72, w, 5); });
       plo(f, 1.0, 0.7, 0.55, 5.1, 0.135, new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(0.9, 0.8, 0.65) }));
     }
-    {
-      const sgx = X1 + 0.12, sgz = 1.55;
-      bx(g, woodD, sgx - 0.06, sgx + 0.14, 5.55, 6.3, sgz - 0.95, sgz + 0.95);
-      plo(f, 1.8, 0.7, sgz, 5.925, 0.145, new THREE.MeshBasicMaterial({ map: signBoardTex('旨い酒 旨い肴', 1024, 400, false), color: new THREE.Color(1.15, 1.0, 0.8) }), { cast: false });
-      halo(g, X1 + 0.5, 5.9, sgz, '#ffc77a', 3.2, 0.3);
-    }
-    // 2F eave (small, protects the window row) + lantern pair at the stair landing
     bx(g, roofTile, X1, X1 + 0.5, 6.3, 6.42, -7.0, 3.4);
-    [[-0.9, 2.55], [-2.0, 2.55]].forEach(([z]) => {
-      const l = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), L('#fff0cc', 1.4)); l.scale.set(0.9, 1.15, 0.9); l.position.set(X1 + 0.35, 4.1, z); g.add(l);
-    });
-    // ---- east balcony + wall bulletin board + bike + plants ----
-    bxo(f, -7.0, -2.1, 3.14, 3.3, 0, 0.4, woodD);
-    for (let z = -6.9; z < -2.15; z += 0.4) bxo(f, z - 0.02, z + 0.02, 3.3, 4.2, 0.33, 0.37, woodD, { cast: false });
-    bxo(f, -7.0, -2.1, 4.17, 4.25, 0.31, 0.4, woodD, { cast: false });
-    bxo(f, -7.0, -2.1, 3.7, 3.74, 0.33, 0.37, woodD, { cast: false });
-    [-6.2, -4.5, -2.8].forEach((z) => { const l = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8), L('#fff0cc', 1.4)); l.scale.set(0.9, 1.15, 0.9); l.position.set(X1 + 0.34, 4.0, z); g.add(l); });
+    // neighbourhood notice board by the front corner, staff bicycle, a planter
     {
       const bz = Z1 - 0.8, by = 1.7;
       bxo(f, bz - 0.62, bz + 0.62, by - 0.45, by + 0.45, 0, 0.07, woodD);
       plo(f, 1.2, 0.84, bz, by, 0.075, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.45, 0.32) }));
-      [[3, -0.38, 0.1, 0.34, 0.5], [4, 0.0, 0.12, 0.34, 0.5], [5, 0.38, 0.05, 0.3, 0.44], [2, -0.1, -0.22, 0.3, 0.4]].forEach(([p, du, dv, w, h], i) => plo(f, w, h, bz + du, by + dv, 0.085, new THREE.MeshBasicMaterial({ map: posterTex(p), color: new THREE.Color(0.78, 0.78, 0.8) })));
+      [[3, -0.38, 0.1, 0.34, 0.5], [4, 0.0, 0.12, 0.34, 0.5], [5, 0.38, 0.05, 0.3, 0.44], [2, -0.1, -0.22, 0.3, 0.4]].forEach(([p, du, dv, w, h]) => plo(f, w, h, bz + du, by + dv, 0.085, new THREE.MeshBasicMaterial({ map: posterTex(p), color: new THREE.Color(0.78, 0.78, 0.8) })));
       bxo(f, bz - 0.66, bz + 0.66, by + 0.45, by + 0.5, 0, 0.3, roofTile);
       plo(f, 1.2, 0.84, bz, by, 0.09, makeGlass(1.2, 0.84, 21, { drops: 0.7, alpha: 0.04 }), { noLine: true });
     }
-    bicycle(g, X1 + 0.55, Z1 + 0.0 - 0.3, 0.0, '#3a8fb8', 0.08);
+    bicycle(g, X1 + 0.55, Z1 + 0.0 - 0.3, 0.0, '#3a8fb8', 0, { type: 'basket', steer: 0.18 });
     [[X1 + 0.35, Z1 - 1.9]].forEach(([x, z]) => { const p = grp(g, x, Y0, z); cy(p, toon('#8a5a3c'), 0, 0, 0, 0.18, 0.32, 10, { rt: 0.8 }); sph(p, toon('#2f5a44'), 0.24, 0, 0.55, 0, 1, 0.9, 1); });
   }
 
@@ -497,74 +812,10 @@ export function buildIzakaya(parent, drips) {
   bx(g, toon('#aab2c2'), X1 + 0.0, X1 + 0.18, 1.0, 1.7, 2.9, 3.35);
   cyl2(g, toon('#7b8498'), [X1 + 0.1, Y0, -6.9], [X1 + 0.1, 6.5, -6.9], 0.04, 6);
   bx(g, toon('#d6dae3'), X1, X1 + 0.5, 3.9, 4.4, -1.75, -1.15);
-  for (let x = X0 + 0.4; x < X1 + 0.3; x += 1.0 + R() * 0.2) drips.push([x, 2.84, Z1 + 1.03, Y0 + 0.01]);
-  for (let z = -6.8; z < -2.0; z += 1.3) drips.push([X1 + 0.8, 2.84, z, Y0 + 0.01]);
-
-  /* ==================================================================== WEST side (long street-shop wall, reference 2) */
-  {
-    const f = 'w';
-    const ez0 = Z0 + 0.1, ez1 = Z1 - 0.05, ew = 0.45;
-    const lm = L('#fff0cc', 1.4);
-    const lantern = (x, y, z, s = 1) => { const l = new THREE.Mesh(new THREE.SphereGeometry(0.12 * s, 12, 8), lm); l.scale.set(0.9, 1.15, 0.9); l.position.set(x, y, z); g.add(l); cy(g, toon('#15110e'), x, y + 0.12 * s * 1.15, z, 0.055 * s, 0.045, 8); };
-    // lean-to tile eave over the whole ground floor
-    bxo(f, ez0, ez1, 2.98, 3.14, 0, ew, roofTile);
-    const top = new THREE.Mesh(new THREE.PlaneGeometry(ez1 - ez0, ew), tileMat(5, 1));
-    top.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); top.position.set(X0 - ew / 2, 3.145, (ez0 + ez1) / 2); g.add(top);
-    for (let z = ez0 + 0.1; z < ez1; z += 0.34) bxo(f, z, z + 0.07, 2.88, 2.98, 0, ew - 0.04, woodD, { cast: false });
-    bxo(f, ez0, ez1, 2.84, 2.98, ew - 0.07, ew, woodD);
-    for (let z = -6.7; z < ez1 - 0.2; z += 0.66) lantern(X0 - ew + 0.2, 2.6, z);
-    halo(g, X0 - 0.3, 2.6, -1.5, '#ffd9a0', 4.0, 0.28);
-    halo(g, X0 - 0.3, 2.6, 2.4, '#ffd9a0', 3.2, 0.26);
-    const latticeWin = (z, y, w, h, hex) => {
-      bxo(f, z - w / 2 - 0.06, z + w / 2 + 0.06, y - h / 2 - 0.06, y + h / 2 + 0.06, 0, 0.09, woodD);
-      plo(f, w, h, z, y, 0.095, L(hex, 1.0));
-      for (let k = 1; k < 4; k++) bxo(f, z - w / 2 + (k * w) / 4 - 0.012, z - w / 2 + (k * w) / 4 + 0.012, y - h / 2, y + h / 2, 0.095, 0.115, woodD, { cast: false });
-      for (let k = 1; k < 3; k++) bxo(f, z - w / 2, z + w / 2, y - h / 2 + (k * h) / 3 - 0.012, y - h / 2 + (k * h) / 3 + 0.012, 0.095, 0.115, woodD, { cast: false });
-    };
-    // ground-floor bays
-    latticeWin(-6.0, 1.6, 1.1, 0.9, '#ffc980');                  // kitchen
-    latticeWin(-3.3, 1.6, 1.1, 0.9, '#ffc27a');
-    // side door with noren + canopy
-    bxo(f, -1.05, 0.25, Y0, 2.3, 0, 0.1, woodD);
-    plo(f, 1.1, 2.1, -0.4, 1.2, 0.105, L('#ffb870', 0.9));
-    for (let k = 0; k <= 5; k++) bxo(f, -0.98 + k * 0.2, -0.96 + k * 0.2, Y0 + 0.05, 2.25, 0.105, 0.125, woodD, { cast: false });
-    for (let i = 0; i < 2; i++) { const n = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.55), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.18, 0.42), side: THREE.DoubleSide })); n.rotation.y = Math.PI / 2; n.position.set(X0 - 0.18, 2.05, -0.7 + i * 0.6); g.add(n); }
-    // shop display window with food photos (south bay)
-    {
-      const w = 1.9, z = 2.6;
-      bxo(f, z - w / 2 - 0.07, z + w / 2 + 0.07, 0.75, 2.2, 0, 0.1, woodD);
-      plo(f, w, 1.3, z, 1.48, 0.105, new THREE.MeshBasicMaterial({ map: foodBoardTex(520, 360, 'おすすめ'), color: new THREE.Color(1.2, 1.1, 0.95) }));
-      plo(f, w, 1.3, z, 1.48, 0.12, makeGlass(w, 1.3, 77, { drops: 0, alpha: 0.03 }), { noLine: true });
-      bxo(f, z - w / 2 - 0.1, z + w / 2 + 0.1, 0.7, 0.78, 0, 0.2, woodD);
-    }
-    // vertical hanging sign (縦看板) under the eave, plus wall posters
-    {
-      const t = canvasTex(110, 380, (c, w, h) => { c.fillStyle = '#d9c8a0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#3a2314'; c.lineWidth = 7; c.strokeRect(4, 4, w - 8, h - 8); vbrush(c, '酒処', w / 2, 100, 78, 108); });
-      bxo(f, 1.05, 1.09, 3.0, 3.06, 0, 0.0, woodD);
-      [-1, 1].forEach((s2) => pl(g, new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(1.0, 0.92, 0.8) }), 0.28, 0.9, X0 - 0.36, 2.5, 1.07 + s2 * 0.02, s2 > 0 ? 0 : Math.PI, 0));
-      cyl2(g, woodD, [X0, 2.84, 1.07], [X0 - 0.36, 2.84, 1.07], 0.015, 5);
-    }
-    [[-4.7, 1.7, 3], [3.9, 1.5, 5]].forEach(([z, y, p]) => plo(f, 0.42, 0.6, z, y, 0.02, new THREE.MeshBasicMaterial({ map: posterTex(p), color: new THREE.Color(0.8, 0.8, 0.8) })));
-    // kitchen AC outdoor unit
-    bxo(f, -5.0, -4.4, Y0 + 0.2, Y0 + 0.9, 0, 0.38, toon('#d6dae3', { lit: 0.35 }));
-    // ---- balcony (勾欄) along the whole upper floor ----
-    bxo(f, ez0, ez1, 3.14, 3.3, 0, ew, woodD);
-    for (let z = ez0 + 0.1; z < ez1 - 0.05; z += 0.4) bxo(f, z - 0.02, z + 0.02, 3.3, 4.2, ew - 0.07, ew - 0.03, woodD, { cast: false });
-    bxo(f, ez0, ez1, 4.17, 4.25, ew - 0.09, ew, woodD, { cast: false });
-    bxo(f, ez0, ez1, 3.7, 3.74, ew - 0.07, ew - 0.03, woodD, { cast: false });
-    // upper windows + wall sign boards
-    [[-6.2, '#ffc980'], [-4.0, '#ffb0c8'], [-1.8, '#ffc27a'], [0.4, '#ffc980']].forEach(([z, hex]) => latticeWin(z, 5.0, 1.0, 1.2, hex));
-    latticeWin(3.7, 5.0, 1.0, 1.2, '#ffc27a');
-    {
-      bxo(f, 1.2, 3.0, 4.75, 5.55, 0, 0.1, woodD);
-      plo(f, 1.64, 0.7, 2.1, 5.15, 0.105, new THREE.MeshBasicMaterial({ map: signBoardTex('日本酒', 1024, 440, false), color: new THREE.Color(1.1, 0.98, 0.8) }), { cast: false });
-      halo(g, X0 - 0.4, 5.15, 2.1, '#ffc77a', 3.0, 0.28);
-    }
-    // little lanterns on the balcony + an AC unit upstairs
-    [-6.8, -3.0, 0.9, 4.0].forEach((z) => lantern(X0 - ew + 0.12, 4.0, z, 0.9));
-    bxo(f, -3.1, -2.5, 3.4, 3.9, 0, 0.34, toon('#d6dae3', { lit: 0.35 }));
-    cyl2(g, toon('#7b8498'), [X0 - 0.08, Y0, 3.6], [X0 - 0.08, 6.3, 3.6], 0.04, 6);
-  }
+  // eave drips: front + street side (along the fascia), the staff-door hood at the back
+  for (let x = X0 - 0.75; x < X1 + 0.25; x += 0.9 + R() * 0.3) drips.push([x, EDGE_Y, Z1 + PD, Y0 + 0.01]);
+  for (let z = Z0 + 0.1; z < Z1 + 0.8; z += 1.0 + R() * 0.4) drips.push([X0 - PD, EDGE_Y, z, Y0 + 0.01]);
+  drips.push([X1 + 0.53, 2.5, -4.6, Y0 + 0.01], [X1 + 0.53, 2.5, -4.0, Y0 + 0.01]);
 
   /* ==================================================================== NORTH side */
   {
@@ -579,25 +830,5 @@ export function buildIzakaya(parent, drips) {
     bxo(f, -9.3, -8.75, Y0, 0.55, 0.0, 0.5, toon('#c4552f')); bxo(f, -9.3, -8.75, Y0 + 0.55, 1.05, 0.0, 0.5, toon('#d8643a'));
   }
 
-  /* ==================================================================== corner vertical neon (kept) */
-  {
-    const nt = canvasTex(160, 720, (c, w, h) => {
-      c.fillStyle = '#10051e'; c.fillRect(0, 0, w, h);
-      c.shadowColor = '#ff3fb0'; c.shadowBlur = 22;
-      c.strokeStyle = '#6ff3ff'; c.lineWidth = 8; roundRect(c, 10, 10, w - 20, h - 20, 22); c.stroke();
-      [...'居酒屋ほたる'].forEach((ch, i) => T(c, ch, w / 2, 70 + i * 106, 88, '#ff6fc2', { weight: 800, stroke: '#ff2f9f', sw: 6 }));
-    });
-    const nm = new THREE.MeshBasicMaterial({ map: nt, color: new THREE.Color(1.5, 1.5, 1.5) });
-    const sgn = grp(g, X1 + 0.3, 0, Z1 + 0.22);
-    bx(sgn, toon('#1a1230'), -0.19, 0.19, 3.3, 5.8, -0.09, 0.09);
-    pl(sgn, nm, 0.34, 2.4, 0.0, 4.55, 0.0925, 0, 0);
-    pl(sgn, nm, 0.34, 2.4, 0.0, 4.55, -0.0925, Math.PI, 0);
-    pl(sgn, nm, 0.34, 2.4, 0.1925, 4.55, 0.0, Math.PI / 2, 0);
-    pl(sgn, nm, 0.34, 2.4, -0.1925, 4.55, 0.0, -Math.PI / 2, 0);
-    bx(g, toon('#1a1230'), X1, X1 + 0.3, 3.4, 3.5, Z1 + 0.18, Z1 + 0.26);
-    halo(g, X1 + 0.3, 4.55, Z1 + 0.9, '#ff4fb0', 3.6, 0.35);
-    plight(g, '#ff4fb0', 7, 7, X1 + 1.0, 4.4, Z1 + 1.3, 'neonPink');
-    reg.neonIza = nm;
-  }
   return g;
 }

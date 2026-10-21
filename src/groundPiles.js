@@ -88,7 +88,7 @@ function blockedAny(x, z) {
 }
 
 /* ---------------------------------------------------------------- per-kind look */
-const KIND = {
+export const KIND = {
   leaf: {
     clusters: [9, 14], size: 0.62, lobes: [2, 4], aspect: [1.4, 2.6], height: 0.075,
     core: 90, tail: 34, loose: 420, flake: [0.1, 0.17], tilt: 0.75, pad: ['#6a3c1c', '#8a4a1e'], padA: 0.62,
@@ -105,7 +105,7 @@ const KIND = {
 };
 
 /* ---------------------------------------------------------------- flake material (leaves + petals) */
-function flakeMaterial(shape, u) {
+export function flakeMaterial(shape, u) {
   return new THREE.ShaderMaterial({
     uniforms: { ...u, uShape: { value: shape } },
     vertexShader: /* glsl */ `
@@ -146,6 +146,24 @@ function flakeMaterial(shape, u) {
   });
 }
 
+/** soft colour pad under a pile (gives it mass from far away); u: { uAmt, uBright, uL } */
+export function padMaterial(u) {
+  return new THREE.ShaderMaterial({
+    uniforms: u,
+    vertexShader: /* glsl */ `
+      attribute float aTh; attribute vec3 aC; attribute vec4 aCA; uniform float uAmt; varying vec4 vCA;
+      void main(){
+        float vis = smoothstep(aTh, aTh + 0.1, uAmt);
+        vec3 p = aC + (position - aC) * mix(0.5, 1.0, vis);
+        vCA = vec4(aCA.rgb, aCA.a * vis);
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `uniform float uBright; uniform vec3 uL; varying vec4 vCA;
+      void main(){ if (vCA.a < 0.01) discard; gl_FragColor = vec4(vCA.rgb * uBright * (0.62 + 0.38 * max(normalize(uL).y, 0.0)), vCA.a); }`,
+    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+}
+
 export function createGroundPiles(parent) {
   const U = { uL: { value: new THREE.Vector3(0.3, 0.9, 0.3) }, uBright: { value: 1 } };
   const kinds = {};
@@ -160,20 +178,7 @@ export function createGroundPiles(parent) {
     geo.setAttribute('aCol', col); geo.setAttribute('aTh', th); geo.setAttribute('aC', cc);
     const im = new THREE.InstancedMesh(geo, flakeMaterial(shape, u), cap);
     // soft colour pad under every pile: gives the pile its mass from far away (flakes alone are 2-3 px there)
-    const pad = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.ShaderMaterial({
-      uniforms: u,
-      vertexShader: /* glsl */ `
-        attribute float aTh; attribute vec3 aC; attribute vec4 aCA; uniform float uAmt; varying vec4 vCA;
-        void main(){
-          float vis = smoothstep(aTh, aTh + 0.1, uAmt);
-          vec3 p = aC + (position - aC) * mix(0.5, 1.0, vis);
-          vCA = vec4(aCA.rgb, aCA.a * vis);
-          gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
-        }`,
-      fragmentShader: /* glsl */ `uniform float uBright; uniform vec3 uL; varying vec4 vCA;
-        void main(){ if (vCA.a < 0.01) discard; gl_FragColor = vec4(vCA.rgb * uBright * (0.62 + 0.38 * max(normalize(uL).y, 0.0)), vCA.a); }`,
-      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    }));
+    const pad = new THREE.Mesh(new THREE.BufferGeometry(), padMaterial(u));
     pad.userData.noLine = true; pad.frustumCulled = false; pad.renderOrder = 1;
     reg.noRefl.push(pad); parent.add(pad);
     im.count = 0;

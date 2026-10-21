@@ -4,6 +4,8 @@ import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { reg } from './core.js';
 
 /* ------------------------------------------------------------------ planar reflection (y = 0) */
@@ -138,6 +140,8 @@ class ScenePass extends Pass {
     this.cut = [];
     this.scene.traverse((o) => {
       if (!o.userData) return;
+      // meshes that move their vertices in the shader (roof snow) bring their own normal/depth material
+      if (o.userData.lineMat) { o.userData.cutMat = o.userData.lineMat; o.layers.enable(1); this.cut.push(o); return; }
       if (o.userData.noLine) { this.noLine.push(o); return; }
       const m = o.isMesh && !Array.isArray(o.material) ? o.material : null;
       if (m && m.map && (m.alphaTest > 0 || m.transparent) && !o.isInstancedMesh) {
@@ -212,23 +216,31 @@ class ScenePass extends Pass {
   }
 }
 
-/* ------------------------------------------------------------------ ink lines / grading */
+/* ------------------------------------------------------------------ ink lines / AO / grading
+   Silhouettes (depth jumps) keep a soft, colour-tinted line; inner creases only get a faint one that fades
+   out with distance, so structure reads from light, AO and material contrast instead of black lines.
+   AO: a small depth-only occlusion estimate from the same normal/depth target (corners, contact, eaves). */
 const OutlineShader = {
   uniforms: {
     tDiffuse: { value: null },
     tNormal: { value: null },
     uTexel: { value: new THREE.Vector2(1, 1) },
-    uOffD: { value: 1.0 }, // silhouette ink half-width (physical px)
-    uOffN: { value: 0.7 }, // crease ink half-width (physical px)
-    uFog: { value: 0 }, // scene fog density: ink lines dissolve into fog like everything else
+    uOffD: { value: 0.65 }, // silhouette half-width (physical px)
+    uOffN: { value: 0.5 }, // crease half-width (physical px)
+    uFog: { value: 0 }, // fog density: lines and AO dissolve into fog
+    uFocal: { value: 900 }, // px per unit at distance 1 (for the AO radius)
+    uSil: { value: 0.68 }, // silhouette strength (keeps neighbouring objects apart)
+    uCrease: { value: 0.3 }, // crease strength
+    uAO: { value: 0.3 }, // AO strength
   },
   vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: /* glsl */ `
   uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN; uniform float uFog;
+  uniform float uFocal; uniform float uSil; uniform float uCrease; uniform float uAO;
   varying vec2 vUv;
   vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.02) c.a = 400.0; return c; }
   vec3 dec(vec4 c){ return normalize(c.rgb*2.0-1.0 + 1e-5); }
-  // 8-tap ring so the ink line is round (no axis-aligned stair-stepping)
+  float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   const vec2 DIRS[8] = vec2[8](vec2(1,0), vec2(-1,0), vec2(0,1), vec2(0,-1), vec2(.7071,.7071), vec2(-.7071,-.7071), vec2(.7071,-.7071), vec2(-.7071,.7071));
   void main(){
     vec4 base = texture2D(tDiffuse, vUv);
@@ -241,24 +253,42 @@ const OutlineShader = {
       vec4 a2 = S(vUv + DIRS[i+1]*uTexel*uOffD);
       vec4 b = S(vUv + DIRS[i]*uTexel*uOffN);
       vec4 b2 = S(vUv + DIRS[i+1]*uTexel*uOffN);
-      lap += abs(a.a + a2.a - 2.0*d0);          // second derivative: flat/grazing planes give ~0
+      lap += abs(a.a + a2.a - 2.0*d0);
       nd += (1.0 - dot(n0, dec(b))) + (1.0 - dot(n0, dec(b2)));
       if(a.a < 300.0 || a2.a < 300.0) bgAll = 0.0;
     }
-    float dEdge = smoothstep(0.0055, 0.02, lap / (4.0 * d0) * 2.0);
-    float bgMask = (c0.a > 300.0 && bgAll > 0.5) ? 0.0 : 1.0;
-    float nEdge = smoothstep(0.55, 1.5, nd) * bgMask;
-    float e = max(dEdge, nEdge * 0.85);
-    e *= mix(1.0, 0.5, smoothstep(34.0, 90.0, d0));
+    float bg = c0.a > 300.0 ? 1.0 : 0.0;
+    float dEdge = smoothstep(0.006, 0.026, lap / (4.0 * d0) * 2.0);
+    float bgMask = (bg > 0.5 && bgAll > 0.5) ? 0.0 : 1.0;
+    // creases: only real corners, gone in the middle distance
+    float nEdge = smoothstep(0.95, 2.4, nd) * bgMask * (1.0 - smoothstep(14.0, 42.0, d0));
+    float e = max(dEdge * uSil, nEdge * uCrease);
+    e *= mix(1.0, 0.55, smoothstep(30.0, 90.0, d0));
     e *= exp(-pow(d0 * uFog, 2.0) * 1.6);
-    vec3 col = base.rgb;
-    // ink colour: deep tinted version of the local paint, like hand-inked vector linework
-    vec3 lc = clamp(col, 0.0, 1.0) * 0.14 + vec3(0.012, 0.016, 0.048);
-    col = mix(col, lc, e * 0.94);
+
+    /* depth AO: neighbours that are closer (but not far in front) occlude this pixel */
+    float ao = 0.0;
+    if (bg < 0.5) {
+      float rpx = clamp(0.42 * uFocal / d0, 2.5, 22.0);
+      float rot = h12(gl_FragCoord.xy) * 6.2831;
+      float cr = cos(rot), sr = sin(rot);
+      for (int i = 0; i < 8; i++) {
+        vec2 d = DIRS[i]; d = vec2(d.x * cr - d.y * sr, d.x * sr + d.y * cr);
+        float k = (i < 4) ? 1.0 : 0.55;
+        float dn = S(vUv + d * uTexel * rpx * k).a;
+        float dz = d0 - dn;
+        ao += smoothstep(0.02 * d0 * 0.05 + 0.03, 0.22, dz) * (1.0 - smoothstep(0.9, 2.2, dz));
+      }
+      ao = clamp(ao / 8.0, 0.0, 1.0) * uAO * exp(-pow(d0 * uFog, 2.0) * 1.6) * (1.0 - smoothstep(60.0, 140.0, d0));
+    }
+    vec3 col = base.rgb * (1.0 - ao);
+    // ink: the local colour, darkened and slightly cooled (never pure black)
+    vec3 lc = clamp(col, 0.0, 1.0) * vec3(0.4, 0.42, 0.48) + vec3(0.008, 0.01, 0.022);
+    col = mix(col, lc, e);
     float l = dot(col, vec3(0.299,0.587,0.114));
     col = mix(col, col * vec3(0.94, 0.97, 1.08), (1.0 - smoothstep(0.0, 0.5, l)) * 0.6);
     vec2 vv = vUv - 0.5;
-    col *= 1.0 - dot(vv, vv) * 0.4;
+    col *= 1.0 - dot(vv, vv) * 0.28;
     gl_FragColor = vec4(col, base.a);
   }`,
 };
@@ -289,6 +319,15 @@ export function createPipeline(renderer, scene, camera) {
   bloom.setSize = (w, h) => bloomSetSize(Math.max(2, w >> 1), Math.max(2, h >> 1));
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+  /* anti-aliasing. The scene is already rendered with 4x MSAA (geometry edges) and the ink is computed from
+     an MSAA normal/depth target, so the default adds nothing on top: FXAA blurred sign text and road paint.
+     ?aa=fxaa | smaa switches a post AA pass on for comparison (pipe.setAA at runtime). */
+  const fxaa = new ShaderPass(FXAAShader);
+  const smaa = new SMAAPass();
+  composer.addPass(fxaa);
+  composer.addPass(smaa);
+  const setAA = (mode) => { fxaa.enabled = mode === 'fxaa'; smaa.enabled = mode === 'smaa'; };
+  setAA(new URLSearchParams(location.search).get('aa') || 'msaa');
   composer.addPass(new ShaderPass(DitherShader));
 
   function resize(w, h, pr) {
@@ -300,9 +339,11 @@ export function createPipeline(renderer, scene, camera) {
     refl.setSize(bw, bh);
     outline.material.uniforms.uTexel.value.set(1 / bw, 1 / bh);
     // ink weight is defined in CSS pixels, so it looks the same on 1x, 2x and adaptive-scaled canvases
-    outline.material.uniforms.uOffD.value = 0.8 * pr;
-    outline.material.uniforms.uOffN.value = 0.55 * pr;
+    outline.material.uniforms.uOffD.value = 0.65 * pr;
+    outline.material.uniforms.uOffN.value = 0.5 * pr;
+    outline.material.uniforms.uFocal.value = bh / (2 * Math.tan((30 * Math.PI) / 360));
+    fxaa.material.uniforms.resolution.value.set(1 / bw, 1 / bh);
     bloom.resolution.set(bw, bh);
   }
-  return { composer, refl, scenePass, outline, bloom, resize };
+  return { composer, refl, scenePass, outline, bloom, fxaa, smaa, setAA, resize };
 }

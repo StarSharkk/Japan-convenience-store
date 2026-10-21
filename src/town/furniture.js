@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, glow, cy, cyl2, bx, grp, halo, rng } from '../core.js';
 import { utilityPole, wire, streetLamp, roadSign, signalHead, guardrail } from '../street.js';
+import { snowCapBox } from '../roofPiles.js';
 import { groundY, PAV, BLOCKS, LANES, CROSSINGS, RAIL, lakeParkH } from './layout.js';
 
 /* ====================================================================================================
@@ -23,7 +24,7 @@ export function buildFurniture(parent, lake) {
   lamps.forEach(([x, z, dx, dz], i) => streetLamp(lift(x, z), x, z, dx, dz, 4.6, 1.5, i % 3 ? '#ffe0a8' : '#dfeaff', 0, null));
 
   // low garden lamps along the lake walk
-  const lampM = glow('#ffd9a0', 2.6);
+  const lampM = glow('#ffd9a0', 2.6, { cat: 'lamp', off: '#cfc8b6' }); // garden lamps: sunset -> sunrise like the street lamps
   const postM = toon('#3a3f4c');
   if (lake) {
     lake.ringPts.forEach(([x, z, a], i) => {
@@ -34,7 +35,8 @@ export function buildFurniture(parent, lake) {
       cy(g, postM, px, y, pz, 0.05, 2.6, 8);
       bx(g, postM, px - 0.17, px + 0.17, y + 2.58, y + 2.64, pz - 0.17, pz + 0.17, { cast: false });
       bx(g, lampM, px - 0.12, px + 0.12, y + 2.3, y + 2.58, pz - 0.12, pz + 0.12, { cast: false });
-      halo(g, px, y + 2.45, pz, '#ffd9a0', 1.8, 0.5);
+      snowCapBox(g, px - 0.18, px + 0.18, y + 2.64, pz - 0.18, pz + 0.18, 0.05);
+      halo(g, px, y + 2.45, pz, '#ffd9a0', 1.8, 0.5, 'lamp');
     });
     // benches facing the water
     const wood = toon('#7a5a40'), iron = toon('#2b2f3a');

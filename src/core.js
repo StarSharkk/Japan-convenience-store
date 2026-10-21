@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 export { THREE };
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
 /* ------------------------------------------------------------------ registry */
 export const reg = {
@@ -142,7 +143,8 @@ export function glow(color, k = 1, o = {}) {
     blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     fog: o.fog ?? true,
   });
-  if (o.track !== false) reg.emis.push({ m, base: c.clone(), cat: o.cat || CAT.glow });
+  // o.off: the colour the emitter shows when its category is fully off (a lamp lens in daylight is not black)
+  if (o.track !== false) reg.emis.push({ m, base: c.clone(), cat: o.cat || CAT.glow, off: o.off ? col(o.off) : null });
   return m;
 }
 
@@ -164,10 +166,26 @@ function flags(m, o) {
   return m;
 }
 
-/** box by extents */
+/* chamfered boxes: every box gets a small bevel (≤ 3.5 cm, scaled to its thinnest side) so its edges catch the
+   light instead of drawing a hard crease line. Geometries are cached by size (merged into batches later). */
+const boxCache = new Map();
+function boxGeo(w, h, d, bevel) {
+  const q = (v) => Math.round(v * 400) / 400;
+  w = q(w); h = q(h); d = q(d);
+  const r = bevel === 0 ? 0 : Math.min(bevel ?? 0.035, Math.min(w, h, d) * 0.16);
+  const key = `${w}|${h}|${d}|${r.toFixed(4)}`;
+  let g = boxCache.get(key);
+  if (!g) {
+    g = r < 0.004 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 1, r);
+    boxCache.set(key, g);
+  }
+  return g;
+}
+/** box by extents (o.bevel: chamfer radius, 0 = sharp) */
 export function bx(parent, mat, x0, x1, y0, y1, z0, z1, o = {}) {
-  const m = new THREE.Mesh(UNIT, mat);
-  m.scale.set(x1 - x0, y1 - y0, z1 - z0);
+  const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);
+  const m = new THREE.Mesh(w > 0 && h > 0 && d > 0 ? boxGeo(w, h, d, o.bevel) : UNIT, mat);
+  if (!(w > 0 && h > 0 && d > 0)) m.scale.set(x1 - x0 || 1e-4, y1 - y0 || 1e-4, z1 - z0 || 1e-4);
   m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   parent.add(m);
   return flags(m, o);
@@ -284,7 +302,7 @@ function getHaloTex() {
   return haloTex;
 }
 
-export function halo(parent, x, y, z, color, size = 1.5, op = 0.6) {
+export function halo(parent, x, y, z, color, size = 1.5, op = 0.6, cat = null) {
   const m = new THREE.SpriteMaterial({
     map: getHaloTex(),
     color: col(color),
@@ -300,7 +318,7 @@ export function halo(parent, x, y, z, color, size = 1.5, op = 0.6) {
   s.userData.noLine = true;
   s.userData.baseOp = op;
   parent.add(s);
-  reg.halos.push({ s, op, size, cat: CAT.glow });
+  reg.halos.push({ s, op, size, cat: cat || CAT.glow });
   return s;
 }
 

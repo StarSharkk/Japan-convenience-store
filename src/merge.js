@@ -18,7 +18,7 @@ export function mergeStatic(root) {
     const mat = o.material;
     if (!mat || Array.isArray(mat) || mat.isShaderMaterial) return;
     if (!o.geometry.attributes.normal || !o.geometry.attributes.uv) return;
-    const key = [mat.uuid, o.castShadow ? 1 : 0, o.receiveShadow ? 1 : 0, o.userData.noLine ? 1 : 0, o.geometry.index ? 'i' : 'n'].join('|');
+    const key = [mat.uuid, o.castShadow ? 1 : 0, o.receiveShadow ? 1 : 0, o.userData.noLine ? 1 : 0, o.geometry.index ? 'i' : 'n', o.geometry.attributes.color ? 'c' : ''].join('|');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(o);
   });
@@ -30,7 +30,8 @@ export function mergeStatic(root) {
       const g = m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
       // keep only shared attributes
-      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      // vertex colours survive when the whole batch has them (plant leaf tints); everything else is trimmed
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) g.deleteAttribute(k);
       return g;
     });
     const merged = mergeGeometries(geos, false);

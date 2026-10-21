@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect, clamp, smooth, lerp } from './core.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeGlass } from './fx.js';
+import { snowCapBox, snowCapLine, snowCapDome } from './roofPiles.js';
 import { T, BRAND, logo, posterTex } from './tex.js';
 
 const Y0 = 0.15;
@@ -54,7 +56,7 @@ function vendingTex(theme, seed) {
   }, { aniso: 8 });
 }
 
-function vendingMachine(parent, x, z, ry, theme, seed, light = false) {
+export function vendingMachine(parent, x, z, ry, theme, seed, light = false) {
   const m = grp(parent, x, Y0, z, ry);
   const body = toon(theme === 0 ? '#a81f25' : theme === 1 ? '#174e99' : '#1f7d58', { lit: 0.15 });
   bx(m, body, -0.5, 0.5, 0, 1.85, -0.38, 0.38);
@@ -71,58 +73,209 @@ function vendingMachine(parent, x, z, ry, theme, seed, light = false) {
   return { m, mat, tube, L };
 }
 
-/* ================================================================ bicycle */
-export function bicycle(parent, x, z, ry, color = '#3aa0c8', tilt = 0.12) {
+/* ================================================================ bicycles */
+// Two kinds, after the reference photos:
+//  'basket' – mamachari: step-through frame, wire front basket, fenders, chain case, rear rack, ring lock,
+//             sprung saddle, two-leg rear stand (so it stands upright); o.e adds the e-bike battery.
+//  'cross'  – cross bike: diamond frame, flat bar, slim saddle, exposed chainring / derailleur, no fenders,
+//             side stand on the left (it leans on it).
+// Local frame: front = +z, x = width, ground y = 0. o.steer turns the front assembly about the head tube.
+const BIKE = {};
+const bgeo = (key, make) => BIKE[key] || (BIKE[key] = make());
+const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+function tube(parent, mat, pts, r, seg = 12) {
+  const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(V)), seg, r, 6), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+function basketMat() {
+  if (BIKE.basket) return BIKE.basket;
+  const t = canvasTex(96, 96, (c, w, h) => {
+    c.clearRect(0, 0, w, h);
+    c.strokeStyle = '#fff'; c.lineWidth = 3.2;
+    for (let i = 0; i <= 8; i++) {
+      const p = 1.6 + (i * (w - 3.2)) / 8;
+      c.beginPath(); c.moveTo(p, 0); c.lineTo(p, h); c.stroke();
+      c.beginPath(); c.moveTo(0, p); c.lineTo(w, p); c.stroke();
+    }
+  });
+  const m = toon('#b9c1cd', { map: t, side: THREE.DoubleSide });
+  m.alphaTest = 0.5;
+  return (BIKE.basket = m);
+}
+function wheel(parent, z, R, tr, mats, spokes) {
+  const w = grp(parent, 0, R + tr, z);
+  const tire = new THREE.Mesh(bgeo(`t${R}${tr}`, () => new THREE.TorusGeometry(R, tr, 6, 30).rotateY(Math.PI / 2)), mats.tire);
+  tire.castShadow = true; tire.receiveShadow = true; w.add(tire);
+  w.add(new THREE.Mesh(bgeo(`r${R}${tr}`, () => new THREE.TorusGeometry(R - tr - 0.008, mats.rimW, 4, 30).rotateY(Math.PI / 2)), mats.rim));
+  const sp = new THREE.Mesh(bgeo(`s${R}${spokes}`, () => {
+    const L = (R - 0.02) * 2;
+    return mergeGeometries(Array.from({ length: spokes }, (_, k) => new THREE.BoxGeometry(0.005, L, 0.005).rotateX((k * Math.PI) / spokes).translate(k % 2 ? 0.012 : -0.012, 0, 0)));
+  }), mats.spoke);
+  sp.userData.noLine = true; w.add(sp);
+  cyl2(w, mats.hub, [-0.055, 0, 0], [0.055, 0, 0], 0.024, 8);
+  return w;
+}
+function fender(parent, z, y, R, a0, a1, mat) {
+  // torus arc in the bike's z/y plane: angle 0 = rear, PI/2 = top, PI = front; widened sideways
+  const m = new THREE.Mesh(bgeo(`f${R}${a0}${a1}`, () => new THREE.TorusGeometry(R, 0.013, 3, 18, a1 - a0).rotateZ(a0).rotateY(Math.PI / 2).scale(3.4, 1, 1)), mat);
+  m.position.set(0, y, z); m.castShadow = true;
+  parent.add(m);
+  return m;
+}
+/** a group that turns about the head-tube axis (hb → ht); children use the bike's own coordinates */
+function steerGroup(parent, hb, ht, steer) {
+  const fr = grp(parent, 0, hb[1], hb[2]);
+  fr.quaternion.setFromAxisAngle(V([0, ht[1] - hb[1], ht[2] - hb[2]]).normalize(), steer);
+  return grp(fr, 0, -hb[1], -hb[2]);
+}
+function pedals(g, bb, mat, dark) {
+  [[1, 0.6], [-1, 0.6 + Math.PI]].forEach(([s, a]) => {
+    const e = [s * 0.11, bb[1] - Math.sin(a) * 0.16, bb[2] + Math.cos(a) * 0.16];
+    cyl2(g, mat, [s * 0.075, bb[1], bb[2]], e, 0.012, 6);
+    bx(g, dark, e[0] + s * 0.005, e[0] + s * 0.1, e[1] - 0.012, e[1] + 0.012, e[2] - 0.045, e[2] + 0.045, { cast: false });
+  });
+}
+
+export function bicycle(parent, x, z, ry, color = '#3aa0c8', tilt = 0.12, o = {}) {
+  if (typeof o === 'string') o = { type: o };
+  const type = o.type || 'basket';
   const b = grp(parent, x, Y0, z, ry);
   const inner = grp(b, 0, 0, 0, 0);
-  inner.rotation.z = tilt;
-  const tire = toon('#14181f');
-  const metal = toon('#a8b0c0');
   const paint = toon(color);
-  const wheelR = 0.33;
-  [-0.55, 0.55].forEach((wz) => {
-    const w = new THREE.Mesh(new THREE.TorusGeometry(wheelR, 0.022, 6, 24), tire);
-    w.rotation.y = Math.PI / 2; w.position.set(0, wheelR + 0.02, wz); w.castShadow = true;
-    inner.add(w);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(wheelR - 0.03, 0.008, 4, 24), metal);
-    rim.rotation.y = Math.PI / 2; rim.position.copy(w.position); inner.add(rim);
-    for (let k = 0; k < 3; k++) {
-      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, (wheelR - 0.03) * 2), metal);
-      sp.rotation.x = (k * Math.PI) / 3; sp.position.copy(w.position); inner.add(sp);
-      sp.rotation.set((k * Math.PI) / 3, 0, 0);
-      sp.geometry = new THREE.BoxGeometry(0.006, (wheelR - 0.03) * 2, 0.006);
-      sp.rotation.set((k * Math.PI) / 3, 0, 0);
-    }
-    cy(inner, metal, 0, wheelR + 0.02 - 0.0, wz, 0.02, 0.0, 6);
+  const silver = toon('#c3cad6');
+  const dark = toon('#1e2229');
+  const black = toon('#14181f');
+  const sad = toon(o.saddle || '#24262d');
+  if (type === 'cross') {
+    /* ---------------------------------------------------------------- cross bike */
+    const lean = Math.max(0.08, Math.abs(tilt));
+    inner.rotation.z = lean; // leans onto its left side stand
+    const R = 0.345, tr = 0.017, hy = R + tr;
+    const mats = { tire: black, rim: dark, rimW: 0.014, spoke: toon('#9ea6b2'), hub: silver };
+    const rz = -0.52, fz = 0.53;
+    const BB = [0, 0.28, -0.1], ST = [0, 0.84, -0.25], HT = [0, 0.875, 0.37], HB = [0, 0.73, 0.41];
+    wheel(inner, rz, R, tr, mats, 12);
+    // diamond frame
+    cyl2(inner, paint, [0, 0.832, -0.247], [0, 0.866, 0.37], 0.019, 8);
+    cyl2(inner, paint, BB, [0, 0.745, 0.405], 0.025, 8);
+    cyl2(inner, paint, BB, ST, 0.02, 8);
+    cyl2(inner, paint, [0, 0.71, 0.415], [0, 0.89, 0.365], 0.025, 8);
+    [-1, 1].forEach((s) => {
+      cyl2(inner, paint, [s * 0.022, 0.8, -0.238], [s * 0.05, hy, rz], 0.01, 6);
+      cyl2(inner, paint, [s * 0.035, BB[1], BB[2]], [s * 0.05, hy, rz], 0.011, 6);
+    });
+    // seat post + slim saddle + rear reflector
+    cyl2(inner, silver, ST, [0, 0.975, -0.288], 0.013, 8);
+    sph(inner, sad, 1, 0, 0.99, -0.255, 0.045, 0.024, 0.13);
+    sph(inner, sad, 1, 0, 0.992, -0.33, 0.07, 0.027, 0.065);
+    bx(inner, glow('#ff3b3b', 2.2), -0.022, 0.022, 0.88, 0.93, -0.292, -0.282, { cast: false });
+    // drivetrain (right side)
+    const ring = new THREE.Mesh(bgeo('ring', () => new THREE.TorusGeometry(0.098, 0.012, 4, 24).rotateY(Math.PI / 2)), silver);
+    ring.position.set(0.07, BB[1], BB[2]); inner.add(ring);
+    cyl2(inner, dark, [0.064, BB[1], BB[2]], [0.076, BB[1], BB[2]], 0.05, 10, { cast: false });
+    cyl2(inner, dark, [0.055, hy, rz], [0.08, hy, rz], 0.045, 12, { cast: false });
+    bx(inner, dark, 0.07, 0.095, hy - 0.11, hy - 0.02, rz - 0.035, rz + 0.01, { cast: false });
+    cyl2(inner, black, [0.07, BB[1] + 0.1, BB[2]], [0.068, hy + 0.045, rz], 0.005, 4, { noLine: true });
+    cyl2(inner, black, [0.07, BB[1] - 0.1, BB[2]], [0.082, hy - 0.11, rz + 0.01], 0.005, 4, { noLine: true });
+    pedals(inner, BB, silver, dark);
+    // side stand (left), foot on the ground of the leaned frame
+    cyl2(inner, dark, [-0.05, 0.32, -0.22], [-0.2, 0.2 * Math.tan(lean) + 0.01, -0.36], 0.011, 6);
+    // front: fork, stem, flat bar
+    const f = steerGroup(inner, HB, HT, o.steer || 0);
+    wheel(f, fz, R, tr, mats, 12);
+    [-1, 1].forEach((s) => cyl2(f, paint, [s * 0.03, 0.72, 0.415], [s * 0.05, hy, fz], 0.013, 6));
+    bx(f, paint, -0.05, 0.05, 0.69, 0.725, 0.39, 0.44, { bevel: 0.012 });
+    cyl2(f, dark, [0, 0.88, 0.367], [0, 0.94, 0.352], 0.017, 8);
+    cyl2(f, dark, [0, 0.935, 0.35], [0, 0.95, 0.45], 0.015, 8);
+    cyl2(f, dark, [-0.3, 0.952, 0.452], [0.3, 0.952, 0.452], 0.012, 8);
+    [-1, 1].forEach((s) => {
+      cyl2(f, black, [s * 0.2, 0.952, 0.452], [s * 0.305, 0.952, 0.452], 0.019, 8);
+      cyl2(f, silver, [s * 0.17, 0.955, 0.465], [s * 0.24, 0.94, 0.53], 0.006, 4, { noLine: true });
+    });
+    bx(f, glow('#fff1c0', 1.6), 0.08, 0.13, 0.94, 0.97, 0.47, 0.5, { cast: false });
+    return b;
+  }
+
+  /* ---------------------------------------------------------------- mamachari */
+  inner.rotation.z = 0; // two-leg stand keeps it upright
+  const R = 0.33, tr = 0.024, hy = R + tr;
+  const mats = { tire: black, rim: silver, rimW: 0.012, spoke: toon('#aab2bd'), hub: silver };
+  const rz = -0.56, fz = 0.52;
+  const BB = [0, 0.27, -0.08], HT = [0, 0.86, 0.34], HB = [0, 0.66, 0.4];
+  wheel(inner, rz, R, tr, mats, 14);
+  fender(inner, rz, hy, R + tr + 0.03, -0.35, 1.95, silver);
+  // step-through frame: one big swooping main tube + seat tube
+  cyl2(inner, paint, [0, 0.635, 0.408], [0, 0.885, 0.333], 0.027, 10);
+  tube(inner, paint, [[0, 0.79, 0.363], [0, 0.58, 0.25], [0, 0.34, 0.06], [0, 0.27, -0.09]], 0.03);
+  cyl2(inner, paint, BB, [0, 0.8, -0.25], 0.022, 8);
+  [-1, 1].forEach((s) => {
+    cyl2(inner, paint, [s * 0.03, BB[1], BB[2]], [s * 0.05, hy, rz], 0.012, 6);
+    cyl2(inner, paint, [s * 0.025, 0.72, -0.225], [s * 0.05, hy, rz], 0.012, 6);
   });
-  const hubY = wheelR + 0.02;
-  // frame
-  cyl2(inner, paint, [0, hubY, -0.55], [0, hubY + 0.2, -0.12], 0.016, 6);
-  cyl2(inner, paint, [0, hubY, -0.55], [0, hubY + 0.38, -0.42], 0.016, 6);
-  cyl2(inner, paint, [0, hubY + 0.2, -0.12], [0, hubY + 0.46, 0.0], 0.018, 6);
-  cyl2(inner, paint, [0, hubY + 0.38, -0.42], [0, hubY + 0.46, 0.0], 0.016, 6);
-  cyl2(inner, paint, [0, hubY + 0.2, -0.12], [0, hubY, 0.55], 0.016, 6);
-  cyl2(inner, paint, [0, hubY + 0.46, 0.0], [0, hubY + 0.5, 0.38], 0.014, 6);
-  cyl2(inner, paint, [0, hubY + 0.5, 0.38], [0, hubY, 0.55], 0.016, 6);
-  // handlebar
-  cyl2(inner, metal, [-0.24, hubY + 0.58, 0.42], [0.24, hubY + 0.58, 0.42], 0.011, 6);
-  cyl2(inner, metal, [0, hubY + 0.5, 0.38], [0, hubY + 0.58, 0.42], 0.013, 6);
-  // seat
-  bx(inner, toon('#1b1f2a'), -0.07, 0.07, hubY + 0.5, hubY + 0.54, -0.52, -0.3);
-  // basket
-  const bk = toon('#9aa4b8');
-  bx(inner, bk, -0.17, 0.17, hubY + 0.62, hubY + 0.64, 0.5, 0.78, { cast: false });
-  [[-0.17, 0.5], [0.17, 0.5], [-0.17, 0.78], [0.17, 0.78]].forEach(([bx_, bz_]) => bx(inner, bk, bx_ - 0.006, bx_ + 0.006, hubY + 0.62, hubY + 0.84, bz_ - 0.006, bz_ + 0.006, { cast: false }));
-  bx(inner, bk, -0.17, 0.17, hubY + 0.82, hubY + 0.84, 0.5, 0.504, { cast: false });
-  bx(inner, bk, -0.17, 0.17, hubY + 0.82, hubY + 0.84, 0.776, 0.78, { cast: false });
-  bx(inner, bk, -0.17, -0.166, hubY + 0.82, hubY + 0.84, 0.5, 0.78, { cast: false });
-  bx(inner, bk, 0.166, 0.17, hubY + 0.82, hubY + 0.84, 0.5, 0.78, { cast: false });
-  // carrier + reflector + lamp
-  bx(inner, metal, -0.07, 0.07, hubY + 0.3, hubY + 0.31, -0.62, -0.3, { cast: false });
-  bx(inner, glow('#ff3b3b', 2.2), -0.025, 0.025, hubY + 0.27, hubY + 0.31, -0.64, -0.62, { cast: false });
-  bx(inner, glow('#fff1c0', 1.6), -0.03, 0.03, hubY + 0.56, hubY + 0.62, 0.43, 0.46, { cast: false });
-  // stand
-  cyl2(inner, metal, [0, hubY - 0.1, -0.5], [0.16, 0.0, -0.45], 0.01, 4);
+  if (o.e) {
+    // e-bike battery behind the seat tube
+    const bt = grp(inner, 0, 0.535, -0.165); bt.rotation.x = -0.31;
+    bx(bt, toon('#3b4049'), -0.048, 0.048, -0.17, 0.17, -0.115, -0.02, { bevel: 0.03 });
+    bx(bt, toon('#8c949f'), -0.05, 0.05, 0.12, 0.175, -0.118, -0.018, { bevel: 0.02 });
+  }
+  // full chain case + pedals
+  const cc = grp(inner, 0.075, 0.312, -0.32); cc.rotation.x = 0.173;
+  const cm = toon(o.case || '#aeb5bf');
+  bx(cc, cm, -0.012, 0.012, -0.035, 0.055, -0.28, 0.24, { bevel: 0.02 });
+  cyl2(inner, cm, [0.064, BB[1], BB[2]], [0.088, BB[1], BB[2]], 0.105, 18, { cast: false });
+  pedals(inner, BB, silver, dark);
+  // rear rack
+  [-1, 1].forEach((s) => {
+    cyl2(inner, silver, [s * 0.075, 0.765, -0.78], [s * 0.075, 0.765, -0.27], 0.01, 6);
+    cyl2(inner, silver, [s * 0.075, 0.765, -0.72], [s * 0.058, hy, rz], 0.009, 6);
+    cyl2(inner, silver, [s * 0.075, 0.765, -0.27], [s * 0.02, 0.745, -0.235], 0.008, 6);
+  });
+  [-0.77, -0.63, -0.49, -0.35].forEach((cz) => cyl2(inner, silver, [-0.075, 0.765, cz], [0.075, 0.765, cz], 0.008, 4));
+  bx(inner, glow('#ff3b3b', 2.2), -0.035, 0.035, 0.69, 0.74, -0.79, -0.778, { cast: false });
+  // ring lock over the rear wheel
+  bx(inner, dark, -0.055, 0.055, 0.6, 0.66, -0.33, -0.29, { bevel: 0.015 });
+  // seat post, sprung comfort saddle
+  cyl2(inner, silver, [0, 0.8, -0.25], [0, 0.9, -0.274], 0.015, 8);
+  [-1, 1].forEach((s) => cy(inner, silver, s * 0.055, 0.885, -0.345, 0.014, 0.05, 6));
+  sph(inner, sad, 1, 0, 0.945, -0.31, 0.105, 0.042, 0.095);
+  sph(inner, sad, 1, 0, 0.94, -0.215, 0.05, 0.033, 0.085);
+  // two-leg stand down at the rear axle
+  [-1, 1].forEach((s) => cyl2(inner, silver, [s * 0.065, hy, rz], [s * 0.1, 0.015, rz - 0.08], 0.011, 6));
+  cyl2(inner, silver, [-0.1, 0.015, rz - 0.08], [0.1, 0.015, rz - 0.08], 0.011, 6);
+
+  // front assembly: fork, swept-back bar, basket, lamp, wheel, fender
+  const f = steerGroup(inner, HB, HT, o.steer || 0);
+  wheel(f, fz, R, tr, mats, 14);
+  fender(f, fz, hy, R + tr + 0.03, 1.2, 3.5, silver);
+  [-1, 1].forEach((s) => cyl2(f, paint, [s * 0.03, 0.645, 0.405], [s * 0.05, hy, fz], 0.014, 6));
+  bx(f, paint, -0.05, 0.05, 0.615, 0.65, 0.38, 0.43, { bevel: 0.012 });
+  cyl2(f, silver, [0, 0.88, 0.334], [0, 0.965, 0.31], 0.017, 8);
+  [-1, 1].forEach((s) => {
+    tube(f, silver, [[0, 0.962, 0.31], [s * 0.12, 0.968, 0.325], [s * 0.22, 0.962, 0.265], [s * 0.27, 0.952, 0.17]], 0.012, 10);
+    cyl2(f, black, [s * 0.27, 0.952, 0.185], [s * 0.278, 0.946, 0.075], 0.02, 8);
+    cyl2(f, silver, [s * 0.2, 0.96, 0.25], [s * 0.26, 0.93, 0.31], 0.006, 4, { noLine: true });
+  });
+  sph(f, silver, 0.026, 0.1, 0.99, 0.32, 1, 0.7, 1);
+  // wire basket over the front wheel (open top), with stays to the fork ends
+  const bm = basketMat();
+  const k0 = 0.42, k1 = 0.74, y0 = 0.77, y1 = 0.98, hw = 0.19;
+  const bkf = (w, h, px, py, pz, ry_, rx_) => pl(f, bm, w, h, px, py, pz, ry_, rx_, { noLine: true });
+  bkf(hw * 2, y1 - y0, 0, (y0 + y1) / 2, k1, 0, 0);
+  bkf(hw * 2, y1 - y0, 0, (y0 + y1) / 2, k0, 0, 0);
+  bkf(k1 - k0, y1 - y0, hw, (y0 + y1) / 2, (k0 + k1) / 2, Math.PI / 2, 0);
+  bkf(k1 - k0, y1 - y0, -hw, (y0 + y1) / 2, (k0 + k1) / 2, Math.PI / 2, 0);
+  bkf(hw * 2, k1 - k0, 0, y0, (k0 + k1) / 2, 0, -Math.PI / 2);
+  const rim = toon('#aab2be');
+  cyl2(f, rim, [-hw, y1, k0], [hw, y1, k0], 0.009, 4); cyl2(f, rim, [-hw, y1, k1], [hw, y1, k1], 0.009, 4);
+  cyl2(f, rim, [-hw, y1, k0], [-hw, y1, k1], 0.009, 4); cyl2(f, rim, [hw, y1, k0], [hw, y1, k1], 0.009, 4);
+  cyl2(f, rim, [-hw, y0, k1], [hw, y0, k1], 0.007, 4); cyl2(f, rim, [-hw, y0, k0], [hw, y0, k0], 0.007, 4);
+  [-1, 1].forEach((s) => cyl2(f, silver, [s * 0.11, y0, k1 - 0.05], [s * 0.052, hy, fz], 0.008, 4));
+  bx(f, silver, -0.03, 0.03, 0.86, 0.9, 0.33, k0, { cast: false });
+  // dynamo lamp on the fork crown
+  cyl2(f, dark, [0, 0.655, 0.45], [0, 0.66, 0.52], 0.035, 10);
+  pl(f, glow('#fff1c0', 1.6), 0.055, 0.055, 0, 0.66, 0.522, 0, 0);
   return b;
 }
 
@@ -227,8 +380,14 @@ export function streetLamp(parent, x, z, dirx, dirz, h, armLen, color, lightI, n
   cyl2(p, toon('#5f677c'), [ex * 0.8, h + 0.35, ez * 0.8], [ex, h + 0.28, ez], 0.04, 8);
   const hd = grp(p, ex, h + 0.2, ez, Math.atan2(dirx, dirz));
   bx(hd, toon('#3a4156'), -0.18, 0.18, 0.0, 0.1, -0.42, 0.42);
-  bx(hd, glow(color, 3.2), -0.14, 0.14, -0.02, 0.01, -0.36, 0.36, { cast: false });
-  const hl = halo(p, ex, h + 0.12, ez, color, 3.2, 0.5);
+  // lens + halo + light follow the 'lamp' channel (sunset -> sunrise, see env.js lampsAt); unlit the lens is frosted grey
+  bx(hd, glow(color, 3.2, { cat: 'lamp', off: '#b9bfc9' }), -0.14, 0.14, -0.02, 0.01, -0.36, 0.36, { cast: false });
+  // snow caps (only visible when it has snowed): lamp head, the arm, the pole top
+  snowCapBox(hd, -0.19, 0.19, 0.1, -0.43, 0.43, 0.075);
+  snowCapLine(p, [0, h - 0.1, 0], [ex * 0.8, h + 0.35, ez * 0.8], 0.045);
+  snowCapLine(p, [ex * 0.8, h + 0.35, ez * 0.8], [ex * 0.95, h + 0.3, ez * 0.95], 0.04);
+  snowCapDome(p, 0, h, 0, 0.058);
+  const hl = halo(p, ex, h + 0.12, ez, color, 3.2, 0.5, 'lamp');
   const L = lightI > 0.1 ? plight(p, color, lightI, 14, ex, h - 0.1, ez, name) : null;
   return { p, halo: hl, L };
 }
@@ -254,7 +413,7 @@ export function guardrail(parent, x0, z0, x1, z1) {
 }
 
 /* ================================================================ misc small */
-function trashBins(parent, x, z, ry) {
+export function trashBins(parent, x, z, ry) {
   const g = grp(parent, x, Y0, z, ry);
   const cols = [['#2f7bd9', 'ペット\nボトル'], ['#7a8397', 'かん・\nびん'], ['#d8483f', '燃える\nごみ']];
   cols.forEach(([c, label], i) => {
@@ -268,7 +427,7 @@ function trashBins(parent, x, z, ry) {
   return g;
 }
 
-function planter(parent, x, z, r = 0.3, plant = '#2f6f4e') {
+export function planter(parent, x, z, r = 0.3, plant = '#2f6f4e') {
   const g = grp(parent, x, Y0, z);
   cy(g, toon('#8a5a3c'), 0, 0, 0, r, r * 1.3, 12, { rt: 0.8 });
   for (let i = 0; i < 6; i++) {
@@ -522,10 +681,10 @@ export function buildStreet(parent, drips) {
   vm.push(vm3);
 
   /* ---- bikes ---- */
-  bicycle(g, 5.85, 0.7, 0.04, '#3aa0c8', 0.1);
-  bicycle(g, 5.9, -0.6, -0.03, '#d8574f', -0.09);
-  bicycle(g, 3.85, 2.05, Math.PI / 2, '#6c8a3a', 0.1);
-  bicycle(g, -6.25, 4.0, 0.15, '#9a6bd6', 0.14);
+  bicycle(g, 5.85, 0.95, 0.04, '#8cc4d8', 0, { type: 'basket', e: true, steer: 0.22 });
+  bicycle(g, 5.95, -0.95, -0.03, '#4a515c', 0.11, { type: 'cross', steer: -0.12 });
+  bicycle(g, 3.85, 2.05, Math.PI / 2, '#d8574f', 0, { type: 'basket', steer: -0.2 });
+  bicycle(g, -6.25, 4.0, 0.15, '#2f6f8f', 0.12, { type: 'cross', steer: 0.15 });
   umbrellaStand(g, 0.85, 1.85);
 
   /* ---- flags / signs ---- */
@@ -622,18 +781,15 @@ export function buildStreet(parent, drips) {
   });
 
   /* ---- road signs ---- */
-  roadSign(g, -9.7, 6.0, 0, 'stop', 2.5, 0.75);
   roadSign(g, -5.95, 5.95, 0, 'p', 2.4, 0.62);
   roadSign(g, 7.2, -3.2, Math.PI / 2, '30', 2.6, 0.6);
   roadSign(g, 7.2, -6.0, Math.PI / 2, 'oneway', 2.6, 0.8);
-  roadSign(g, -11.2, 6.0, 0, 'school', 2.7, 0.7);
   // street name plate on the corner lamp
   pl(g, new THREE.MeshBasicMaterial({ map: signTexture('street'), color: new THREE.Color(1.0, 1.0, 1.05), transparent: true, alphaTest: 0.1 }), 0.7, 0.7, 7.2, Y0 + 3.6, 2.7 + 0.1, 0, 0);
 
   /* ---- bulletin board + planters ---- */
   planter(g, -4.55, 1.75, 0.22, '#2f6f4e');
-  planter(g, -11.55, 5.2, 0.26, '#2f6f4e');
-  planter(g, -8.75, 5.15, 0.22, '#4a7f4a');
+  // (the izakaya entrance pots are terracotta plants now: plants/placement.js)
 
   /* ---- cat watching the rain ---- */
   cat(g, -6.0, Y0 + 0.5, 2.9, 0.4);

@@ -64,6 +64,21 @@ function sampleKF(hour) {
   return K;
 }
 
+/* ---------------------------------------------------------------- street lamps: sunset -> sunrise
+   The celestial model below puts the sun on the horizon at 6:00 and 18:00 in every season
+   (sunSin = sin(maxEl * sin((hour - 6) / 12 * PI)) crosses 0 there), so those ARE sunrise and sunset.
+   Lamps come on at sunset and are fully off at sunrise; the short fade (20 min) lies inside the night on
+   both ends (18:00 -> 18:20 on, 5:40 -> 6:00 off). Weather never changes this: an overcast or stormy day
+   keeps them off. Only the street lamps use it (category 'lamp'); signs, lanterns, windows, car lights
+   and holiday lights keep their own controls. */
+export const SUN = { rise: 6.0, set: 18.0, fade: 1 / 3 };
+export function lampsAt(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  if (h >= SUN.rise && h < SUN.set) return 0;
+  const sinceSet = (h - SUN.set + 24) % 24, toRise = (SUN.rise - h + 24) % 24; // the night wraps past midnight
+  return Math.min(smooth(0, SUN.fade, sinceSet), smooth(0, SUN.fade, toRise));
+}
+
 /* ---------------------------------------------------------------- seasons */
 const SEASON_DATA = {
   spring: { maxEl: 56, sunMul: 1.0, tint: new THREE.Color('#ffd3df'), tintAmt: 0.13, lawn: [0.95, 1.32, 0.85], light: [1.02, 0.97, 1.0] },
@@ -146,7 +161,7 @@ export function createEnvironment(ctx) {
   }]));
   const hsum = (fn) => { let a = 0; for (const id of HOLIDAYS) a += fn(HC[id]) * cur.hol[id]; return a; };
   const hvec = (fn, out) => { out.set(0, 0, 0); for (const id of HOLIDAYS) { const v = fn(HC[id]); const w = cur.hol[id]; out.x += v[0] * w; out.y += v[1] * w; out.z += v[2] * w; } return out; };
-  const _hv = new THREE.Vector3(), _hv2 = new THREE.Vector3(), _c3 = new THREE.Color(), _c4 = new THREE.Color(), _fwc = new THREE.Color();
+  const _hv = new THREE.Vector3(), _hv2 = new THREE.Vector3(), _c3 = new THREE.Color(), _c4 = new THREE.Color(), _c5 = new THREE.Color(), _fwc = new THREE.Color();
   const accentLight = (name, key) => {
     const l = reg.lights[name];
     if (!l) return;
@@ -357,13 +372,15 @@ export function createEnvironment(ctx) {
       shop: lerp(0.1, 0.78 + 0.22 * glowN, cur.open),
       sign: lerp(0.28, 0.82 + 0.18 * glowN, cur.open),
       deco: (0.32 + 0.68 * glowN) * (1 + flashA * 1.3 + fwS * 0.12),
+      lamp: lampsAt(hour),
     };
     Object.assign(ENVK, f, { open: cur.open, day, rain: cur.rain, drip: Math.max(cur.rain, wet * 0.28 * (1 - snowCover)), wind: cur.wind });
     reg.emis.forEach((e) => {
       const fv = f[e.cat] ?? 1;
       if (e.last === fv) return;
       e.last = fv;
-      e.m.color.copy(e.base).multiplyScalar(fv);
+      if (e.off) e.m.color.copy(e.off).multiplyScalar(1 - Math.min(1, fv)).add(_c5.copy(e.base).multiplyScalar(fv));
+      else e.m.color.copy(e.base).multiplyScalar(fv);
     });
     reg.litMats.forEach((m) => {
       const uu = m.userData.litU;
@@ -377,8 +394,9 @@ export function createEnvironment(ctx) {
     const L = reg.lights;
     const setL = (name, v) => { const l = L[name]; if (l) { l.userData.k = v; l.intensity = l.userData.base * v; } };
     setL('inA', f.shop); setL('inB', f.shop); setL('door', f.shop);
-    ['lamp1', 'lamp2', 'lamp3', 'alleyLamp', 'vend', 'sigNear'].forEach((n) => setL(n, f.street));
-    ['neonPink', 'lantern', 'izaFront'].forEach((n) => setL(n, f.iza));
+    ['lamp1', 'lamp2', 'lamp3'].forEach((n) => setL(n, f.lamp));
+    ['alleyLamp', 'vend', 'sigNear'].forEach((n) => setL(n, f.street));
+    ['izaSide', 'lantern', 'izaFront'].forEach((n) => setL(n, f.iza));
     setL('tree', lerp(0.3, 1, glowN) * (1 + flashA * 1.4));
     accentLight('door', 'door'); accentLight('tree', 'tree');
     ['lamp1', 'lamp2', 'lamp3'].forEach((n) => accentLight(n, 'lamps'));

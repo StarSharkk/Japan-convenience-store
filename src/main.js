@@ -7,6 +7,7 @@ import { makeTree, setFoliageDensity } from './tree.js';
 import { createEnvironment } from './env.js';
 import { createUI } from './ui.js';
 import { groundY, MAP } from './town/layout.js';
+import { buildPlantStage } from './plants/preview.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -107,6 +108,39 @@ if (VIEW === 'tree') {
   const lamp = new THREE.PointLight('#ffd9a8', 40, 16, 2); lamp.position.set(3, 4, 4); stage.add(lamp);
   scene.add(stage);
 }
+// plant candidates under review: ?view=plants (stage) / ?plants=1 (temporary placement in the town)
+if (VIEW === 'plants') {
+  scene.children.forEach((o) => { if (!o.isLight) o.visible = false; });
+  const st = buildPlantStage(scene);
+  intro = false;
+  controls.minDistance = 0.3;
+  const find = (id) => st.items.find((i) => i.id === id).obj;
+  const look = (tx, ty, tz, r, phiDeg, thetaDeg) => {
+    fly = null; intro = false;
+    controls.target.set(tx, ty, tz);
+    camera.position.setFromSpherical(new THREE.Spherical(r, THREE.MathUtils.degToRad(phiDeg), THREE.MathUtils.degToRad(thetaDeg))).add(controls.target);
+    camera.lookAt(controls.target); controls.update();
+  };
+  window.__plants = {
+    items: st.items.map((i) => ({ id: i.id, name: i.obj.userData.name, tris: i.obj.userData.tris })),
+    view(name, id) {
+      st.items.forEach((i) => (i.obj.visible = !id || i.id === id)); // per-plant views show that plant alone
+      if (name === 'lineup') return look(-0.3, 0.5, 0, 12.2, 76, 0);
+      if (name === 'ground') return look(-1.55, 0.45, 0, 9.2, 70, 0);
+      if (name === 'pots') return look(3.18, 0.5, 0.1, 3.4, 74, 0);
+      const o = find(id), p = o.position;
+      const box = new THREE.Box3().setFromObject(o), hgt = box.max.y - box.min.y, wid = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+      const r = Math.max(hgt, wid) * 1.55 + 0.2, ty = p.y + hgt * 0.45;
+      if (name === 'front') return look(p.x, ty, p.z, r, 84, 0);
+      if (name === 'side') return look(p.x, ty, p.z, r, 84, 90);
+      if (name === 'q45') return look(p.x, ty, p.z, r * 0.95, 62, 45);
+      if (name === 'top') return look(p.x, p.y + hgt * 0.35, p.z, r * 0.75, 28, 30);
+      if (name === 'close') return look(p.x, ty + hgt * 0.1, p.z, r * 0.5, 70, 30);
+      if (name === 'rim') return look(p.x, p.y + 0.3, p.z, 0.75, 52, 20);
+    },
+  };
+  window.__plants.view('lineup');
+}
 pipe.scenePass.collect();
 renderer.shadowMap.needsUpdate = true;
 
@@ -156,7 +190,16 @@ if (!intro) { setCam(sph); controls.update(); } // ?intro=0 / tree view: apply t
 
 // adaptive resolution (quality = auto): keep the frame rate smooth on any GPU; when even the lowest
 // resolution is too slow, thin out the particle systems as well
-const perf = { acc: 0, n: 0, t: 0, good: 0, fail: new Map(), part: 1 };
+const perf = { acc: 0, n: 0, t: 0, good: 0, fail: new Map(), part: 1, deg: 0 };
+// "sharp first": when frames are slow, give up cheap-to-lose things before resolution. Each step can be undone.
+const DEGRADE = [
+  (on) => setFoliageDensity(on ? 0.78 : 1),
+  (on) => { pipe.refl.scale = on ? 0.5 : (QUALITY[qNow] || QUALITY.auto).refl; onResize(); },
+  (on) => handles.particles.setDensity(on ? 0.6 : 1),
+  (on) => { pipe.outline.material.uniforms.uAO.value = on ? 0 : 0.3; },
+];
+// never go below 1.5x on a retina screen unless the frame rate is really poor (an up-scaled canvas is what looks blurry)
+const floorLvl = () => { let f = 0; LEVELS.forEach((l, i) => { if (l <= Math.min(1.5, DPR) + 0.01) f = i; }); return f; };
 function adapt(dt, t) {
   if (window.__noAdapt || qNow !== 'auto') return;
   perf.acc += dt; perf.n++;
@@ -164,18 +207,17 @@ function adapt(dt, t) {
   const fps = perf.n / perf.acc;
   perf.acc = 0; perf.n = 0;
   if (t < 2.5) return;
-  if (fps < 30 && lvl > 0) {
-    perf.fail.set(lvl, t);
-    lvl--; perf.good = 0;
-    PR = LEVELS[lvl]; onResize();
-  } else if (fps < 24 && lvl === 0 && qNow === 'auto' && perf.part > 0.31) {
-    perf.part = Math.max(0.3, perf.part - 0.25);
-    handles.particles.setDensity(perf.part);
-    setFoliageDensity(0.4 + 0.6 * perf.part);
-  } else if (fps > 56 && lvl < LEVELS.length - 1) {
+  if (fps < 30) {
+    perf.good = 0;
+    if (perf.deg < DEGRADE.length) DEGRADE[perf.deg++](true);
+    else if (lvl > floorLvl() || (fps < 20 && lvl > 0)) { perf.fail.set(lvl, t); lvl--; PR = LEVELS[lvl]; onResize(); }
+  } else if (fps > 56) {
     perf.good++;
+    if (perf.good < 3) return;
+    perf.good = 0;
     const f = perf.fail.get(lvl + 1);
-    if (perf.good >= 3 && (f === undefined || t - f > 25)) { lvl++; perf.good = 0; PR = LEVELS[lvl]; onResize(); }
+    if (lvl < LEVELS.length - 1 && (f === undefined || t - f > 25)) { lvl++; PR = LEVELS[lvl]; onResize(); }
+    else if (perf.deg > 0) DEGRADE[--perf.deg](false);
   } else perf.good = 0;
 }
 /* ---- things that follow the camera around the town: shadow box, weather volume, lake visibility ---- */
@@ -246,4 +288,4 @@ function frame() {
 frame();
 
 // debug hook
-window.__konbini = { flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles };
+window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles };

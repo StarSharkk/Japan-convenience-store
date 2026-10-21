@@ -76,7 +76,7 @@ export const holidayAtmosphereConfig = {
   },
 
   sakura: {
-    decorations: ['sakuraLanterns', 'blossomGarland', 'lampBoughs', 'sakuraNobori', 'sakuraFestoon', 'izakayaSakura'],
+    decorations: ['sakuraLanterns', 'blossomGarland', 'sakuraNobori', 'sakuraFestoon', 'izakayaSakura'],
     windowProps: ['sakuraWindow', 'sakuraWindow2'],
     signProps: ['sakuraBoard'],
     treeLights: { palette: ['#ffd6e6', '#fff1d8', '#ffb3cd'], count: 40, size: 0.034 },

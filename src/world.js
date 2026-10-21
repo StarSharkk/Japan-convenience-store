@@ -9,6 +9,7 @@ import { createParticles } from './particles.js';
 import { mergeStatic } from './merge.js';
 import { buildBackdrop } from './backdrop.js';
 import { buildTown } from './town/index.js';
+import { buildPlantings } from './plants/placement.js';
 
 const flick = (period, dur, depth, seed = 0) => (t) => {
   const k = (t + seed) % period;
@@ -52,6 +53,8 @@ export function buildWorld(scene, renderer, refl) {
   setCat('shop');
   // the town around the original board: roads, terrain, lake, railway, furniture, greenery (+ the new plinth)
   buildTown(world, renderer, refl);
+  // potted plants at the izakaya entrance + the planting bed across the main road
+  buildPlantings(world);
 
   mergeStatic(world);
 
@@ -61,9 +64,9 @@ export function buildWorld(scene, renderer, refl) {
     [-5.6, 5.5, 1.5, 2.5, 3.0], // south awning
     [4.5, 5.5, -4.6, 2.5, 3.0], // east awning
     [-12.2, -8.3, -7.3, 4.4, 7.0], // izakaya
-    [-12.2, -8.2, 4.3, 5.4, 3.2], // izakaya front eave
-    [-8.6, -7.6, -7.1, -1.9, 3.1], // izakaya alley eave
-    [-12.5, -11.4, -7.1, 4.3, 3.3], // izakaya west eave
+    [-13.0, -8.2, 4.3, 5.3, 3.4], // izakaya front eave
+    [-13.0, -12.0, -7.4, 4.3, 3.4], // izakaya street-side eave
+    [-8.5, -7.95, -5.05, -3.65, 2.55], // izakaya staff-door hood
   ]);
   createDrips(world, drips);
 
@@ -84,7 +87,7 @@ export function buildWorld(scene, renderer, refl) {
     const o = fOpen(t) * ENVK.open;
     reg.neonOpen.color.setScalar(1.6 * o);
     const n = fIza(t) * ENVK.iza;
-    reg.neonIza.color.setScalar(1.5 * n);
+    if (reg.neonIza) reg.neonIza.color.setScalar(1.5 * n);
     if (reg.lights.neonPink) reg.lights.neonPink.intensity = reg.lights.neonPink.userData.base * fIza(t) * lk(reg.lights.neonPink);
     const v = fVend(t) * ENVK.street;
     if (reg.vend && reg.vend[0]) reg.vend[0].tube.color.setScalar(2.6 * v);
