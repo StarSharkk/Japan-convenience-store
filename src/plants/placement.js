@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { makeTaro, makeFern, makeHosta, makeAspidistra } from './groundPlants.js';
 import { makeRhapisPot, makeFicusPot } from './pottedPlants.js';
 import { groundY } from '../town/layout.js';
+import { SITE } from '../site.js';
 
 /* ====================================================================================================
    Where the approved plants live (built with the world, batched by mergeStatic):
@@ -16,9 +17,11 @@ export function buildPlantings(world) {
   g.name = 'plantings';
   setCat('street'); // exterior: their toon materials take the shared snow cover (shop-category ones never do)
 
-  /* ---- izakaya entrance pots ---- */
-  const rh = makeRhapisPot({ seed: 21 }); rh.position.set(-12.32, 0.15, 4.72); rh.rotation.y = 0.6; g.add(rh);
-  const fi = makeFicusPot({ seed: 31 }); fi.position.set(-8.42, 0.15, 4.64); fi.rotation.y = 2.2; fi.scale.setScalar(0.92); g.add(fi);
+  /* ---- izakaya entrance pots (the bakery dresses its own front: bakery.js) ---- */
+  if (SITE.izakaya) {
+    const rh = makeRhapisPot({ seed: 21 }); rh.position.set(-12.32, 0.15, 4.72); rh.rotation.y = 0.6; g.add(rh);
+    const fi = makeFicusPot({ seed: 31 }); fi.position.set(-8.42, 0.15, 4.64); fi.rotation.y = 2.2; fi.scale.setScalar(0.92); g.add(fi);
+  }
 
   /* ---- planting bed across the main road ---- */
   const x0 = -9.2, x1 = -1.9, z0 = 12.25, z1 = 13.25, y = groundY(-5.5, 12.75);

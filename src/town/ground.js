@@ -3,6 +3,7 @@ import { reg, toon, canvasTex, rng, FONT, RAMP, patchToon } from '../core.js';
 import { makeGroundMaterial } from '../ground.js';
 import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY } from './layout.js';
 import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
+import { IZA_AWAY } from '../site.js';
 
 /* ====================================================================================================
    Town ground: one painted canvas for the whole expanded map (roads, sidewalks, lawns, lots, verges),
@@ -130,6 +131,12 @@ function drawTown(g) {
     rect(24.55, 29.45, 1.0, 3.85, COL.gravel); // house yard
     for (let i = 0; i < 40; i++) blob(24.6 + Rf() * 4.8, 1.0 + Rf() * 2.8, 0.1 + Rf() * 0.25, Rf() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,10,0.12)');
     rect(24.55, 29.45, -4.6, 1.0, COL.paving2); // round the house
+  }
+  // the izakaya's lot in the west block (site.js IZA_AWAY): paving under it, its street side and its frontage
+  if (IZA_AWAY) {
+    const [x0, x1, z0] = IZA_AWAY.rect;
+    g.fillStyle = tilePattern(g, COL.paving, COL.paving2, 0.6);
+    g.fillRect(X(x0 - 1.3), Z(z0 - 0.5), (x1 - x0 + 2.1) * K, (6.5 - z0 + 0.5) * K);
   }
 
   /* lake park: grass, sand beach, lake bed (per pixel from the same field the terrain uses) */

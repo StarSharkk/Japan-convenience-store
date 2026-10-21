@@ -10,6 +10,7 @@ import { mergeStatic } from './merge.js';
 import { buildBackdrop } from './backdrop.js';
 import { buildTown } from './town/index.js';
 import { buildPlantings } from './plants/placement.js';
+import { SITE } from './site.js';
 
 const flick = (period, dur, depth, seed = 0) => (t) => {
   const k = (t + seed) % period;
@@ -63,10 +64,17 @@ export function buildWorld(scene, renderer, refl) {
     [-5.6, 4.6, -4.6, 1.6, 3.55], // store
     [-5.6, 5.5, 1.5, 2.5, 3.0], // south awning
     [4.5, 5.5, -4.6, 2.5, 3.0], // east awning
-    [-12.2, -8.3, -7.3, 4.4, 7.0], // izakaya
-    [-13.0, -8.2, 4.3, 5.3, 3.4], // izakaya front eave
-    [-13.0, -12.0, -7.4, 4.3, 3.4], // izakaya street-side eave
-    [-8.5, -7.95, -5.05, -3.65, 2.55], // izakaya staff-door hood
+    ...(SITE.izakaya ? [
+      [-12.2, -8.3, -7.3, 4.4, 7.0], // izakaya
+      [-13.0, -8.2, 4.3, 5.3, 3.4], // izakaya front eave
+      [-13.0, -12.0, -7.4, 4.3, 3.4], // izakaya street-side eave
+      [-8.5, -7.95, -5.05, -3.65, 2.55], // izakaya staff-door hood
+    ] : [
+      [-12.35, -7.8, -6.75, 1.0, 4.4], // bakery
+      [-12.35, -7.8, 0.9, 1.98, 3.35], // bakery canopy
+      [-28.5, -24.6, -7.3, 4.4, 7.0], // the izakaya in the west block
+      [-29.3, -24.5, 4.3, 5.3, 3.4], // its front eave
+    ]),
     [14.45, 21.95, -6.95, 2.75, 5.6], // florist greenhouse roof
   ]);
   createDrips(world, drips);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect, noSnowBox } from '../core.js';
 import { makeGlass } from '../fx.js';
+import { swingDoors, doorHit } from '../doors.js';
 import { T } from '../tex.js';
 import { guardrail, bicycle } from '../street.js';
 import { makeTree, makeShrub } from '../tree.js';
@@ -1360,7 +1361,6 @@ export function buildFlorist(parent) {
     }
     // the corner (x 12 .. 14.6): a bench facing the street, the red post box, planters along the west glass
     {
-      bench(g, 13.15, fz + 0.75, 0, 1.45); // the shop's front-left corner, facing the street
       postBox(g, ORIGIN.x - 0.32, fz + 0.32, 0); // tucked into the building's corner
       // the Hoshizora-dori side: a lived-in outdoor display along the west glass (see sideDisplay)
       sideDisplay(g, bins, m);
@@ -1392,7 +1392,7 @@ export function buildFlorist(parent) {
     bx(rf, m.green, -0.8, 0.8, 0, 0.05, -0.3, 0.22, { bevel: 0.02 });
     bx(nb, toon('#2f5240'), -0.8, 0.8, 1.86, 1.94, -0.06, 0.04);
   }
-  bench(g, 22.95, fz + 1.02, 0, 1.4); // in front of the board, on the forecourt band (the sidewalk stays clear)
+  bench(g, ORIGIN.x + W - 0.5, fz + 1.15, 0, 1.3); // in front of the tiered flower stand, right of the door
 
   /* ---- the sidewalk edge: white guard rails along both kerbs (gaps for the poles, the lamp and the crossing) ---- */
   guardrail(g, 13.4, 6.28, 17.1, 6.28);
@@ -1404,32 +1404,13 @@ export function buildFlorist(parent) {
   bins.flush(g);
   g.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) o.castShadow = false; });
 
-  /* ---- the doors: open as the camera comes close (or steps inside), close as it leaves; a click toggles ---- */
-  const door = { open: 0, manual: null };
+  /* ---- the doors: same logic as the bakery's (doors.js): open only while the camera is at the door or inside ---- */
   const ex = ORIGIN.x + W / 2, ez = ORIGIN.z;
   const entrance = new THREE.Vector3(ex, Y + 1, ez);
   const inside = (p, pad = 0) => p.x > ORIGIN.x - pad && p.x < ORIGIN.x + W + pad && p.z < ORIGIN.z + pad && p.z > ORIGIN.z - L - pad;
-  reg.updaters.push((t, dt) => {
-    const cam = reg.camera, ctl = reg.controls;
-    if (!cam) return;
-    const d = cam.position.distanceTo(entrance); // 3D: a camera high above the corner is not "at the door"
-    const looking = ctl && inside(ctl.target, 0.6) && d < 20;
-    let want = d < 11 || inside(cam.position, 0.3) || looking ? 1 : 0;
-    if (door.manual !== null) { want = door.manual; if (d > 26) door.manual = null; }
-    door.open += (want - door.open) * (1 - Math.exp(-dt * (want > door.open ? 3.4 : 2.6)));
-    const e = door.open * door.open * (3 - 2 * door.open);
-    gh.leaves.forEach(({ pv, s }) => (pv.rotation.y = s * e * 1.45));
-    // zooming into the shop: the orbit may come closer than usual while the target is inside (eases back out after)
-    if (ctl && ctl.minDistance > 1.49 && ctl.minDistance < 6.01) { // (review stages set their own limits)
-      const near = inside(ctl.target, 1.2);
-      ctl.minDistance = near ? Math.min(ctl.minDistance, 1.5) : ctl.minDistance + (6 - ctl.minDistance) * (1 - Math.exp(-dt * 2.5));
-    }
-  });
-  // click target: the leaves, plus an unrendered panel in the doorway (layer 5: no pass draws it) so an open door
-  // can be clicked shut too
-  const hit = new THREE.Mesh(new THREE.PlaneGeometry(DOOR * 2, 2.2), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-  hit.position.set(ex, Y + 1.12, ez - 0.02); hit.layers.set(5); hit.userData.keep = true; g.add(hit);
-  (reg.clickables ||= []).push({ objects: [hit, ...gh.leaves.map((l) => l.pv)], onClick: () => { door.manual = door.open > 0.5 ? 0 : 1; } });
+  const door = swingDoors({ leaves: gh.leaves, entrance, inside, angle: 1.45, hit: doorHit(g, DOOR * 2, 2.2, ex, Y + 1.12, ez - 0.02) });
+  // zooming into the shop: the orbit may come closer than usual while the target is inside (main.js)
+  (reg.closeZones ||= []).push((p) => inside(p, 1.2));
   // camera views for the UI button: in front of the doors, then inside down the aisle
   const tgtF = new THREE.Vector3(ex, Y + 1.2, ez - 2.2), tgtI = new THREE.Vector3(ex + 0.4, Y + 1.05, ez - 6.2);
   reg.florist = {

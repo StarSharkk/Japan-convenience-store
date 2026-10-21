@@ -103,6 +103,13 @@ const camFlorist = () => {
   const v = camera.position.distanceTo(f.entrance) < 13 ? f.views.inside : f.views.front;
   flyTo(v.t, v.s, 1.8);
 };
+// ひよりベーカリー: the same two steps (front of the doors, then inside towards the till)
+const camBakery = () => {
+  const b = reg.bakery;
+  if (!b) return;
+  const v = camera.position.distanceTo(b.entrance) < 11 ? b.views.inside : b.views.front;
+  flyTo(v.t, v.s, 1.8);
+};
 const camTown = () => flyTo(TOWN_TARGET, new THREE.Spherical(Math.max(150, 150 * (1.55 / camera.aspect)), THREE.MathUtils.degToRad(52), THREE.MathUtils.degToRad(30)), 2.0);
 
 const pipe = createPipeline(renderer, scene, camera);
@@ -181,7 +188,7 @@ function setQuality(q) {
   pipe.refl.scale = c.refl;
   onResize();
 }
-const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown, florist: camFlorist });
+const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown, florist: camFlorist, bakery: camBakery });
 // Camera Movement Control: W A S D / arrows / the D-pad pan the view across the town (screen-relative)
 const pan = createCamPan({
   camera, controls, parent: ui.root,
@@ -241,6 +248,13 @@ const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
 reg.shadowCenter = new THREE.Vector3();
 reg.camera = camera;
 reg.controls = controls;
+// shops you can walk into (florist, bakery) register a zone: while the orbit target is in one, the camera may
+// come as close as 1.5 m; outside, the limit eases back to 6 m (review stages that set their own limit are left alone)
+reg.updaters.push((t, dt) => {
+  if (controls.minDistance < 1.49 || controls.minDistance > 6.01) return;
+  const near = (reg.closeZones || []).some((z) => z(controls.target));
+  controls.minDistance = near ? 1.5 : controls.minDistance + (6 - controls.minDistance) * (1 - Math.exp(-dt * 2.5));
+});
 // click (not drag) on something in reg.clickables, e.g. the florist's doors
 {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();

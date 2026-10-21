@@ -3,6 +3,7 @@ import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, pligh
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeGlass } from './fx.js';
 import { snowCapBox, snowCapLine, snowCapDome } from './roofPiles.js';
+import { SITE, POLE_W, FRONT } from './site.js';
 import { T, BRAND, logo, posterTex } from './tex.js';
 
 const Y0 = 0.15;
@@ -677,7 +678,7 @@ export function buildStreet(parent, drips) {
   reg.vend = vm;
   trashBins(g, 5.1, -1.7, Math.PI / 2);
   // vending machine at the alley mouth (green)
-  const vm3 = vendingMachine(g, -8.1, -2.5, Math.PI / 2, 2, 5);
+  const vm3 = vendingMachine(g, SITE.izakaya ? -8.1 : -7.5, -2.5, Math.PI / 2, 2, 5); // against the izakaya / bakery wall
   vm.push(vm3);
 
   /* ---- bikes ---- */
@@ -711,7 +712,7 @@ export function buildStreet(parent, drips) {
 
   /* ---- street lamps ---- */
   const L1 = streetLamp(g, 7.0, 2.6, 1, 0, 5.0, 1.9, '#ffe0a8', 60, 'lamp1');
-  const L2 = streetLamp(g, -8.3, 6.15, 0, 1, 5.0, 1.8, '#d6e8ff', 40, 'lamp2');
+  const L2 = streetLamp(g, FRONT.lamp2, 6.15, 0, 1, 5.0, 1.8, '#d6e8ff', 40, 'lamp2'); // at the alley mouth: clear of the bakery's sign
   const L3 = streetLamp(g, 7.2, -8.5, 1, 0, 5.0, 1.9, '#ffe0a8', 0.01, 'lamp3');
   reg.lampHalos = [L1.halo, L2.halo];
 
@@ -721,7 +722,7 @@ export function buildStreet(parent, drips) {
     [7.0, -1.0, 7.4, 'z'],
     [7.0, -9.2, 7.4, 'z'],
     [-1.8, 6.05, 7.2, 'x'],
-    [-11.0, 6.05, 7.2, 'x'],
+    [POLE_W, 6.05, 7.2, 'x'], // in front of the izakaya; with the bakery it stands clear of the shop front
   ];
   U.forEach((u) => utilityPole(g, u[0], u[1], u[2], u[3]));
   const wl = (a, b, sag, offs) => offs.forEach((o) => wire(g, [a[0] + o[0], a[1] + o[1], a[2] + o[2]], [b[0] + o[0], b[1] + o[1], b[2] + o[2]], sag));
@@ -736,7 +737,8 @@ export function buildStreet(parent, drips) {
   wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.015);
   wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.015);
   // drop to the neighbour house
-  wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 4.3], 0.5, 0.015);
+  if (SITE.izakaya) wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 4.3], 0.5, 0.015);
+  else wire(g, [POLE_W, top(U[4]) - 0.95, 6.05], [-12.1, 4.15, 0.95], 0.4, 0.015); // service drop to the bakery's parapet
   // stray crossing wire at the alley
 
   /* ---- traffic signals ---- */

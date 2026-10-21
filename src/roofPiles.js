@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SITE, IZA_AWAY } from './site.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { reg, rng, RAMP } from './core.js';
@@ -35,7 +36,7 @@ function slope(id, ex, ey, rx, ry, z0, z1, o = {}) {
 
 // store: ST x -5.5..4.5, z -4.5..1.5, roof top 3.68, parapet N/W to 3.92, fascia S/E to 4.34, awnings top 2.98
 // izakaya: X -12..-8.5, Z -7.2..4.3, gable eaves at 6.6 (x -12.35 / -8.0), ridge x -10.175 at 7.9, eaves 3.145
-const SURFACES = [
+const SURFACES_ALL = [
   flat('storeRoof', -5.54, 4.5, -4.54, 1.5, 3.68, {
     walls: { u0: 1, u1: 1, v0: 1, v1: 1 },
     obst: [[-4.15, -2.25, -3.55, -2.45], [-1.15, 0.35, -3.7, -2.7], [2.02, 2.38, -3.48, -3.12], [3.36, 3.44, -3.64, -3.56]],
@@ -49,15 +50,18 @@ const SURFACES = [
   flat('fasciaE', 4.5, 4.7, -4.6, 1.5, 4.34, { snow: 0.09, ov: 0.03 }),
   flat('awningS', -5.6, 5.47, 1.7, 2.49, 2.98, { walls: { v0: 1 }, w: { petal: 0.9, leaf: 0.9 }, snow: 0.13 }),
   flat('awningE', 4.7, 5.47, -4.6, 1.7, 2.98, { walls: { u0: 1 }, w: { petal: 0.9, leaf: 0.9 }, snow: 0.13 }),
-  slope('izaRoofW', -12.35, 6.6, -10.175, 7.9, -7.6, 5.05, { w: { petal: 0.85, leaf: 0.85 }, snow: 0.19, ov: 0.12 }),
-  slope('izaRoofE', -8.0, 6.6, -10.175, 7.9, -7.6, 5.05, { w: { petal: 0.85, leaf: 0.85 }, snow: 0.19, ov: 0.12 }),
-  flat('izaRidge', -10.3, -10.05, -7.65, 5.1, 8.02, { snow: 0.08, ov: 0.03 }),
 ];
 // izakaya lean-to eaves (front + street side, meeting on a hip at the south-west corner); see izakaya.js pent()
-SURFACES.push(
-  pentS('izaFrontEave', [-12, 4.3], [-8.5, 4.3], [0, 1], 1.0, 3.42, 0.36, { hipAtA: true, ovB: 0.3, w: { petal: 0.85, leaf: 0.85 }, snow: 0.13, ov: 0.08 }),
-  pentS('izaSideEave', [-12, 4.3], [-12, -7.2], [-1, 0], 1.0, 3.42, 0.36, { hipAtA: true, ovB: 0.2, w: { petal: 0.7, leaf: 0.7 }, snow: 0.13, ov: 0.08 }),
-);
+// the izakaya's roof + eaves, shifted by dx along x: on its home lot (?shop=izakaya) or on its lot in the west block
+// (site.js IZA_AWAY); the bakery on the home lot registers its own roofs via reg.extraRoofs
+const izaSurfaces = (dx) => [
+  slope('izaRoofW', -12.35 + dx, 6.6, -10.175 + dx, 7.9, -7.6, 5.05, { w: { petal: 0.85, leaf: 0.85 }, snow: 0.19, ov: 0.12 }),
+  slope('izaRoofE', -8.0 + dx, 6.6, -10.175 + dx, 7.9, -7.6, 5.05, { w: { petal: 0.85, leaf: 0.85 }, snow: 0.19, ov: 0.12 }),
+  flat('izaRidge', -10.3 + dx, -10.05 + dx, -7.65, 5.1, 8.02, { snow: 0.08, ov: 0.03 }),
+  pentS('izaFrontEave', [-12 + dx, 4.3], [-8.5 + dx, 4.3], [0, 1], 1.0, 3.42, 0.36, { hipAtA: true, ovB: 0.3, w: { petal: 0.85, leaf: 0.85 }, snow: 0.13, ov: 0.08 }),
+  pentS('izaSideEave', [-12 + dx, 4.3], [-12 + dx, -7.2], [-1, 0], 1.0, 3.42, 0.36, { hipAtA: true, ovB: 0.2, w: { petal: 0.7, leaf: 0.7 }, snow: 0.13, ov: 0.08 }),
+];
+const SURFACES = SURFACES_ALL.concat(izaSurfaces(SITE.izakaya ? 0 : IZA_AWAY.dx));
 /** a lean-to eave: wall line a -> b (x/z) at height y, sloping out along n by D, dropping `drop`;
     hipAtA: the a end is cut on the 45° hip it shares with the perpendicular eave */
 function pentS(id, a, b, n, D, y, drop, o = {}) {

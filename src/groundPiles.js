@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SITE, IZA_AWAY } from './site.js';
 import { reg, rng } from './core.js';
 import { inOld, blockAt, groundY, lakeF, RAIL, MAP } from './town/layout.js';
 
@@ -27,15 +28,22 @@ const SEGMENTS = [
   { a: [-11.6, 6.56], b: [4.5, 6.56], y: ROAD, n: [0, 1], w: { leaf: 1.0, petal: 0.7, snow: 1.0 }, off: 0.0, maxW: 0.3, name: 'gutter S (stops before the crossing)' },
   { a: [7.56, -11.4], b: [7.56, 4.3], y: ROAD, n: [1, 0], w: { leaf: 0.9, petal: 0.6, snow: 1.0 }, off: 0.0, maxW: 0.3, name: 'gutter E (stops before the crossing)' },
   { a: [-6.2, -7.22], b: [7.3, -7.22], y: PAV, n: [0, 1], w: { leaf: 0.45, petal: 0.5, snow: 0.4 }, off: 0.02, name: 'back wall (mostly hidden behind the shop)' },
-  { a: [-8.4, -7.0], b: [-8.4, 3.9], y: PAV, n: [1, 0], w: { leaf: 0.6, petal: 0.5, snow: 0.8 }, off: 0.02, name: 'izakaya alley wall' },
+  ...(SITE.izakaya
+    ? [{ a: [-8.4, -7.0], b: [-8.4, 3.9], y: PAV, n: [1, 0], w: { leaf: 0.6, petal: 0.5, snow: 0.8 }, off: 0.02, name: 'izakaya alley wall' }]
+    : [{ a: [-7.8, -6.4], b: [-7.8, -1.6], y: PAV, n: [1, 0], w: { leaf: 0.6, petal: 0.5, snow: 0.8 }, off: 0.02, name: 'bakery alley wall' }]),
   { a: [-5.72, -4.4], b: [-5.72, 1.3], y: PAV, n: [-1, 0], w: { leaf: 0.5, petal: 0.5, snow: 0.7 }, off: 0.02, name: 'store west wall' },
   { a: [-5.4, -4.72], b: [4.4, -4.72], y: PAV, n: [0, -1], w: { leaf: 0.3, petal: 0.3, snow: 0.4 }, off: 0.02, name: 'store back wall' },
   { a: [4.72, -4.4], b: [4.72, -2.4], y: PAV, n: [1, 0], w: { leaf: 0.3, petal: 0.3, snow: 0.5 }, off: 0.02, name: 'store east wall (behind vending)' },
   { a: [1.1, 6.1], b: [4.8, 6.1], y: PAV, n: [0, -1], w: { leaf: 0.7, petal: 0.8, snow: 0.9 }, off: 0.04, name: 'guard rail S' },
   { a: [7.2, -0.3], b: [7.2, 3.8], y: PAV, n: [-1, 0], w: { leaf: 0.6, petal: 0.7, snow: 0.8 }, off: 0.04, name: 'guard rail E' },
   { a: [-5.4, 1.66], b: [0.9, 1.66], y: PAV, n: [0, 1], w: { leaf: 0.08, petal: 0.1, snow: 0.05 }, off: 0.02, name: 'shop front (under the awning: little gets here)' },
-  { a: [-11.9, 4.42], b: [-11.1, 4.42], y: PAV, n: [0, 1], w: { leaf: 0.35, petal: 0.4, snow: 0.5 }, off: 0.02, name: 'izakaya front W' },
-  { a: [-9.2, 4.42], b: [-8.55, 4.42], y: PAV, n: [0, 1], w: { leaf: 0.35, petal: 0.4, snow: 0.5 }, off: 0.02, name: 'izakaya front E' },
+  ...(SITE.izakaya ? [
+    { a: [-11.9, 4.42], b: [-11.1, 4.42], y: PAV, n: [0, 1], w: { leaf: 0.35, petal: 0.4, snow: 0.5 }, off: 0.02, name: 'izakaya front W' },
+    { a: [-9.2, 4.42], b: [-8.55, 4.42], y: PAV, n: [0, 1], w: { leaf: 0.35, petal: 0.4, snow: 0.5 }, off: 0.02, name: 'izakaya front E' },
+  ] : [
+    // along the foot of the bakery's terrace step
+    { a: [-12.5, 4.9], b: [-11.1, 4.9], y: PAV, n: [0, 1], w: { leaf: 0.35, petal: 0.4, snow: 0.5 }, off: 0.02, name: 'bakery terrace W' },
+  ]),
 ];
 // the town around the board: kerbs / gutters of the main roads, the foot of the terrace wall, rail fences, the lake lane
 const T = (a, b, y, n, w, name, maxW = 9, off = 0.02) => SEGMENTS.push({ a, b, y, n, w, name, maxW, off });
@@ -52,19 +60,22 @@ T([-18.9, -40], [-18.6, -27], 0.1, [-1, 0], { leaf: 0.6, petal: 0.8, snow: 0.6 }
 const CORNERS = [
   { p: [-6.15, -7.15], n: [0.7, 0.7], w: { leaf: 0.4, petal: 0.4, snow: 0.5 } },
   { p: [7.25, -7.15], n: [-0.7, 0.7], w: { leaf: 0.6, petal: 0.6, snow: 0.8 } },
-  { p: [-8.35, -7.15], n: [0.7, 0.7], w: { leaf: 0.3, petal: 0.3, snow: 0.4 } },
+  ...(SITE.izakaya ? [{ p: [-8.35, -7.15], n: [0.7, 0.7], w: { leaf: 0.3, petal: 0.3, snow: 0.4 } }] : []),
   { p: [-5.68, 1.62], n: [-0.7, 0.7], w: { leaf: 0.5, petal: 0.6, snow: 0.7 } },
   { p: [4.85, 6.05], n: [-0.7, -0.7], w: { leaf: 0.5, petal: 0.6, snow: 0.7 } },
-  { p: [-8.45, 4.4], n: [0.7, 0.7], w: { leaf: 0.4, petal: 0.4, snow: 0.6 } },
+  ...(SITE.izakaya ? [{ p: [-8.45, 4.4], n: [0.7, 0.7], w: { leaf: 0.4, petal: 0.4, snow: 0.6 } }] : [{ p: [-7.75, -6.5], n: [0.7, 0.7], w: { leaf: 0.3, petal: 0.3, snow: 0.4 } }]),
 ];
 
 /** places that must stay clean (walk lines, doors, road centre, stalls, inside buildings) */
 function blockedOld(x, z) {
   if (x > 1.0 && x < 3.4 && z > 1.45 && z < 3.4) return true; // shop door + approach
-  if (x > -11.0 && x < -9.3 && z > 4.3 && z < 5.9) return true; // izakaya door
+  if (SITE.izakaya && x > -11.0 && x < -9.3 && z > 4.3 && z < 5.9) return true; // izakaya door
+  if (SITE.bakery && x > -9.8 && x < -8.1 && z > 4.4 && z < 5.9) return true; // bakery: the walk up to the terrace step
   if (x > -5.5 && x < 0.4 && z > 2.95 && z < 5.55) return true; // parking stalls
   if (x > -5.62 && x < 4.62 && z > -4.62 && z < 1.52) return true; // store footprint
-  if (x > -12.3 && x < -8.48 && z > -7.4 && z < 4.32) return true; // izakaya footprint
+  if (SITE.izakaya && x > -12.3 && x < -8.48 && z > -7.4 && z < 4.32) return true; // izakaya footprint
+  if (SITE.bakery && x > -12.55 && x < -7.6 && z > -6.9 && z < 4.85) return true; // bakery footprint + terrace deck + step
+  if (SITE.bakery && x > -7.95 && x < -6.95 && z > -1.5 && z < 0.75) return true; // bakery trolley / delivery box / bin
   if (z > 6.9 && x < 7.5) return true; // road
   if (x > 7.95) return true; // road
   if (x > 5.0 && x < 7.0 && z > 5.3) return true; // south crossing + landing
@@ -74,6 +85,7 @@ function blockedOld(x, z) {
 }
 /** the town: piles on blocks (not in the lake, not on the track) or tight against a kerb in the gutter */
 function blockedTown(x, z) {
+  if (IZA_AWAY) { const [x0, x1, z0, z1] = IZA_AWAY.rect; if (x > x0 - 0.3 && x < x1 + 0.3 && z > z0 - 0.3 && z < z1 + 0.3) return true; } // the izakaya in the west block
   if (x < MAP.x0 + 0.6 || x > MAP.x1 - 0.6 || z < MAP.z0 + 0.6 || z > MAP.z1 - 0.6) return true;
   if (Math.abs(z - RAIL.z) < 2.2 && x < 23) return true;
   const b = blockAt(x, z);

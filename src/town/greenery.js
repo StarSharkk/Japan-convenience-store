@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { reg, toon, rng } from '../core.js';
 import { makeTree, makeShrub, FOLIAGE, SEASON_U } from '../tree.js';
 import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS } from './layout.js';
+import { IZA_AWAY } from '../site.js';
 
 /* ====================================================================================================
    Town greenery. Five tree species + three shrubs are grown ONCE as templates with the same leaf-card
@@ -143,6 +144,7 @@ export function buildGreenery(parent, lake) {
     const b = blockAt(x, z);
     if (!b || edgeDist(x, z, b.poly) < 0.55 || nearRail(x, z) || inBlocked(x, z)) return;
     if (b.id === 'lakePark' && lakeF(x, z) < 1.29) return;
+    if (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.7 && x < IZA_AWAY.rect[1] + 1.0 && z > IZA_AWAY.rect[2] - 0.8 && z < 6.6) return; // the izakaya's lot
     if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < 1.2)) return;
     shrubs.push({ x, y: groundY(x, z), z, sp, s, r: R() * Math.PI * 2 });
   };

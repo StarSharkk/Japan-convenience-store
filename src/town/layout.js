@@ -14,6 +14,7 @@
         z  12 │ south-west residential (lane R6)   │ R4 │ south block         │ R1 │ south-east │R5 │
         z  32 └───────────────────────────────────────────────────────────────┴────┴────────────────┘
    ==================================================================================================== */
+import { IZA_AWAY } from '../site.js';
 
 export const MAP = { x0: -48, x1: 36, z0: -44, z1: 32 };
 /** the original board (its own road plane + plot + plinth top); the town never paints inside it */
@@ -60,6 +61,15 @@ export function lakeParkH(x, z) {
   return PAV - 0.5 * (1 - smooth(0.95, 1.45, f)) - 0.6 * (1 - smooth(0.55, 1.02, f)) + bump;
 }
 
+// the izakaya's lot in the west block (site.js IZA_AWAY) is levelled to the pavement, the slope picks up again
+// round it within ~1.4 m (behind the back wall, beside the 杂货铺 / 书店 lots)
+const izaPad = (x, z) => {
+  if (!IZA_AWAY) return 0;
+  const [x0, x1, z0, z1] = IZA_AWAY.rect;
+  const dx = Math.max(x0 - 1.6 - x, 0, x - (x1 + 0.8)), dz = Math.max(z0 - 0.6 - z, 0, z - z1);
+  return 1 - smooth(0, 1.4, Math.hypot(dx, dz));
+};
+
 export const BLOCKS = [
   { id: 'lakePark', zone: 'D', poly: [[-48, -44], [-19, -44], [-19, -36], [-18, -29], [-16.6, -24.5], [-16.5, -23], [-48, -23]], h: lakeParkH, surf: 'park' },
   { id: 'terrace', zone: 'shrine', poly: [[-16, -44], [7.5, -44], [7.5, -23], [-13.5, -23], [-13.6, -24.5], [-15, -29], [-16, -36]], h: () => 2.2, surf: 'forest', wall: 'stone' },
@@ -68,7 +78,7 @@ export const BLOCKS = [
   { id: 'corrM', zone: 'E', poly: [[-13.5, -23], [7.5, -23], [7.5, -15], [-13.5, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrE', zone: 'E', poly: [[12, -23], [23, -23], [27, -25.5], [29, -30], [29, -44], [36, -44], [36, -15], [12, -15]], h: () => PAV, surf: 'verge' },
   { id: 'west1', zone: 'B', poly: [[-48, -12], [-32, -12], [-33.5, -3], [-32.5, 6.5], [-48, 6.5]], h: (x, z) => PAV + 0.85 * smooth(4, -10, z), surf: 'lots', wall: 'stone' },
-  { id: 'west2', zone: 'B', poly: [[-29, -12], [-16.5, -12], [-16.5, 6.5], [-29.5, 6.5], [-30.5, -3]], h: (x, z) => PAV + 0.7 * smooth(4, -10, z), surf: 'lots', wall: 'stone' },
+  { id: 'west2', zone: 'B', poly: [[-29, -12], [-16.5, -12], [-16.5, 6.5], [-29.5, 6.5], [-30.5, -3]], h: (x, z) => PAV + 0.7 * smooth(4, -10, z) * (1 - izaPad(x, z)), surf: 'lots', wall: 'stone' },
   { id: 'west3', zone: 'A', poly: [[-13.5, -12], [-12, -12], [-12, 6.5], [-13.5, 6.5]], h: () => PAV, surf: 'walk' },
   { id: 'eastShops', zone: 'A', poly: [[12, -12], [30, -12], [30, 6.5], [12, 6.5]], h: (x, z) => PAV + 0.22 * smooth(3, -11, z), surf: 'shops' },
   { id: 'east1', zone: 'A', poly: [[33, -12], [36, -12], [36, 6.5], [33, 6.5]], h: () => PAV, surf: 'verge' },

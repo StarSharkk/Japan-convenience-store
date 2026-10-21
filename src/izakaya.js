@@ -18,6 +18,9 @@ import { snowCapLine } from './roofPiles.js';
    east  = BACK of house facing the LAWSON: kitchen windows with grilles, staff door, propane, meters, AC,
            steel stairs to the flat upstairs
    north = kitchen side (duct, door)
+
+   Kept as a reusable module: the bakery (bakery.js) now stands on this lot by default; ?shop=izakaya brings
+   the izakaya back here, placeIzakaya() puts it on any other lot.
    ==================================================================================================== */
 
 const MINCHO = '"Hiragino Mincho ProN","Yu Mincho","Kaiti SC","STKaiti","Songti SC",serif';
@@ -288,6 +291,26 @@ function bannerTex() {
     g.fillStyle = '#f7d36a'; g.fillRect(0, 8, w, 4); g.fillRect(0, h - 12, w, 4);
     g.fillStyle = '#fff'; g.font = `900 64px ${MINCHO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('やきとり・おでん', w / 2, h / 2 + 2);
   }));
+}
+
+/* ---------------------------------------------------------------- reuse on another lot
+   The izakaya is modelled in world coordinates on its home lot (IZA). placeIzakaya() builds the same building
+   inside a group moved so that the front-left corner (X0, Z1) lands on (x, z) and turned by ry, e.g.
+     placeIzakaya(world, { x: -30, z: 6.0, ry: 0 })   // another Kaigan-dori lot, front to the south
+   Its home-lot extras (roof piles / ground piles / weather occluders / holiday decorations in roofPiles.js,
+   groundPiles.js, world.js, holiday.js) are keyed to the home lot or to site.js IZA_AWAY; pass drips to keep them. */
+export function placeIzakaya(parent, { x, z, ry = 0, y = 0, drips = null }) {
+  const g = new THREE.Group();
+  g.rotation.y = ry;
+  const c = Math.cos(ry), s = Math.sin(ry);
+  // after rotation the home corner (X0, Z1) sits at (X0 c + Z1 s, -X0 s + Z1 c): shift it onto (x, z)
+  g.position.set(x - (IZA.X0 * c + IZA.Z1 * s), y, z - (-IZA.X0 * s + IZA.Z1 * c));
+  parent.add(g);
+  const local = [];
+  buildIzakaya(g, local);
+  // eave drips: [x, y, z, groundY] in the home frame -> the new lot
+  if (drips) local.forEach(([dx, dy, dz, gy]) => drips.push([g.position.x + dx * c + dz * s, dy + y, g.position.z - dx * s + dz * c, gy + y]));
+  return g;
 }
 
 /* ---------------------------------------------------------------- the building */

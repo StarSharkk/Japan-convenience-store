@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect } from './core.js';
 import { makeGlass } from './fx.js';
-import { buildIzakaya } from './izakaya.js';
+import { buildIzakaya, placeIzakaya } from './izakaya.js';
+import { buildBakery } from './bakery.js';
+import { SITE, IZA_AWAY } from './site.js';
 
 const Y0 = 0.15;
 
@@ -9,9 +11,11 @@ const Y0 = 0.15;
 function alleyProps(parent) {
   const g = grp(parent);
   const crate = (x, z, y, c) => bx(g, toon(c), x - 0.22, x + 0.22, y, y + 0.28, z - 0.17, z + 0.17);
-  // beer crates beside the izakaya
-  [[-8.1, 3.2], [-8.1, 2.7]].forEach(([x, z]) => { crate(x, z, Y0, '#c4552f'); crate(x, z, Y0 + 0.28, '#d8643a'); });
-  [[-8.0, 3.0]].forEach(([x, z]) => { for (let i = 0; i < 4; i++) bx(g, toon(['#3d8a4a', '#8a5a2e'][i % 2]), x - 0.05 + (i % 2) * 0.12 - 0.12, x + 0.04 + (i % 2) * 0.12 - 0.12, Y0 + 0.56, Y0 + 0.86, z - 0.07 + (i >> 1) * 0.16 - 0.08, z + 0.03 + (i >> 1) * 0.16 - 0.08, { cast: false }); });
+  // beer crates beside the izakaya (the bakery keeps its bread crates at the alley mouth itself)
+  if (SITE.izakaya) {
+    [[-8.1, 3.2], [-8.1, 2.7]].forEach(([x, z]) => { crate(x, z, Y0, '#c4552f'); crate(x, z, Y0 + 0.28, '#d8643a'); });
+    [[-8.0, 3.0]].forEach(([x, z]) => { for (let i = 0; i < 4; i++) bx(g, toon(['#3d8a4a', '#8a5a2e'][i % 2]), x - 0.05 + (i % 2) * 0.12 - 0.12, x + 0.04 + (i % 2) * 0.12 - 0.12, Y0 + 0.56, Y0 + 0.86, z - 0.07 + (i >> 1) * 0.16 - 0.08, z + 0.03 + (i >> 1) * 0.16 - 0.08, { cast: false }); });
+  }
   // bins / garbage bags
   [[-6.2, -1.0], [-6.0, -4.5]].forEach(([x, z]) => {
     bx(g, toon('#3a4a68'), x - 0.3, x + 0.3, Y0, Y0 + 0.9, z - 0.3, z + 0.3);
@@ -36,7 +40,12 @@ function alleyProps(parent) {
 
 export function buildBuildings(parent, drips) {
   const g = grp(parent);
-  buildIzakaya(g, drips);
+  // the lot left of the LAWSON: the bakery by default, the original izakaya with ?shop=izakaya (site.js)
+  if (SITE.izakaya) buildIzakaya(g, drips);
+  else { buildBakery(g, drips); placeIzakaya(g, { ...IZA_AWAY, drips }); } // the izakaya on its lot in the west block
+  // try the saved izakaya on another lot: ?izakayaAt=x,z,ry (front-left corner, turn in radians), e.g. -22,4.3,0
+  const at = new URLSearchParams(location.search).get('izakayaAt');
+  if (at) { const [x, z, ry = 0] = at.split(',').map(Number); placeIzakaya(g, { x, z, ry }); }
   alleyProps(g);
   return g;
 }

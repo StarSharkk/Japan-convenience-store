@@ -3,6 +3,7 @@ import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, setCat, r
 import { T } from './tex.js';
 import { nobori, cat as makeCat } from './street.js';
 import { holidayAtmosphereConfig, HOLIDAY_IDS } from './holidayConfig.js';
+import { FRONT } from './site.js'; // the lot left of the LAWSON: izakaya or bakery front (the izakaya* builders follow it)
 
 /* ====================================================================================================
    Holiday props. Which props a holiday uses is listed in holidayConfig.js (decorations / windowProps /
@@ -190,7 +191,7 @@ export function createHolidays(parent) {
   };
   const izakayaEaveBulbs = (set, palette) => {
     const S = set.pivot(0, 0, 0);
-    bulbs(S, swag(-12.1, -8.2, 2.8, 5.36, 0.3, 0.07), palette, 0.03);
+    bulbs(S, swag(FRONT.eave[0], FRONT.eave[1], FRONT.eave[2], FRONT.eave[3], 0.3, 0.07), palette, 0.03);
     return S;
   };
   const fasciaGarland = (set, palette, green) => {
@@ -294,7 +295,7 @@ export function createHolidays(parent) {
       bx(W, toon('#d4363f'), -0.1, -0.02, -0.34, -0.2, 0.04, 0.09); bx(W, toon('#d4363f'), 0.02, 0.1, -0.34, -0.2, 0.04, 0.09); sph(W, toon('#b52a32'), 0.045, 0, -0.3, 0.07);
       bulbs(W, Array.from({ length: 8 }, (_, i) => [Math.cos(i * 0.785) * 0.27, Math.sin(i * 0.785) * 0.27, 0.085]), ['#fff1c8', '#ffd24a'], 0.022);
     },
-    lampGarlands(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#fff1c8', '#ff5a5a', '#ffd24a']); garland(set, -8.3, 6.15, 0.9, 4.4, ['#fff1c8', '#6ad2ff', '#ffd24a']); },
+    lampGarlands(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#fff1c8', '#ff5a5a', '#ffd24a']); garland(set, FRONT.lamp2, 6.15, 0.9, 4.4, ['#fff1c8', '#6ad2ff', '#ffd24a']); },
     railLights(set) { railBulbs(set, ['#fff1c8', '#ffd24a', '#ff8a8a']); },
     gifts(set) {
       const G = set.pivot(7.0, Y0, 3.9);
@@ -314,7 +315,7 @@ export function createHolidays(parent) {
     fasciaGarland(set) { fasciaGarland(set, ['#fff1c8', '#ff5a5a', '#ffd24a', '#6ad2ff'], '#1c5c3a'); },
     izakayaXmas(set) {
       izakayaEaveBulbs(set, ['#fff1c8', '#ffd24a', '#ff6a6a']);
-      const W = set.pivot(-10.15, 2.0, 4.42);
+      const W = set.pivot(...FRONT.wreath);
       W.add(new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 8, 22), toon('#1c5c3a', { e: '#082a18', ei: 0.7, nosnow: true })));
       bx(W, toon('#d4363f'), -0.09, 0.09, -0.3, -0.18, 0.03, 0.08); bulbs(W, Array.from({ length: 8 }, (_, i) => [Math.cos(i * 0.785) * 0.22, Math.sin(i * 0.785) * 0.22, 0.07]), ['#fff1c8', '#ffd24a'], 0.02);
     },
@@ -350,7 +351,7 @@ export function createHolidays(parent) {
     /* ---------------------------------------------------------------- HALLOWEEN */
     pumpkins(set) { pumpkin(set, 0.3, 2.05, 1.0); pumpkin(set, 3.5, 1.8, 0.85); pumpkin(set, -2.6, 2.35, 1.25); },
     awningLightsHalloween(set) { awningBulbs(set, ['#ff8a1a', '#9a4ee0', '#ff8a1a', '#c8ff5a']); },
-    lampGarlandsHalloween(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#ff8a1a', '#9a4ee0', '#c8ff5a'], '#1a1028'); garland(set, -8.3, 6.15, 0.9, 4.4, ['#ff8a1a', '#9a4ee0'], '#1a1028'); },
+    lampGarlandsHalloween(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#ff8a1a', '#9a4ee0', '#c8ff5a'], '#1a1028'); garland(set, FRONT.lamp2, 6.15, 0.9, 4.4, ['#ff8a1a', '#9a4ee0'], '#1a1028'); },
     railLightsHalloween(set) { railBulbs(set, ['#ff8a1a', '#9a4ee0']); },
     blackCat(set) {
       const C = set.pivot(-3.65, Y0, 2.15);
@@ -412,7 +413,7 @@ export function createHolidays(parent) {
         });
       });
     },
-    izakayaHalloween(set) { pumpkin(set, -11.3, 5.0, 0.8); pumpkin(set, -8.95, 5.05, 0.7); izakayaEaveBulbs(set, ['#ff8a1a', '#9a4ee0']); },
+    izakayaHalloween(set) { FRONT.pumpkins.forEach(([x, z, s]) => pumpkin(set, x, z, s)); izakayaEaveBulbs(set, ['#ff8a1a', '#9a4ee0']); },
     cobwebs(set) {
       const web = (x, y, z, flip, s = 0.8) => {
         const W = set.pivot(x, y, z);
@@ -467,18 +468,18 @@ export function createHolidays(parent) {
       sph(K, toon('#e87a1a', { lit: 0.2 }), 0.06, 0, 0.78, 0);
       const l = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 5), toon('#2a8a3a')); l.position.set(0.05, 0.83, 0); K.add(l);
     },
-    lampGarlandsNewYear(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#ffd27a', '#ff4a3a', '#fff1c8'], '#8a1a1a'); garland(set, -8.3, 6.15, 0.9, 4.4, ['#ffd27a', '#ff4a3a'], '#8a1a1a'); },
+    lampGarlandsNewYear(set) { garland(set, 7.0, 2.6, 0.9, 4.4, ['#ffd27a', '#ff4a3a', '#fff1c8'], '#8a1a1a'); garland(set, FRONT.lamp2, 6.15, 0.9, 4.4, ['#ffd27a', '#ff4a3a'], '#8a1a1a'); },
     fasciaBuntingRW(set) {
       const C = set.pivot(0, 0, 0);
       const t = canvasTex(512, 64, (g, w) => { for (let i = 0; i < 20; i++) { g.fillStyle = i % 2 ? '#f6f3ea' : '#c4262e'; g.beginPath(); g.moveTo(i * 25.6, 0); g.lineTo(i * 25.6 + 25.6, 0); g.arc(i * 25.6 + 12.8, 24, 12.8, 0, Math.PI); g.closePath(); g.fill(); g.fillRect(i * 25.6, 0, 25.6, 24); } g.fillStyle = '#d8b04a'; g.fillRect(0, 0, w, 5); });
       pl(C, new THREE.MeshBasicMaterial({ map: t, transparent: true, color: new THREE.Color(0.85, 0.82, 0.8) }), 9.9, 0.36, (-5.5 + 4.45) / 2, 3.0, 1.74, 0, 0);
     },
     izakayaNewYear(set) {
-      kadomatsu(set, -11.35, 4.85, 0.85); kadomatsu(set, -8.95, 4.85, 0.85);
-      shimenawa(set, -10.15, 2.65, 4.42, 1.5, 0.8);
+      FRONT.kado.forEach(([x, z]) => kadomatsu(set, x, z, 0.85));
+      shimenawa(set, FRONT.shime[0], FRONT.shime[1], FRONT.shime[2], FRONT.shime[3], 0.8);
       const C = set.pivot(0, 0, 0);
-      pl(C, stripeMat(7), 3.7, 0.26, -10.15, 2.5, 5.37, 0, 0);
-      nobori(set.pivot(-8.2, 0, 5.5), 0, 0, '新年会', '#c4181c', 5.2);
+      pl(C, stripeMat(7), FRONT.stripe[3], 0.26, FRONT.stripe[0], FRONT.stripe[1], FRONT.stripe[2], 0, 0);
+      nobori(set.pivot(FRONT.nobori[0], 0, FRONT.nobori[1]), 0, 0, FRONT.eave[3] > 5 ? '新年会' : '初売り', '#c4181c', 5.2);
     },
     newYearWindow(set) {
       window1(set, -2.5, 1.7, 0.85, decal(768, 384, (g, w, h) => {
@@ -520,7 +521,7 @@ export function createHolidays(parent) {
       blossoms(S, cv, 150, 0.12, 0.12, 31);
     },
     lampBoughs(set) {
-      [[7.0, 2.6, 4.7], [-8.3, 6.15, 4.7], [7.0, 4.3, 5.2]].forEach(([x, z, y], i) => {
+      [[7.0, 2.6, 4.7], [FRONT.lamp2, 6.15, 4.7], [7.0, 4.3, 5.2]].forEach(([x, z, y], i) => {
         const P = set.pivot(x, Y0, z);
         const cv = new THREE.CatmullRomCurve3([new THREE.Vector3(0.05, y - 0.7, 0), new THREE.Vector3(-0.4, y - 0.2, 0.2), new THREE.Vector3(-0.9, y + 0.1, 0.1), new THREE.Vector3(-1.3, y - 0.2, 0.3)]);
         P.add(new THREE.Mesh(new THREE.TubeGeometry(cv, 20, 0.025, 5), toon('#4a3a40')));
@@ -531,11 +532,12 @@ export function createHolidays(parent) {
       nobori(set.pivot(1.2, 0, 5.7), 0, 0, '桜まつり', '#e8588a', 2.7);
       nobori(set.pivot(4.0, 0, 5.7), 0, 0, '春限定', '#f08aac', 4.4);
     },
-    sakuraFestoon(set) { festoon(set, [5.4, 2.85, 2.2], [7.0, 4.9, 2.6], 0.35, 5, true); festoon(set, [-5.6, 2.85, 2.2], [-8.3, 4.9, 6.0], 0.5, 5, true); },
+    sakuraFestoon(set) { festoon(set, [5.4, 2.85, 2.2], [7.0, 4.9, 2.6], 0.35, 5, true); festoon(set, [-5.6, 2.85, 2.2], [FRONT.lamp2, 4.9, 6.0], 0.5, 5, true); },
     izakayaSakura(set) {
       const L = set.pivot(0, 0, 0);
-      [-11.5, -10.6, -9.7, -8.8].forEach((x) => { const lan = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.3, 12), glow('#ff9fc0', 1.6, { cat: 'deco' })); lan.position.set(x, 2.42, 5.3); L.add(lan); halo(L, x, 2.42, 5.32, '#ffa8c8', 0.8, 0.4); });
-      const B2 = set.pivot(-10.15, 2.5, 4.5);
+      const { xs, y: ly, z: lz } = FRONT.lanterns;
+      xs.forEach((x) => { const lan = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.3, 12), glow('#ff9fc0', 1.6, { cat: 'deco' })); lan.position.set(x, ly, lz); L.add(lan); halo(L, x, ly, lz + 0.02, '#ffa8c8', 0.8, 0.4); });
+      const B2 = set.pivot(...FRONT.blossom);
       const cv = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.9, 0.0, 0), new THREE.Vector3(0, -0.08, 0.04), new THREE.Vector3(0.9, 0.0, 0)]);
       B2.add(new THREE.Mesh(new THREE.TubeGeometry(cv, 16, 0.02, 5), toon('#4a3a40')));
       blossoms(B2, cv, 36, 0.14, 0.12, 91);
@@ -563,7 +565,7 @@ export function createHolidays(parent) {
       const L = set.pivot(0, 0, 0);
       for (let i = 0; i < 9; i++) lanternOf(L, -5.1 + i * 1.18, 2.4, 2.4, i % 2 === 0, '祭');
     },
-    summerFestoons(set) { festoon(set, [5.4, 2.85, 2.2], [7.0, 4.9, 2.6], 0.35, 5, false); festoon(set, [-5.6, 2.85, 2.2], [-8.3, 4.9, 6.0], 0.5, 5, false); },
+    summerFestoons(set) { festoon(set, [5.4, 2.85, 2.2], [7.0, 4.9, 2.6], 0.35, 5, false); festoon(set, [-5.6, 2.85, 2.2], [FRONT.lamp2, 4.9, 6.0], 0.5, 5, false); },
     bunting(set) {
       const F = set.pivot(0, 0, 0);
       const pts = line3([-5.0, 6.0, 6.0], [7.0, 5.0, 2.6], 40, 0.9);
@@ -619,7 +621,7 @@ export function createHolidays(parent) {
     },
     izakayaSummer(set) {
       const L = set.pivot(0, 0, 0);
-      [-11.6, -10.9, -10.2, -9.5, -8.8].forEach((x, i) => lanternOf(L, x, 2.5, 5.28, i % 2 === 0, '祭', 0.62));
+      FRONT.summer.xs.forEach((x, i) => lanternOf(L, x, FRONT.summer.y, FRONT.summer.z, i % 2 === 0, '祭', 0.62));
       izakayaEaveBulbs(set, ['#ffd27a', '#ffb347']);
     },
     summerWindow(set) {
