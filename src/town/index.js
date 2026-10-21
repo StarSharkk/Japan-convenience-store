@@ -2,6 +2,7 @@ import { reg, setCat } from '../core.js';
 import { buildTownGround } from './ground.js';
 import { buildLake } from './lake.js';
 import { buildRail } from './rail.js';
+import { buildTrain } from './train.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -18,6 +19,7 @@ export function buildTown(world, renderer, refl) {
   const lake = buildLake(world, refl);
   setCat('street');
   const rail = buildRail(world);
+  const train = buildTrain(world); // the seaside tram running on reg.railPath (?train=0 hides it)
   const furniture = buildFurniture(world, lake);
   const greenery = buildGreenery(world, lake);
   // the houses / shops kit (houses.js) is kept but switched off for now; ?houses=1 shows it
@@ -27,6 +29,6 @@ export function buildTown(world, renderer, refl) {
     houses = buildHouses(world);
   }
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }
