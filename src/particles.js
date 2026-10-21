@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { reg, rng } from './core.js';
 import { createGroundPiles } from './groundPiles.js';
 import { createRoofPiles } from './roofPiles.js';
+import { OUTLINE } from './town/layout.js';
 
 /* ====================================================================================================
    GPU particle systems for the environment: rain, snow, cherry petals, autumn leaves (+ ground piles).
@@ -45,10 +46,30 @@ function instanced(N, fill) {
 
 export function createParticles(parent, occluders) {
   const box = boxUniforms(occluders);
-  // uC / uSpan: the particle volume is a wrapped tile that follows the camera across the town
-  const common = { uTime: { value: 0 }, uPx: { value: 0.001 }, uC: { value: new THREE.Vector2() }, uSpan: { value: 26 }, ...box };
-  const WRAP = /* glsl */ `uniform vec2 uC; uniform float uSpan;
-  vec2 wrapXZ(vec2 a){ vec2 u = a / 26.0 + 0.5; return uC + (fract(u - uC / uSpan) - 0.5) * uSpan; }`;
+  // uC / uSpan: the particle volume is a wrapped tile that follows the camera across the town.
+  // uEdge: the diorama outline as half-planes (outward normal, offset) -> weather fades out softly past
+  // the edge of the base (and before it reaches the base's sides), never ending on a hard square wall.
+  const edges = OUTLINE.map((a, i) => {
+    const b = OUTLINE[(i + 1) % OUTLINE.length];
+    const ex = b[0] - a[0], ez = b[1] - a[1], l = Math.hypot(ex, ez);
+    let nx = ez / l, nz = -ex / l;
+    const cx = OUTLINE.reduce((t, p) => t + p[0], 0) / OUTLINE.length, cz = OUTLINE.reduce((t, p) => t + p[1], 0) / OUTLINE.length;
+    if (nx * ((a[0] + b[0]) / 2 - cx) + nz * ((a[1] + b[1]) / 2 - cz) < 0) { nx = -nx; nz = -nz; }
+    return new THREE.Vector3(nx, nz, nx * a[0] + nz * a[1]);
+  });
+  while (edges.length < 8) edges.push(new THREE.Vector3(0, 0, -1e4));
+  const common = { uTime: { value: 0 }, uPx: { value: 0.001 }, uC: { value: new THREE.Vector2() }, uSpan: { value: 26 }, uEdge: { value: edges }, ...box };
+  const WRAP = /* glsl */ `uniform vec2 uC; uniform float uSpan; uniform vec3 uEdge[8];
+  vec2 wrapXZ(vec2 a){ vec2 u = a / 26.0 + 0.5; return uC + (fract(u - uC / uSpan) - 0.5) * uSpan; }
+  // 1 inside the town, 0 a few metres past the base; also a round, soft edge of the camera tile
+  float weatherFade(vec3 p){
+    float o = -1e4;
+    for (int i = 0; i < 8; i++) o = max(o, dot(uEdge[i].xy, p.xz) - uEdge[i].z);
+    float f = 1.0 - smoothstep(-1.5, 4.5, o);
+    f *= mix(1.0, smoothstep(0.8, 4.0, p.y), smoothstep(-0.5, 1.0, o)); // past the edge: gone before the base's sides
+    float r = length(p.xz - uC) / (0.5 * uSpan);
+    return f * (1.0 - smoothstep(0.72, 0.98, r));
+  }`;
   const sys = {};
   const flag = (m) => {
     m.frustumCulled = false;
@@ -60,7 +81,7 @@ export function createParticles(parent, occluders) {
 
   /* ------------------------------------------------------------ rain streaks (screen-width-clamped quads) */
   {
-    const N = 4600;
+    const N = 9000; // (the tile is wider now and fades out round its edge; this keeps the close-up density)
     const g = instanced(N, (d, i, R) => {
       d[i * 4] = (R() - 0.5) * 26; d[i * 4 + 1] = (R() - 0.5) * 26; d[i * 4 + 2] = 11 + R() * 5; d[i * 4 + 3] = R();
     });
@@ -95,7 +116,7 @@ export function createParticles(parent, occluders) {
           float wd = max(0.02, uPx*(-ph.z)*1.4);
           vec3 vp = mix(ph.xyz, pt.xyz, -position.y) + side*position.x*wd;
           gl_Position = projectionMatrix*vec4(vp,1.0);
-          vA = vis*(1.0+position.y)*0.62*clamp(0.02/wd, 0.35, 1.0);
+          vA = vis*(1.0+position.y)*0.62*clamp(0.02/wd, 0.35, 1.0)*weatherFade(pos);
         }`,
       fragmentShader: /* glsl */ `uniform vec3 uCol; uniform float uAlpha; varying float vA; void main(){ gl_FragColor = vec4(uCol, vA*uAlpha); }`,
       transparent: true,
@@ -140,7 +161,7 @@ export function createParticles(parent, occluders) {
           float sz = max(uSize*(0.7 + 0.6*aData.z), uPx*(-mv.z)*1.5);
           mv.xy += rc*sz;
           gl_Position = projectionMatrix*mv;
-          vUv = position.xy + 0.5; vCol = aCol; vA = vis;
+          vUv = position.xy + 0.5; vCol = aCol; vA = vis * weatherFade(pos);
         }`,
       fragmentShader: /* glsl */ `
         uniform float uShape; uniform float uBright; uniform vec3 uTint; varying vec2 vUv; varying vec3 vCol; varying float vA;
@@ -159,7 +180,7 @@ export function createParticles(parent, occluders) {
     });
     return { mesh: flag(new THREE.Mesh(g, m)), u, N };
   };
-  sys.snow = sprite({ N: 3600, size: 0.055, fall: 1.15, sway: 0.7, spin: 0, shape: 0, palette: ['#ffffff', '#eef4ff', '#f6fbff'] });
+  sys.snow = sprite({ N: 7000, size: 0.055, fall: 1.15, sway: 0.7, spin: 0, shape: 0, palette: ['#ffffff', '#eef4ff', '#f6fbff'] });
   sys.petals = sprite({ N: 520, size: 0.075, fall: 0.8, sway: 1.5, spin: 1.1, shape: 1, palette: ['#ffc9dc', '#ffdce8', '#f7a9c4', '#ffeef3'] });
   sys.leaves = sprite({ N: 420, size: 0.1, fall: 1.0, sway: 1.9, spin: 1.5, shape: 2, palette: ['#d9701c', '#e8a02a', '#b5361b', '#9a5a1e', '#f0c040'] });
   sys.confetti = sprite({ N: 260, size: 0.055, fall: 0.55, sway: 1.1, spin: 2.4, shape: 3, palette: ['#e0343a', '#ffffff', '#ffd24a', '#e0343a', '#ffb347'], H: 9 });

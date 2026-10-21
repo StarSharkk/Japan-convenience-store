@@ -228,6 +228,7 @@ const OutlineShader = {
     uOffD: { value: 0.65 }, // silhouette half-width (physical px)
     uOffN: { value: 0.5 }, // crease half-width (physical px)
     uFog: { value: 0 }, // fog density: lines and AO dissolve into fog
+    uFogNear: { value: 0 }, // ... measured past the near side of the model, like the scene fog
     uFocal: { value: 900 }, // px per unit at distance 1 (for the AO radius)
     uSil: { value: 0.68 }, // silhouette strength (keeps neighbouring objects apart)
     uCrease: { value: 0.3 }, // crease strength
@@ -235,7 +236,7 @@ const OutlineShader = {
   },
   vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: /* glsl */ `
-  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN; uniform float uFog;
+  uniform sampler2D tDiffuse; uniform sampler2D tNormal; uniform vec2 uTexel; uniform float uOffD; uniform float uOffN; uniform float uFog; uniform float uFogNear;
   uniform float uFocal; uniform float uSil; uniform float uCrease; uniform float uAO;
   varying vec2 vUv;
   vec4 S(vec2 uv){ vec4 c = texture2D(tNormal, uv); if(c.a < 0.02) c.a = 400.0; return c; }
@@ -264,7 +265,7 @@ const OutlineShader = {
     float nEdge = smoothstep(0.95, 2.4, nd) * bgMask * (1.0 - smoothstep(14.0, 42.0, d0));
     float e = max(dEdge * uSil, nEdge * uCrease);
     e *= mix(1.0, 0.55, smoothstep(30.0, 90.0, d0));
-    e *= exp(-pow(d0 * uFog, 2.0) * 1.6);
+    e *= exp(-pow(max(d0 - uFogNear, 0.0) * uFog, 2.0) * 1.6);
 
     /* depth AO: neighbours that are closer (but not far in front) occlude this pixel */
     float ao = 0.0;
@@ -279,7 +280,7 @@ const OutlineShader = {
         float dz = d0 - dn;
         ao += smoothstep(0.02 * d0 * 0.05 + 0.03, 0.22, dz) * (1.0 - smoothstep(0.9, 2.2, dz));
       }
-      ao = clamp(ao / 8.0, 0.0, 1.0) * uAO * exp(-pow(d0 * uFog, 2.0) * 1.6) * (1.0 - smoothstep(60.0, 140.0, d0));
+      ao = clamp(ao / 8.0, 0.0, 1.0) * uAO * exp(-pow(max(d0 - uFogNear, 0.0) * uFog, 2.0) * 1.6) * (1.0 - smoothstep(60.0, 140.0, d0));
     }
     vec3 col = base.rgb * (1.0 - ao);
     // ink: the local colour, darkened and slightly cooled (never pure black)

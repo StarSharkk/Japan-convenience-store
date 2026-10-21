@@ -39,11 +39,15 @@ export function createUI(env, hooks = {}) {
   const cam = el('div', 'ce-cam');
   const bHome = el('button', '', '⌂ 回到 LAWSON');
   const bTown = el('button', '', '◎ 全镇视图');
+  const bFlor = el('button', '', '✿ しずく花店');
   bHome.setAttribute('aria-label', '镜头回到 LAWSON 便利店');
   bTown.setAttribute('aria-label', '查看整个小镇');
+  bFlor.setAttribute('aria-label', '镜头去花店门口，再按一次进入店内');
+  bFlor.title = '去花店门口 · 再按一次进入店内';
   bHome.addEventListener('click', () => hooks.home && hooks.home());
   bTown.addEventListener('click', () => hooks.town && hooks.town());
-  cam.append(bHome, bTown);
+  bFlor.addEventListener('click', () => hooks.florist && hooks.florist());
+  cam.append(bHome, bTown, bFlor);
   root.append(cam);
 
   const head = el('div', 'ce-head');

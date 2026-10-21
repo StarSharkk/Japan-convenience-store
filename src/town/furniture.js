@@ -17,7 +17,7 @@ export function buildFurniture(parent, lake) {
   /* ---------------------------------------------------------------- street lamps (no point lights: glow + halo only) */
   const lamps = [
     [12.6, -40, -1, 0], [12.6, -31, -1, 0], [7.1, 18, 1, 0], [7.1, 28, 1, 0],
-    [-42, 12.4, 0, -1], [-28, 12.4, 0, -1], [-4, 12.4, 0, -1], [20, 12.4, 0, -1], [-22, 6.1, 0, 1], [24, 6.1, 0, 1],
+    [-42, 12.4, 0, -1], [-28, 12.4, 0, -1], [-4, 12.4, 0, -1], [23.0, 12.4, 0, -1], [-22, 6.1, 0, 1], [26.4, 6.1, 0, 1],
     [-40, -15.4, 0, 1], [-26, -15.4, 0, 1], [20, -15.4, 0, 1],
     [-13.1, 20, -1, 0], [33.4, -4, -1, 0], [33.4, 22, -1, 0], [-34.2, 0, 1, 0], [-24, 26.6, 0, -1], [-18.9, -32, 1, 0],
   ];
@@ -62,7 +62,8 @@ export function buildFurniture(parent, lake) {
   // Kaigan-dori north side, joining the board's pole at (-11, 6.05)
   const kw = chain([[-47, 6.05], [-40, 6.05], [-34, 6.05], [-26, 6.05], [-18.5, 6.05]], 'x');
   off.x.forEach((o) => wire(g, [kw[kw.length - 1][0] + o[0], kw[kw.length - 1][1] + o[1], kw[kw.length - 1][2] + o[2]], [-11 + o[0], 7.2 + PAV + o[1], 6.05 + o[2]], 0.8));
-  chain([[14, 6.05], [21.5, 6.05], [29, 6.05]], 'x');
+  // east of Hoshizora-dori: poles at the corner and on the florist's green strip, clear of the shop front
+  chain([[13.0, 6.05], [23.2, 6.05], [29.2, 6.05]], 'x');
   // Kita-dori south side
   chain([[-46, -11.7], [-38, -11.7], [-27, -11.7], [-19, -11.7]], 'x');
   chain([[14.5, -11.7], [22, -11.7], [29, -11.7]], 'x');
@@ -72,7 +73,7 @@ export function buildFurniture(parent, lake) {
   chain([[-20, 26.4], [-28, 27.0], [-36, 25.6], [-44, 25.2]], 'x');
   // service drops to future houses (they end at the lot edge, like a cut lead waiting for the house)
   wire(g, [-34, 6.4 + 0.15, 6.05], [-37, 2.6, 4.6], 0.4, 0.013);
-  wire(g, [22, 7.25 + 0.3, 6.05], [24.5, 3.0, 4.6], 0.4, 0.013);
+  wire(g, [23.2, 7.25 + 0.3, 6.05], [24.75, 5.1, 1.06], 0.4, 0.013); // service drop to the florist's house
 
   /* ---------------------------------------------------------------- signals: Hoshizora-dori × Kita-dori */
   {

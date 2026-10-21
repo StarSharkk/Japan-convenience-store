@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { reg, toon, canvasTex, rng, FONT, RAMP, patchToon } from '../core.js';
 import { makeGroundMaterial } from '../ground.js';
-import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld } from './layout.js';
-import { surface, walls, offsetConvex, clipConvex } from './geom.js';
+import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY } from './layout.js';
+import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
 
 /* ====================================================================================================
    Town ground: one painted canvas for the whole expanded map (roads, sidewalks, lawns, lots, verges),
@@ -110,6 +110,27 @@ function drawTown(g) {
     }
     g.restore();
   });
+
+  /* しずく花店 corner (town/florist.js): sidewalk pavers along both kerbs with a guide strip, the shop's tiled
+     forecourt, the planting strip between the shop and the house, the house's gravel yard (own rng: the rest
+     of the town paints exactly as before) */
+  {
+    const Rf = rng(4321);
+    g.fillStyle = tilePattern(g, '#424b66', '#3c445d', 0.45);
+    g.fillRect(X(12), Z(4.0), 18 * K, 2.5 * K); // Kaigan-dori sidewalk
+    g.fillRect(X(12), Z(-7.2), 2.2 * K, 11.2 * K); // Hoshizora-dori side
+    rect(12.7, 29.8, 5.0, 5.3, '#9b8227'); // linear guide blocks (bars run with the walk)
+    for (let x = 12.7; x < 29.75; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, 5.04 + k * 0.065, 5.065 + k * 0.065, '#d3b53a');
+    line(12, 4.0, 30, 4.0, 'rgba(10,12,26,0.55)', 0.05);
+    g.fillStyle = tilePattern(g, '#5a4a52', '#52434b', 0.4);
+    g.fillRect(X(14.2), Z(2.6), 10.4 * K, 1.4 * K); // forecourt (terracotta tiles)
+    g.fillRect(X(12.2), Z(2.0), 2.4 * K, 2.0 * K);
+    rect(21.85, 24.55, -7.0, 2.7, COL.earth); // planting strip
+    for (let i = 0; i < 26; i++) blob(21.9 + Rf() * 2.6, -7 + Rf() * 9.7, 0.3 + Rf() * 0.6, 'rgba(60,110,80,0.3)');
+    rect(24.55, 29.45, 1.0, 3.85, COL.gravel); // house yard
+    for (let i = 0; i < 40; i++) blob(24.6 + Rf() * 4.8, 1.0 + Rf() * 2.8, 0.1 + Rf() * 0.25, Rf() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,10,0.12)');
+    rect(24.55, 29.45, -4.6, 1.0, COL.paving2); // round the house
+  }
 
   /* lake park: grass, sand beach, lake bed (per pixel from the same field the terrain uses) */
   {
@@ -348,37 +369,112 @@ export function buildTownGround(parent, renderer, refl) {
   return { mat, road, group: g };
 }
 
-/* ---------------------------------------------------------------- the plinth (follows the irregular outline) */
+/* ---------------------------------------------------------------- the display base (diorama plinth)
+   A collector's-model base that follows the irregular outline:
+     terrain cut   the town's own ground, sliced clean at the outline: a section strip from the real edge
+                   height (road 0 .. shrine terrace 2.2) down to -0.55, painted as topsoil -> earth -> rock
+                   strata that follow the surface, so every height step at the edge is closed
+     trim          a thin, low-key bronze band over the joint
+     body          dark blue-black stone, chamfered (one extrusion with a bevel), slightly proud of the town
+     foot          a darker, wider slab with its own chamfer; a recessed name plate on the long faces
+   Base materials never take snow / petals (nosnow) - weather stays on the town's surface. */
+function cutTex() {
+  return canvasTex(256, 256, (g, w, h) => {
+    // v = depth below the surface (0 at the top .. 1 at ~2.8 m)
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#3d4a2f'); gr.addColorStop(0.025, '#4a3b2c'); gr.addColorStop(0.05, '#6a5442');
+    gr.addColorStop(0.3, '#5e4c3f'); gr.addColorStop(0.55, '#4c4440'); gr.addColorStop(1, '#3a383d');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    const R = rng(23);
+    // soft, irregular strata (broken, varying width) + blotches + a few pebbles: earth, not planks
+    for (let i = 0; i < 7; i++) {
+      const y0 = h * (0.1 + i * 0.13 + R() * 0.05);
+      for (let x = -20; x < w; x += 20 + R() * 50) {
+        const len = 30 + R() * 90, th = 1 + R() * 3;
+        g.fillStyle = `rgba(${R() < 0.6 ? '28,20,16' : '150,126,100'},${0.07 + R() * 0.08})`;
+        g.beginPath(); g.ellipse(x + len / 2, y0 + (R() - 0.5) * 6, len / 2, th, (R() - 0.5) * 0.06, 0, 7); g.fill();
+      }
+    }
+    for (let i = 0; i < 70; i++) { const r = 6 + R() * 22; g.fillStyle = `rgba(${R() < 0.5 ? '255,236,210' : '20,14,10'},${0.03 + R() * 0.04})`; g.beginPath(); g.ellipse(R() * w, h * (0.08 + R() * 0.9), r, r * 0.45, 0, 0, 7); g.fill(); }
+    for (let i = 0; i < 50; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '120,108,96' : '40,34,30'},0.35)`; g.beginPath(); g.ellipse(R() * w, h * (0.12 + R() * 0.85), 2 + R() * 4, 1.5 + R() * 2.5, R() * 3, 0, 7); g.fill(); }
+  }, { repeat: true });
+}
+function stoneBaseTex() {
+  return canvasTex(256, 128, (g, w, h) => {
+    g.fillStyle = '#1d2433'; g.fillRect(0, 0, w, h);
+    const R = rng(41);
+    for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,255,255' : '0,0,0'},${0.02 + R() * 0.03})`; g.fillRect(R() * w, R() * h, 6 + R() * 30, 1 + R() * 3); }
+  }, { repeat: true });
+}
 function buildPlinth(parent) {
   const g = new THREE.Group();
+  g.name = 'displayBase';
   const shape = (poly) => { const s = new THREE.Shape(); poly.forEach(([x, z], i) => (i ? s.lineTo(x, -z) : s.moveTo(x, -z))); s.closePath(); return s; };
-  const ring = (outer, inner, y0, y1, mats) => {
-    const s = shape(outer);
-    if (inner) s.holes.push(new THREE.Path(shape(inner).getPoints().reverse()));
-    const geo = new THREE.ExtrudeGeometry(s, { depth: y1 - y0, bevelEnabled: false, curveSegments: 1 });
+  /** extruded slab of the outline offset by `off` (negative = outward), from y0 to y1, chamfer `bev` */
+  const slab = (off, y0, y1, bev, mat) => {
+    const geo = new THREE.ExtrudeGeometry(shape(offsetConvex(OUTLINE, off)), { depth: y1 - y0 - bev * 2, bevelEnabled: bev > 0, bevelSize: bev, bevelThickness: bev, bevelSegments: 2, curveSegments: 1 });
     geo.rotateX(-Math.PI / 2);
-    geo.translate(0, y0, 0);
-    const m = new THREE.Mesh(geo, mats);
+    geo.translate(0, y0 + bev, 0);
+    const m = new THREE.Mesh(geo, mat);
     m.castShadow = true; m.receiveShadow = true;
     g.add(m);
     return m;
   };
-  const cream = toon('#efe6d0'), body = toon('#1b2744'), foot = toon('#0f1424'), gold = toon('#d1ad63', { e: '#3a2a08' });
-  ring(OUTLINE, offsetConvex(OUTLINE, 0.36), -1.2, 0.3, [cream, body]);
-  ring(offsetConvex(OUTLINE, -0.04), offsetConvex(OUTLINE, 0.3), -0.46, -0.38, [gold, gold]);
-  ring(offsetConvex(OUTLINE, -0.3), null, -1.62, -1.2, [foot, foot]);
-  ring(offsetConvex(OUTLINE, 0.3), null, -1.25, -1.15, [body, body]); // floor under the town (closes the model)
-  // name plates on the long faces
-  const plate = canvasTex(1024, 128, (c, w, hh) => {
-    c.fillStyle = '#0d1426'; c.fillRect(0, 0, w, hh);
-    c.strokeStyle = '#d1ad63'; c.lineWidth = 4; c.strokeRect(10, 10, w - 20, hh - 20);
-    c.fillStyle = '#e9d7a4'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `600 54px ${FONT}`; c.fillText('星空町  ―  雨夜の街角', w / 2 - 80, hh / 2 + 2);
-    c.font = `500 26px ${FONT}`; c.fillText('HOSHIZORA TOWN  1:60', w / 2 + 330, hh / 2 + 4);
+  const CUT_BOTTOM = -0.55;
+
+  /* terrain cut: one strip all round the outline, top = the ground height just inside the edge */
+  {
+    const pos = [], uv = [], idx = [];
+    let run = 0;
+    for (let i = 0; i < OUTLINE.length; i++) {
+      const [ax, az] = OUTLINE[i], [bx, bz] = OUTLINE[(i + 1) % OUTLINE.length];
+      const L = Math.hypot(bx - ax, bz - az), n = Math.max(2, Math.ceil(L / 0.25));
+      // inward normal (the outline is CCW in x/z with area > 0)
+      const ix = -(bz - az) / L, iz = (bx - ax) / L;
+      const sgn = area(OUTLINE) > 0 ? 1 : -1;
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+        const top = Math.max(-0.4, groundY(x + ix * sgn * 0.08, z + iz * sgn * 0.08));
+        const base = pos.length / 3;
+        pos.push(x, top, z, x, CUT_BOTTOM, z);
+        const u = (run + t * L) / 4;
+        uv.push(u, 1, u, 1 - (top - CUT_BOTTOM) / 2.8);
+        if (k > 0) idx.push(base - 2, base - 1, base, base, base - 1, base + 1);
+      }
+      run += L;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const t = cutTex(); t.wrapT = THREE.ClampToEdgeWrapping;
+    const m = new THREE.Mesh(geo, toon('#ffffff', { map: t, nosnow: true, nocache: true, e: '#0c0a0a', ei: 1 }));
+    m.material.side = THREE.DoubleSide;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+  /* trim, body, foot */
+  // a faint self-light keeps the dark stone readable against the night sky without washing it out by day
+  const stone = toon('#ffffff', { map: stoneBaseTex(), nosnow: true, nocache: true, e: '#141b2c', ei: 1 });
+  stone.map.repeat.set(1 / 6, 1 / 3);
+  slab(-0.04, -2.32, -0.62, 0.1, stone);
+  slab(-0.16, -0.66, -0.5, 0.025, toon('#8a7550', { nosnow: true, e: '#1c150a', ei: 1 }));
+  slab(-0.34, -2.62, -2.28, 0.06, toon('#0f131b', { nosnow: true, e: '#04060a', ei: 1 }));
+  /* recessed name plates on the long faces */
+  const plate = canvasTex(1440, 160, (c, w, hh) => {
+    c.fillStyle = '#121826'; c.fillRect(0, 0, w, hh);
+    c.strokeStyle = '#a68d5c'; c.lineWidth = 4; c.strokeRect(10, 10, w - 20, hh - 20);
+    c.fillStyle = '#d9c799'; c.textBaseline = 'middle';
+    c.textAlign = 'left'; c.font = `600 68px ${FONT}`; c.fillText('星空町', 60, hh / 2 + 2);
+    c.fillStyle = '#a68d5c'; c.fillRect(330, 40, 3, hh - 80);
+    c.fillStyle = '#d9c799'; c.font = `500 34px ${FONT}`; c.fillText('HOSHIZORA TOWN  ·  a Japanese seaside town  ·  1:60', 370, hh / 2 + 3);
   });
-  const pm = new THREE.MeshBasicMaterial({ map: plate, color: 0xcfc4a8 });
-  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 0.8), pm); p1.position.set(-5, -0.75, MAP.z1 + 0.005); g.add(p1);
-  const p2 = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 0.8), pm); p2.position.set(-5, -0.75, MAP.z0 - 0.005); p2.rotation.y = Math.PI; g.add(p2);
+  const pm = new THREE.MeshBasicMaterial({ map: plate, color: 0xb9b09a });
+  const zS = MAP.z1 + 0.14, zN = MAP.z0 - 0.14;
+  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(9.9, 1.1), pm); p1.position.set(-5, -1.45, zS + 0.002); g.add(p1);
+  const p2 = new THREE.Mesh(new THREE.PlaneGeometry(9.9, 1.1), pm); p2.position.set(-5, -1.45, zN - 0.002); p2.rotation.y = Math.PI; g.add(p2);
+  g.traverse((o) => { if (o.isMesh) o.userData.noRefl = true; });
   parent.add(g);
   return g;
 }

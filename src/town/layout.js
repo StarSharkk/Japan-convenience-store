@@ -159,10 +159,11 @@ export const insideMap = (x, z) => inPoly(x, z, OUTLINE);
 /* ---------------------------------------------------------------- reserved land for future buildings
    (data only: nothing is drawn. Each plot touches a road through `front`.) */
 export const PLOTS = [
-  { id: 'A-shop-1', type: 'shop', block: 'eastShops', rect: [13, 21, -10.5, -4], front: 'hoshizora' },
-  { id: 'A-shop-2', type: 'shop', block: 'eastShops', rect: [13, 21, -2.5, 5], front: 'kaigan' },
-  { id: 'A-cafe-1', type: 'cafe', block: 'eastShops', rect: [22.5, 29, -10.5, -2], front: 'kita' },
-  { id: 'A-shop-3', type: 'shop', block: 'eastShops', rect: [22.5, 29, -0.5, 5], front: 'kaigan' },
+  { id: 'A-shop-1', type: 'shop', block: 'eastShops', rect: [13, 25, -11.5, -7.2], front: 'hoshizora' },
+  // plot 4: しずく花店 + the florist's house (built: town/florist.js)
+  { id: 'A-shop-2', type: 'florist', block: 'eastShops', rect: [12.6, 25.2, -6.0, 6.0], front: 'kaigan' },
+  { id: 'A-cafe-1', type: 'cafe', block: 'eastShops', rect: [26.2, 29.6, -10.5, -2], front: 'kita' },
+  { id: 'A-shop-3', type: 'shop', block: 'eastShops', rect: [26.2, 29.6, -0.5, 5], front: 'kaigan' },
   { id: 'A-shop-4', type: 'shop', block: 'southEast', rect: [13, 20, 13.5, 20], front: 'kaigan' },
   { id: 'A-cafe-2', type: 'cafe', block: 'southEast', rect: [21.5, 29, 13.5, 20], front: 'kaigan' },
   { id: 'A-house-1', type: 'house', block: 'southEast', rect: [13, 29, 23, 30], front: 'hoshizora' },

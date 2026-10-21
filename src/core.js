@@ -3,6 +3,39 @@ import * as THREE from 'three';
 export { THREE };
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
+/* Diorama air perspective. scene.fog is a THREE.Fog used as: near = where the model begins (the camera's
+   distance to its target minus the model's reach, set every frame in main.js), far = the density (env.js).
+   Fog then grows with the depth *past* the near side of the model (exponential-squared), a little thicker
+   close to the ground and thinner up high. Close up near = 0, so it behaves like the old camera fog;
+   from the overview the near half of the base stays crisp and only the far side melts into the air,
+   instead of the whole diorama sitting in a white box. */
+THREE.ShaderChunk.fog_pars_vertex = `#ifdef USE_FOG
+  varying float vFogDepth; varying float vFogY;
+#endif`;
+THREE.ShaderChunk.fog_vertex = `#ifdef USE_FOG
+  vFogDepth = - mvPosition.z;
+  vFogY = cameraPosition.y + ( transpose( mat3( viewMatrix ) ) * mvPosition.xyz ).y;
+#endif`;
+THREE.ShaderChunk.fog_pars_fragment = `#ifdef USE_FOG
+  uniform vec3 fogColor;
+  varying float vFogDepth; varying float vFogY;
+  #ifdef FOG_EXP2
+    uniform float fogDensity;
+  #else
+    uniform float fogNear;
+    uniform float fogFar;
+  #endif
+#endif`;
+THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+  #ifdef FOG_EXP2
+    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+  #else
+    float fogD = max( vFogDepth - fogNear, 0.0 ) * fogFar * mix( 1.2, 0.78, smoothstep( 0.0, 9.0, vFogY ) );
+    float fogFactor = 1.0 - exp( - fogD * fogD );
+  #endif
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+#endif`;
+
 /* ------------------------------------------------------------------ registry */
 export const reg = {
   updaters: [], // (t, dt) => void
@@ -26,6 +59,15 @@ export function setCat(c) {
 }
 // shared snow-cover amount for every toon material (white on up-facing surfaces)
 export const SNOW_U = { value: 0 };
+// boxes that never take snow cover (under a roof: the greenhouse interior): x0, z0, x1, z1 + the height below which
+const NOSNOW_U = { value: Array.from({ length: 4 }, () => new THREE.Vector4(1e5, 1e5, -1e5, -1e5)) };
+const NOSNOWY_U = { value: [0, 0, 0, 0] };
+let nNoSnow = 0;
+export function noSnowBox(x0, z0, x1, z1, yTop) {
+  if (nNoSnow >= 4) return;
+  NOSNOW_U.value[nNoSnow].set(x0, z0, x1, z1);
+  NOSNOWY_U.value[nNoSnow++] = yTop;
+}
 export const lk = (l) => (l.userData.k === undefined ? 1 : l.userData.k);
 
 export const FONT =
@@ -106,13 +148,29 @@ export function patchToon(m, litK = 0, snow = true, litCat = '') {
     let fs = sh.fragmentShader;
     if (snow) {
       sh.uniforms.uSnow = SNOW_U;
-      fs = fs.replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uSnow;');
+      sh.uniforms.uNoSnow = NOSNOW_U;
+      sh.uniforms.uNoSnowY = NOSNOWY_U;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vSnW;')
+        .replace('#include <project_vertex>', `#include <project_vertex>
+         {
+           vec4 snw = vec4(transformed, 1.0);
+           #ifdef USE_INSTANCING
+             snw = instanceMatrix * snw;
+           #endif
+           vSnW = (modelMatrix * snw).xyz;
+         }`);
+      fs = fs.replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uSnow;\nuniform vec4 uNoSnow[4];\nuniform float uNoSnowY[4];\nvarying vec3 vSnW;');
       fs = fs.replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
          {
            float topn = dot(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
            float sn = uSnow * smoothstep(0.38, 0.82, topn);
+           for (int i = 0; i < 4; i++) {
+             vec4 b = uNoSnow[i];
+             if (vSnW.x > b.x && vSnW.x < b.z && vSnW.z > b.y && vSnW.z < b.w && vSnW.y < uNoSnowY[i]) sn = 0.0;
+           }
            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.9, 0.99), sn * 0.96);
          }`
       );

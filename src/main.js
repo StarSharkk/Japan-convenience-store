@@ -8,6 +8,7 @@ import { createEnvironment } from './env.js';
 import { createUI } from './ui.js';
 import { groundY, MAP } from './town/layout.js';
 import { buildPlantStage } from './plants/preview.js';
+import { createCamPan } from './camPan.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -34,7 +35,7 @@ renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x1a2144, 0.0038);
+scene.fog = new THREE.Fog(0x1a2144, 0, 0.0038); // near / far = start / density (see the fog chunks in core.js)
 
 const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.5, 400);
 
@@ -42,7 +43,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.minDistance = 6;
-controls.maxDistance = 165; // far enough to see the whole town
+controls.maxDistance = 240; // far enough to see the whole diorama, base included
 controls.minPolarAngle = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.015;
 controls.rotateSpeed = 0.8;
@@ -92,9 +93,17 @@ function flyTo(target, s, dur = 1.6) {
   dTheta = ((dTheta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; // shortest way round
   fly = { t: 0, dur, t0: controls.target.clone(), t1: target.clone(), s0: cur, s1: new THREE.Spherical(s.radius, s.phi, cur.theta + dTheta) };
 }
-const TOWN_TARGET = new THREE.Vector3(-6, 0, -6);
+const TOWN_TARGET = new THREE.Vector3(-5, -1, -5);
 const camHome = () => flyTo(TARGET, sph);
-const camTown = () => flyTo(TOWN_TARGET, new THREE.Spherical(Math.max(118, 118 * (1.5 / camera.aspect)), THREE.MathUtils.degToRad(48), THREE.MathUtils.degToRad(30)), 2.0);
+// the whole diorama, base included, fits the frame at any aspect
+// しずく花店: first to the doors (they open as the camera nears), pressed again from there: inside down the aisle
+const camFlorist = () => {
+  const f = reg.florist;
+  if (!f) return;
+  const v = camera.position.distanceTo(f.entrance) < 13 ? f.views.inside : f.views.front;
+  flyTo(v.t, v.s, 1.8);
+};
+const camTown = () => flyTo(TOWN_TARGET, new THREE.Spherical(Math.max(150, 150 * (1.55 / camera.aspect)), THREE.MathUtils.degToRad(52), THREE.MathUtils.degToRad(30)), 2.0);
 
 const pipe = createPipeline(renderer, scene, camera);
 const handles = buildWorld(scene, renderer, pipe.refl);
@@ -172,7 +181,13 @@ function setQuality(q) {
   pipe.refl.scale = c.refl;
   onResize();
 }
-const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown });
+const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown, florist: camFlorist });
+// Camera Movement Control: W A S D / arrows / the D-pad pan the view across the town (screen-relative)
+const pan = createCamPan({
+  camera, controls, parent: ui.root,
+  bounds: { x0: MAP.x0 + 2, x1: MAP.x1 - 2, z0: MAP.z0 + 2, z1: MAP.z1 - 2 },
+  onStart: () => { intro = false; fly = null; }, // a pan takes over from the intro / a camera fly
+});
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -225,6 +240,23 @@ const SHADOW = { key: '', box: new THREE.Box3(new THREE.Vector3(-46.5, -1.2, -42
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
 reg.shadowCenter = new THREE.Vector3();
 reg.camera = camera;
+reg.controls = controls;
+// click (not drag) on something in reg.clickables, e.g. the florist's doors
+{
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  ray.layers.enableAll(); // click targets may sit on a layer the camera never draws
+  let down = null;
+  renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || performance.now() - down.t > 450) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    let best = null;
+    (reg.clickables || []).forEach((c) => { const h = ray.intersectObjects(c.objects, true)[0]; if (h && (!best || h.distance < best.d)) best = { d: h.distance, c }; });
+    if (best && best.d < 60) best.c.onClick();
+  });
+}
 const LAKE_C = new THREE.Vector3(-32.5, 0, -33.5);
 function followCamera() {
   const dist = camera.position.distanceTo(controls.target);
@@ -240,7 +272,17 @@ function followCamera() {
     sc.updateProjectionMatrix();
     reg.shadowDirty = true;
   }
-  handles.particles.setCenter(controls.target.x, controls.target.z, THREE.MathUtils.clamp(dist * 0.62, 26, 64));
+  // fog starts where the model starts (air perspective across the diorama, not a box round the camera)
+  scene.fog.near = Math.max(0, dist - 42);
+  pipe.outline.material.uniforms.uFogNear.value = scene.fog.near;
+  // weather tile: a soft round patch round the target; from far away it grows to cover the whole base
+  // (fewer particles per m² in the overview, which is what a distant shower looks like anyway)
+  // close up the patch leans toward the camera so the foreground gets its rain / snow too
+  const lean = 0.32 * (1 - THREE.MathUtils.smoothstep(dist, 60, 110));
+  handles.particles.setCenter(
+    controls.target.x + (camera.position.x - controls.target.x) * lean,
+    controls.target.z + (camera.position.z - controls.target.z) * lean,
+    THREE.MathUtils.clamp(dist * 1.0, 34, 135));
   pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
   frustum.setFromProjectionMatrix(pv);
   // the lake earns a reflection pass only when it is on screen and near enough to matter
@@ -271,6 +313,7 @@ function frame() {
     setCam(new THREE.Spherical(THREE.MathUtils.lerp(fly.s0.radius, fly.s1.radius, e), THREE.MathUtils.lerp(fly.s0.phi, fly.s1.phi, e), THREE.MathUtils.lerp(fly.s0.theta, fly.s1.theta, e)));
     if (k >= 1) fly = null;
   }
+  pan.update(dt);
   controls.update();
   // never below the ground (the terrace and banks are not flat)
   {
@@ -288,4 +331,4 @@ function frame() {
 frame();
 
 // debug hook
-window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles };
+window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles, pan };

@@ -73,7 +73,8 @@ function pentS(id, a, b, n, D, y, drop, o = {}) {
   const startXZ = fromA ? [a[0] - t.x * ext0, a[1] - t.z * ext0] : [b[0] + t.x * ext1, b[1] + t.z * ext1];
   const lu = len + ext0 + ext1;
   const org = v3(startXZ[0] + N2.x * D, y - drop, startXZ[1] + N2.z * D);
-  const S = { id, o: org, U, V, lu, lv, walls: { v1: 1 }, obst: [], w: o.w || {}, snow: o.snow || 0, ov: o.ov ?? 0.06, eave: true };
+  // a roof half that starts at a ridge (o.ridge) has no wall at the top: nothing banks up there
+  const S = { id, o: org, U, V, lu, lv, walls: o.ridge ? {} : { v1: 1 }, obst: [], w: o.w || {}, snow: o.snow || 0, ov: o.ov ?? 0.06, eave: true };
   if (o.hipAtA) {
     // keep only the part on this side of the hip: distance past the corner along the wall <= distance from the wall
     S.clip = (u, v) => {
@@ -194,6 +195,15 @@ export function snowCapDome(parent, x, y, z, r) {
 }
 
 export function createRoofPiles(parent, root) {
+  // roofs registered by buildings built after this module loaded (florist glass roof, its house)
+  (reg.extraRoofs || []).forEach((r) => {
+    if (SURFACES.some((S) => S.id === r.id)) return;
+    const S = pentS(r.id, r.a, r.b, r.n, r.D, r.y, r.drop, { w: r.w, snow: r.snow, ridge: r.ridge, ov: r.ov });
+    if (r.patch) { S.patch = r.patch; S.ribs = r.ribs; }
+    S.N = new THREE.Vector3().crossVectors(S.V, S.U).normalize();
+    S.q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(S.U, S.N, S.V));
+    SURFACES.push(S);
+  });
   const U = { uL: { value: new THREE.Vector3(0.3, 0.9, 0.3) }, uBright: { value: 1 } };
   const R = rng(4242);
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _c = new THREE.Color(), _w = new THREE.Vector3();
@@ -395,7 +405,17 @@ export function createRoofPiles(parent, root) {
     };
     const thOf = (u, v) => {
       const w = P(S, u, v, 0, _w);
-      return 0.04 + 0.4 * fbm(w.x * 0.45 + 3.1, w.z * 0.45 - 1.7);
+      let th = 0.04 + 0.4 * fbm(w.x * 0.45 + 3.1, w.z * 0.45 - 1.7);
+      // glass roofs (S.patch): snow settles at the low edge and along the glazing bars first and stays
+      // thin up the slope, so the roof keeps reading as glass instead of turning into a white lid
+      if (S.patch) {
+        th = 0.04 + 0.16 * fbm(w.x * 2.3, w.z * 2.3) + S.patch * Math.pow(Math.max(0, v) / S.lv, 0.8);
+        if (S.ribs) {
+          const d = Math.abs(((w[S.ribs.axis] - S.ribs.origin) % S.ribs.step + S.ribs.step) % S.ribs.step);
+          th -= 0.32 * (1 - THREE.MathUtils.smoothstep(Math.min(d, S.ribs.step - d), 0.03, 0.09));
+        }
+      }
+      return th;
     };
     // top surface (shared vertices, smooth normals)
     const pos = [], cen = [], th = [], idx = [];

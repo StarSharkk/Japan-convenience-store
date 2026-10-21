@@ -356,8 +356,8 @@ export function createEnvironment(ctx) {
     let fogAmt = 0;
     for (const id of HOLIDAYS) { const w = cur.hol[id]; const a = HC[id].fog.amt * w * (0.35 + 0.65 * fogHoliday); if (a > 0.002) { _c4.copy(ACC[id].fog).multiplyScalar(0.25 + 0.75 * day); fogCol.lerp(_c4, a); fogAmt += a; } }
     scene.fog.color.copy(fogCol);
-    scene.fog.density = (0.0034 * (0.6 + 0.4 * (1 - day)) + cur.fog) * (1 + fogAmt * 0.5);
-    post.outline.material.uniforms.uFog.value = scene.fog.density;
+    scene.fog.far = (0.0034 * (0.6 + 0.4 * (1 - day)) + cur.fog) * (1 + fogAmt * 0.5); // = density (core.js fog chunks)
+    post.outline.material.uniforms.uFog.value = scene.fog.far;
     ENVK.fog = clamp(cur.fog * 70, 0, 1);
 
     /* post: bloom is gentler in daylight, flashes with lightning */
@@ -396,7 +396,7 @@ export function createEnvironment(ctx) {
     setL('inA', f.shop); setL('inB', f.shop); setL('door', f.shop);
     ['lamp1', 'lamp2', 'lamp3'].forEach((n) => setL(n, f.lamp));
     ['alleyLamp', 'vend', 'sigNear'].forEach((n) => setL(n, f.street));
-    ['izaSide', 'lantern', 'izaFront'].forEach((n) => setL(n, f.iza));
+    ['izaSide', 'lantern', 'izaFront', 'florist'].forEach((n) => setL(n, f.iza));
     setL('tree', lerp(0.3, 1, glowN) * (1 + flashA * 1.4));
     accentLight('door', 'door'); accentLight('tree', 'tree');
     ['lamp1', 'lamp2', 'lamp3'].forEach((n) => accentLight(n, 'lamps'));

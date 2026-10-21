@@ -34,6 +34,19 @@
   .ce-cam button:active{transform:scale(.96)}
   .ce-root.hidden .ce-cam{display:none}
 
+  /* ------------------------------------------------ camera movement D-pad (bottom right) */
+  /* bottom-left, just above the camera shortcuts: four round arrow keys, no panel behind them */
+  .ce-pad{pointer-events:auto;position:absolute;left:14px;bottom:calc(64px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;align-items:center;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:opacity .25s ease}
+  .ce-pad-grid{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(2,40px);gap:5px}
+  .ce-pad-b{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.32);background:rgba(18,24,48,.42);backdrop-filter:blur(10px) saturate(1.4);-webkit-backdrop-filter:blur(10px) saturate(1.4);box-shadow:0 4px 14px rgba(0,0,0,.22);color:var(--ce-ink);display:flex;align-items:center;justify-content:center;
+    padding:0;cursor:pointer;touch-action:none;transition:background .15s,transform .12s,border-color .15s}
+  .ce-pad-b:hover{background:rgba(40,52,92,.62)}
+  .ce-pad-b.on{background:rgba(127,184,255,.38);border-color:rgba(190,220,255,.6);transform:scale(.94)}
+  .ce-pad-b:focus-visible{outline:2px solid var(--ce-accent);outline-offset:2px}
+  .ce-pad-up{grid-column:2;grid-row:1} .ce-pad-left{grid-column:1;grid-row:2} .ce-pad-down{grid-column:2;grid-row:2} .ce-pad-right{grid-column:3;grid-row:2}
+  .ce-root.hidden .ce-pad{display:none}
+
   .ce-panel{pointer-events:auto;position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:min(332px,calc(100vw - 24px));max-height:calc(100vh - 24px - env(safe-area-inset-top));display:flex;flex-direction:column;
     border-radius:var(--ce-r);border:1px solid var(--ce-line);background:var(--ce-glass);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
     box-shadow:0 18px 60px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.1);
@@ -105,8 +118,12 @@
   /* phones: bottom sheet, never covers more than ~55% of the screen, shop stays visible above it */
   @media (max-width: 899px){
     .ce-toggle{top:auto;bottom:calc(14px + env(safe-area-inset-bottom));right:14px}
+    .ce-pad{bottom:calc(140px + env(safe-area-inset-bottom))} /* above the stacked camera buttons */
+    .ce-root.open .ce-pad{opacity:0;pointer-events:none} /* the bottom sheet takes that corner */
     .ce-panel{top:auto;right:8px;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-height:min(56vh,520px);transform-origin:50% 100%;transform:translateY(14px) scale(.98)}
     .ce-grid.c4{grid-template-columns:repeat(4,1fr)}
+    .ce-cam{flex-direction:column;align-items:flex-start;gap:6px}
+    .ce-cam button{min-height:36px;padding:8px 12px}
   }
   @media (prefers-reduced-motion: reduce){ .ce-panel,.ce-btn,.ce-chip,.ce-act,.ce-toggle{transition:none} }
 </style>

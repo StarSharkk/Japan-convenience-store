@@ -3,6 +3,7 @@ import { buildTownGround } from './ground.js';
 import { buildLake } from './lake.js';
 import { buildRail } from './rail.js';
 import { buildTrain } from './train.js';
+import { buildFlorist } from './florist.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -22,6 +23,10 @@ export function buildTown(world, renderer, refl) {
   const train = buildTrain(world); // the seaside tram running on reg.railPath (?train=0 hides it)
   const furniture = buildFurniture(world, lake);
   const greenery = buildGreenery(world, lake);
+  // しずく花店: the greenhouse florist on the corner across Hoshizora-dori from the LAWSON (plot A-shop-2)
+  setCat('iza');
+  const florist = buildFlorist(world);
+  setCat('street');
   // the houses / shops kit (houses.js) is kept but switched off for now; ?houses=1 shows it
   let houses = null;
   if (new URLSearchParams(location.search).get('houses') === '1') {
@@ -29,6 +34,6 @@ export function buildTown(world, renderer, refl) {
     houses = buildHouses(world);
   }
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }

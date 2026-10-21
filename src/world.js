@@ -67,6 +67,7 @@ export function buildWorld(scene, renderer, refl) {
     [-13.0, -8.2, 4.3, 5.3, 3.4], // izakaya front eave
     [-13.0, -12.0, -7.4, 4.3, 3.4], // izakaya street-side eave
     [-8.5, -7.95, -5.05, -3.65, 2.55], // izakaya staff-door hood
+    [14.45, 21.95, -6.95, 2.75, 5.6], // florist greenhouse roof
   ]);
   createDrips(world, drips);
 
