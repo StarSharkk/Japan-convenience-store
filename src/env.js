@@ -396,7 +396,7 @@ export function createEnvironment(ctx) {
     setL('inA', f.shop); setL('inB', f.shop); setL('door', f.shop);
     ['lamp1', 'lamp2', 'lamp3'].forEach((n) => setL(n, f.lamp));
     ['alleyLamp', 'vend', 'sigNear'].forEach((n) => setL(n, f.street));
-    ['izaSide', 'lantern', 'izaFront', 'florist', 'bakery', 'bakeryKitchen', 'bakeryCroissant'].forEach((n) => setL(n, f.iza));
+    ['izaSide', 'lantern', 'izaFront', 'florist', 'bakery', 'bakeryKitchen', 'bakeryCroissant', 'zakkaya', 'villa'].forEach((n) => setL(n, f.iza));
     setL('tree', lerp(0.3, 1, glowN) * (1 + flashA * 1.4));
     accentLight('door', 'door'); accentLight('tree', 'tree');
     ['lamp1', 'lamp2', 'lamp3'].forEach((n) => accentLight(n, 'lamps'));

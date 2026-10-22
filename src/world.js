@@ -70,10 +70,10 @@ export function buildWorld(scene, renderer, refl) {
       [-13.0, -12.0, -7.4, 4.3, 3.4], // izakaya street-side eave
       [-8.5, -7.95, -5.05, -3.65, 2.55], // izakaya staff-door hood
     ] : [
-      [-12.35, -7.8, -6.75, 1.0, 4.4], // bakery
-      [-12.35, -7.8, 0.9, 1.98, 3.35], // bakery canopy
-      [-28.5, -24.6, -7.3, 4.4, 7.0], // the izakaya in the west block
-      [-29.3, -24.5, 4.3, 5.3, 3.4], // its front eave
+      [-12.35, -7.8, -6.75, 1.98, 4.4], // bakery (with its canopy)
+      [-29.3, -24.5, -7.3, 5.3, 7.0], // the izakaya in the west block (with its front eave)
+      [-23.3, -18.3, -1.2, 4.7, 6.4], // the corner store (with its awning)
+      [15.85, 27.75, 15.25, 22.35, 3.7], // the villa's ground floor (town/villa.js)
     ]),
     [14.45, 21.95, -6.95, 2.75, 5.6], // florist greenhouse roof
   ]);

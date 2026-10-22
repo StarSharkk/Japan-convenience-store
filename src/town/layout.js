@@ -69,6 +69,23 @@ const izaPad = (x, z) => {
   const dx = Math.max(x0 - 1.6 - x, 0, x - (x1 + 0.8)), dz = Math.max(z0 - 0.6 - z, 0, z - z1);
   return 1 - smooth(0, 1.4, Math.hypot(dx, dz));
 };
+// the corner store's lot (town/zakkaya.js) at Kaigan-dori x 裏路地, the front corner of the west block: level with
+// the pavement out to both kerbs; the gentle slope picks up again behind it (north) and to the west
+export const ZAK_PAD = [-23.8, -16.5, -1.8, 6.5];
+const zakPad = (x, z) => {
+  const [x0, x1, z0, z1] = ZAK_PAD;
+  const dx = Math.max(x0 - x, 0, x - x1), dz = Math.max(z0 - z, 0, z - z1);
+  return 1 - smooth(0, 1.4, Math.hypot(dx, dz));
+};
+
+// the large residence (town/villa.js) in the south-east block: its walled lot is levelled at the height of the
+// block's north (Kaigan-dori) edge, the gentle fall to the south picks up again outside the wall
+export const VILLA_PAD = [14.2, 29.2, 14.0, 31.0];
+const villaPad = (x, z) => {
+  const [x0, x1, z0, z1] = VILLA_PAD;
+  const dx = Math.max(x0 - x, 0, x - x1), dz = Math.max(z0 - z, 0, z - z1);
+  return 1 - smooth(0, 1.0, Math.hypot(dx, dz));
+};
 
 export const BLOCKS = [
   { id: 'lakePark', zone: 'D', poly: [[-48, -44], [-19, -44], [-19, -36], [-18, -29], [-16.6, -24.5], [-16.5, -23], [-48, -23]], h: lakeParkH, surf: 'park' },
@@ -78,14 +95,14 @@ export const BLOCKS = [
   { id: 'corrM', zone: 'E', poly: [[-13.5, -23], [7.5, -23], [7.5, -15], [-13.5, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrE', zone: 'E', poly: [[12, -23], [23, -23], [27, -25.5], [29, -30], [29, -44], [36, -44], [36, -15], [12, -15]], h: () => PAV, surf: 'verge' },
   { id: 'west1', zone: 'B', poly: [[-48, -12], [-32, -12], [-33.5, -3], [-32.5, 6.5], [-48, 6.5]], h: (x, z) => PAV + 0.85 * smooth(4, -10, z), surf: 'lots', wall: 'stone' },
-  { id: 'west2', zone: 'B', poly: [[-29, -12], [-16.5, -12], [-16.5, 6.5], [-29.5, 6.5], [-30.5, -3]], h: (x, z) => PAV + 0.7 * smooth(4, -10, z) * (1 - izaPad(x, z)), surf: 'lots', wall: 'stone' },
+  { id: 'west2', zone: 'B', poly: [[-29, -12], [-16.5, -12], [-16.5, 6.5], [-29.5, 6.5], [-30.5, -3]], h: (x, z) => PAV + 0.7 * smooth(4, -10, z) * (1 - Math.max(izaPad(x, z), zakPad(x, z))), surf: 'lots', wall: 'stone' },
   { id: 'west3', zone: 'A', poly: [[-13.5, -12], [-12, -12], [-12, 6.5], [-13.5, 6.5]], h: () => PAV, surf: 'walk' },
   { id: 'eastShops', zone: 'A', poly: [[12, -12], [30, -12], [30, 6.5], [12, 6.5]], h: (x, z) => PAV + 0.22 * smooth(3, -11, z), surf: 'shops' },
   { id: 'east1', zone: 'A', poly: [[33, -12], [36, -12], [36, 6.5], [33, 6.5]], h: () => PAV, surf: 'verge' },
   { id: 'sw1', zone: 'B', poly: [[-48, 12], [-16.5, 12], [-16.5, 22], [-30, 23], [-40, 21], [-48, 21.5]], h: (x, z) => PAV + 0.3 * (1 - smooth(13, 22, z)), surf: 'lots' },
   { id: 'sw2', zone: 'B', poly: [[-48, 24.5], [-40, 24], [-30, 26], [-16.5, 25], [-16.5, 32], [-48, 32]], h: () => PAV, surf: 'lots' },
   { id: 'south', zone: 'C', poly: [[-13.5, 12], [7.5, 12], [7.5, 32], [-13.5, 32]], h: (x, z) => PAV + 0.32 * (1 - smooth(13, 30, z)), surf: 'shops' },
-  { id: 'southEast', zone: 'A', poly: [[12, 12], [30, 12], [30, 32], [12, 32]], h: (x, z) => PAV + 0.25 * (1 - smooth(13, 30, z)), surf: 'shops' },
+  { id: 'southEast', zone: 'A', poly: [[12, 12], [30, 12], [30, 32], [12, 32]], h: (x, z) => PAV + 0.25 * Math.max(1 - smooth(13, 30, z), villaPad(x, z)), surf: 'shops' },
   { id: 'east2', zone: 'A', poly: [[33, 12], [36, 12], [36, 32], [33, 32]], h: () => PAV, surf: 'verge' },
 ];
 

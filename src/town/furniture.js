@@ -61,7 +61,8 @@ export function buildFurniture(parent, lake) {
     return tops;
   };
   // Kaigan-dori north side, joining the board's pole at (-11, 6.05)
-  const kw = chain([[-47, 6.05], [-40, 6.05], [-34, 6.05], [-26, 6.05], [-18.5, 6.05]], 'x');
+  // (no pole at x -18.5 any more: it stood right in front of the corner store's sign; the span runs on to the board)
+  const kw = chain([[-47, 6.05], [-40, 6.05], [-34, 6.05], [-26, 6.05]], 'x');
   off.x.forEach((o) => wire(g, [kw[kw.length - 1][0] + o[0], kw[kw.length - 1][1] + o[1], kw[kw.length - 1][2] + o[2]], [POLE_W + o[0], 7.2 + PAV + o[1], 6.05 + o[2]], 0.8));
   // east of Hoshizora-dori: poles at the corner and on the florist's green strip, clear of the shop front
   chain([[13.0, 6.05], [23.2, 6.05], [29.2, 6.05]], 'x');

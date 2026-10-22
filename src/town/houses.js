@@ -316,7 +316,7 @@ const PICK = [
   ['C-cafe-1', 'shop', 3], ['C-shop-1', 'shop', 2], ['B-shop-1', 'shop', 5],
   ['B-house-7', 'house', 0], ['B-house-3', 'house', 1], ['B-house-5', 'house', 2],
   ['B-house-8', 'house', 3], ['B-house-9', 'house', 4], ['B-house-10', 'house', 5],
-  ['A-shop-4', 'shop', 1], ['A-cafe-2', 'shop', 4], ['A-house-1', 'house', 1],
+  // A-shop-4 / A-cafe-2 / A-house-1: the large residence takes the whole south-east block (town/villa.js)
 ];
 
 export function buildHouses(parent) {

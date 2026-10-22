@@ -29,6 +29,7 @@ export function mergeStatic(root) {
     const geos = list.map((m) => {
       const g = m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
+      if (m.matrixWorld.determinant() < 0) flipWinding(g); // a mirrored parent: keep the faces facing out
       // keep only shared attributes
       // vertex colours survive when the whole batch has them (plant leaf tints); everything else is trimmed
       for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) g.deleteAttribute(k);
@@ -48,4 +49,20 @@ export function mergeStatic(root) {
     after += 1;
   });
   console.log(`static merge: ${before} meshes -> ${after}`);
+}
+
+/** reverse every triangle's winding (after baking a mirroring matrix into the geometry) */
+export function flipWinding(g) {
+  if (g.index) {
+    const a = g.index.array;
+    for (let i = 0; i < a.length; i += 3) { const t = a[i + 1]; a[i + 1] = a[i + 2]; a[i + 2] = t; }
+    g.index.needsUpdate = true;
+    return g;
+  }
+  for (const attr of Object.values(g.attributes)) {
+    const a = attr.array, n = attr.itemSize;
+    for (let v = 0; v < attr.count; v += 3) for (let k = 0; k < n; k++) { const i1 = (v + 1) * n + k, i2 = (v + 2) * n + k, t = a[i1]; a[i1] = a[i2]; a[i2] = t; }
+    attr.needsUpdate = true;
+  }
+  return g;
 }

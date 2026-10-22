@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, canvasTex, rng, FONT, RAMP, patchToon } from '../core.js';
 import { makeGroundMaterial } from '../ground.js';
-import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY } from './layout.js';
+import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD } from './layout.js';
 import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
 import { IZA_AWAY } from '../site.js';
 
@@ -131,6 +131,22 @@ function drawTown(g) {
     rect(24.55, 29.45, 1.0, 3.85, COL.gravel); // house yard
     for (let i = 0; i < 40; i++) blob(24.6 + Rf() * 4.8, 1.0 + Rf() * 2.8, 0.1 + Rf() * 0.25, Rf() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,10,0.12)');
     rect(24.55, 29.45, -4.6, 1.0, COL.paving2); // round the house
+  }
+  // 青空雑貨店 at Kaigan-dori x 裏路地 (town/zakkaya.js): grey pavers round the corner, guide blocks along the 裏路地
+  // walk past the machines and along Kaigan-dori, warning dots at the corner, a manhole, kerb grates (own rng)
+  {
+    const [x0, x1, z0, z1] = ZAK_PAD;
+    g.fillStyle = tilePattern(g, '#4a5168', '#454c62', 0.3);
+    g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
+    rect(-17.35, -17.05, -1.5, 5.3, '#9b8227'); // along 裏路地 (bars run with the walk)
+    for (let z = -1.5; z < 5.25; z += 0.3) for (let k = 0; k < 4; k++) rect(-17.32 + k * 0.065, -17.3 + k * 0.065, z + 0.03, z + 0.27, '#d3b53a');
+    rect(-23.4, -17.35, 5.65, 5.95, '#9b8227'); // along Kaigan-dori
+    for (let x = -23.4; x < -17.4; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, 5.68 + k * 0.065, 5.7 + k * 0.065, '#d3b53a');
+    rect(-17.35, -16.65, 5.3, 6.0, '#9b8227'); g.fillStyle = '#d3b53a'; // warning dots at the corner
+    for (let x = -17.3; x < -16.67; x += 0.12) for (let z = 5.35; z < 5.98; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); }
+    const mh = (cx, cz, r) => { g.fillStyle = '#20263a'; g.beginPath(); g.arc(X(cx), Z(cz), r * K, 0, 7); g.fill(); g.strokeStyle = '#59627e'; g.lineWidth = 3; g.stroke(); g.strokeStyle = 'rgba(120,130,160,0.5)'; g.lineWidth = 1.5; for (let a = 0; a < 6.28; a += 0.5) { g.beginPath(); g.moveTo(X(cx), Z(cz)); g.lineTo(X(cx + Math.cos(a) * r * 0.9), Z(cz + Math.sin(a) * r * 0.9)); g.stroke(); } };
+    mh(-15.4, 2.4, 0.32);
+    [[-16.62, 1.2], [-16.62, 3.6], [-21.3, 6.38]].forEach(([cx, cz], i) => { const w = i < 2 ? 0.25 : 0.9, h = i < 2 ? 0.9 : 0.25; rect(cx - w / 2, cx + w / 2, cz - h / 2, cz + h / 2, '#0a0d15'); g.strokeStyle = '#4a5572'; g.lineWidth = 2; g.strokeRect(X(cx - w / 2), Z(cz - h / 2), w * K, h * K); });
   }
   // the izakaya's lot in the west block (site.js IZA_AWAY): paving under it, its street side and its frontage
   if (IZA_AWAY) {

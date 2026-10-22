@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, rng } from '../core.js';
 import { makeTree, makeShrub, FOLIAGE, SEASON_U } from '../tree.js';
-import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS } from './layout.js';
+import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD } from './layout.js';
 import { IZA_AWAY } from '../site.js';
 
 /* ====================================================================================================
@@ -144,6 +144,7 @@ export function buildGreenery(parent, lake) {
     const b = blockAt(x, z);
     if (!b || edgeDist(x, z, b.poly) < 0.55 || nearRail(x, z) || inBlocked(x, z)) return;
     if (b.id === 'lakePark' && lakeF(x, z) < 1.29) return;
+    if (x > ZAK_PAD[0] - 0.2 && x < ZAK_PAD[1] + 0.1 && z > ZAK_PAD[2] - 0.3 && z < ZAK_PAD[3] + 0.1) return; // the corner store's lot (town/zakkaya.js)
     if (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.7 && x < IZA_AWAY.rect[1] + 1.0 && z > IZA_AWAY.rect[2] - 0.8 && z < 6.6) return; // the izakaya's lot
     if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < 1.2)) return;
     shrubs.push({ x, y: groundY(x, z), z, sp, s, r: R() * Math.PI * 2 });
@@ -224,6 +225,10 @@ export function buildGreenery(parent, lake) {
     });
   };
   const bySp = (list) => list.reduce((a, t) => ((a[t.sp] = a[t.sp] || []).push(t), a), {});
+  // the large residence's walled lot (town/villa.js) has its own garden: drop what fell inside the wall
+  const inVilla = (p) => p.x > VILLA_PAD[0] - 0.3 && p.x < VILLA_PAD[1] + 0.3 && p.z > VILLA_PAD[2] - 0.3 && p.z < VILLA_PAD[3] + 0.3;
+  trees.splice(0, trees.length, ...trees.filter((p) => !inVilla(p)));
+  shrubs.splice(0, shrubs.length, ...shrubs.filter((p) => !inVilla(p)));
   Object.entries(bySp(trees)).forEach(([sp, list]) => instance(extract(makeTree(SPECIES[sp])), list));
   const shrubT = {};
   Object.entries(bySp(shrubs)).forEach(([sp, list]) => {
@@ -277,7 +282,10 @@ export function buildGreenery(parent, lake) {
       if (Math.abs(z - RAIL.z) < 2.2 && x < RAIL.xCurve) continue;
       if (b.surf === 'lots' && !inBlocked(x, z) && R() < 0.6) continue; // lots: mostly along their edges
       const s = 0.7 + R() * 0.9;
-      m4.compose(v.set(x, groundY(x, z) - 0.01, z), q.setFromAxisAngle(up, R() * 6.28), sc.set(s, s * (0.7 + R() * 0.6), s));
+      // the paved lots (corner store, izakaya) grow none: the tuft is sunk out of sight, so the rest of the town's
+      // tufts keep exactly their places
+      const paved = (x > ZAK_PAD[0] && x < ZAK_PAD[1] && z > ZAK_PAD[2] && z < ZAK_PAD[3]) || (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.4 && x < IZA_AWAY.rect[1] + 0.9 && z > IZA_AWAY.rect[2] - 0.6 && z < 6.6);
+      m4.compose(v.set(x, paved ? -60 : groundY(x, z) - 0.01, z), q.setFromAxisAngle(up, R() * 6.28), sc.set(s, s * (0.7 + R() * 0.6), s));
       tufts.setMatrixAt(n, m4);
       tufts.setColorAt(n, col.setHSL(0.27 + R() * 0.08, 0.35 + R() * 0.2, 0.55 + R() * 0.35));
       n++;
