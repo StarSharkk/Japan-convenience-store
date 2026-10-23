@@ -86,6 +86,9 @@ function blockedOld(x, z) {
 /** the town: piles on blocks (not in the lake, not on the track) or tight against a kerb in the gutter */
 function blockedTown(x, z) {
   if (x > -23.3 && x < -17.5 && z > -1.2 && z < 3.6) return true; // the corner store + its machines
+  if (x > -11.7 && x < -4.3 && z > 13.9 && z < 21.0) return true; // the café (town/cafe.js) + its hood
+  if (x > -41.8 && x < -19.4 && z > 13.5 && z < 19.5) return true; // the street-house row (town/streetRow.js)
+  if (x > -2.2 && x < 4.6 && z > 14.4 && z < 20.9) return true; // the bookstore (town/bookstore.js) + its deck
   if (x > 13.9 && x < 29.5 && z > 13.7 && z < 31.3 && !(z > 24.2 && x > 18.8 && x < 27.2)) return true; // the villa's lot: piles on the lawn only
   if (IZA_AWAY) { const [x0, x1, z0, z1] = IZA_AWAY.rect; if (x > x0 - 0.3 && x < x1 + 0.3 && z > z0 - 0.3 && z < z1 + 0.3) return true; } // the izakaya in the west block
   if (x < MAP.x0 + 0.6 || x > MAP.x1 - 0.6 || z < MAP.z0 + 0.6 || z > MAP.z1 - 0.6) return true;

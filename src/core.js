@@ -60,11 +60,12 @@ export function setCat(c) {
 // shared snow-cover amount for every toon material (white on up-facing surfaces)
 export const SNOW_U = { value: 0 };
 // boxes that never take snow cover (under a roof: the greenhouse interior): x0, z0, x1, z1 + the height below which
-const NOSNOW_U = { value: Array.from({ length: 4 }, () => new THREE.Vector4(1e5, 1e5, -1e5, -1e5)) };
-const NOSNOWY_U = { value: [0, 0, 0, 0] };
+const NOSNOW_N = 8; // slots (the toon shader loops over all of them)
+const NOSNOW_U = { value: Array.from({ length: NOSNOW_N }, () => new THREE.Vector4(1e5, 1e5, -1e5, -1e5)) };
+const NOSNOWY_U = { value: new Array(NOSNOW_N).fill(0) };
 let nNoSnow = 0;
 export function noSnowBox(x0, z0, x1, z1, yTop) {
-  if (nNoSnow >= 4) return;
+  if (nNoSnow >= NOSNOW_N) return;
   NOSNOW_U.value[nNoSnow].set(x0, z0, x1, z1);
   NOSNOWY_U.value[nNoSnow++] = yTop;
 }
@@ -160,14 +161,14 @@ export function patchToon(m, litK = 0, snow = true, litCat = '') {
            #endif
            vSnW = (modelMatrix * snw).xyz;
          }`);
-      fs = fs.replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uSnow;\nuniform vec4 uNoSnow[4];\nuniform float uNoSnowY[4];\nvarying vec3 vSnW;');
+      fs = fs.replace('uniform vec3 diffuse;', `uniform vec3 diffuse;\nuniform float uSnow;\nuniform vec4 uNoSnow[${NOSNOW_N}];\nuniform float uNoSnowY[${NOSNOW_N}];\nvarying vec3 vSnW;`);
       fs = fs.replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
          {
            float topn = dot(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
            float sn = uSnow * smoothstep(0.38, 0.82, topn);
-           for (int i = 0; i < 4; i++) {
+           for (int i = 0; i < ${NOSNOW_N}; i++) {
              vec4 b = uNoSnow[i];
              if (vSnW.x > b.x && vSnW.x < b.z && vSnW.z > b.y && vSnW.z < b.w && vSnW.y < uNoSnowY[i]) sn = 0.0;
            }

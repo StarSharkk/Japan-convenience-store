@@ -87,6 +87,44 @@ const villaPad = (x, z) => {
   return 1 - smooth(0, 1.0, Math.hypot(dx, dz));
 };
 
+// the south block's two shops (town/cafe.js + town/bookstore.js) and their shared frontage stand on one pad levelled
+// at the height of the block's north (Kaigan-dori) edge; it eases down to the sakura plaza within ~1.2 m
+export const SOUTH_SHOPS_PAD = [-12.25, 6.35, 12.0, 22.75];
+const shopsPad = (x, z) => {
+  const [x0, x1, z0, z1] = SOUTH_SHOPS_PAD;
+  const dx = Math.max(x0 - x, 0, x - x1), dz = Math.max(z0 - z, 0, z - z1);
+  return 1 - smooth(0, 1.2, Math.hypot(dx, dz));
+};
+
+// 桜広場 - the sakura plaza on the south part of the south block (town/plaza.js): one paved square in front of the
+// two shops, its centre medallion and the cherry trees on its edges / corners; it falls very gently (~0.2 m) to the
+// south edge, easing in from the shops' pad so the walk from their doors onto the plaza has no step
+export const SAKURA_PLAZA = [-13.5, 7.5, 22.75, 32];
+export const PLAZA_CENTRE = [-3.2, 27.4]; // the fountain (pool r 1.62, a walking ring out to r ~2.8)
+// two cherry groves on the west / east edges, clear of the east-west walk (z 25.3 .. 27.7, from crossing to crossing
+// round the fountain) and of the walks from the shop doors; x, z, height, blossom tone (0 deep, 1 light, 2 pink-white),
+// pit radius
+export const PLAZA_TREES = [
+  [-12.6, 23.6, 3.5, 0, 0.85], [-11.1, 24.55, 3.2, 2, 0.7],
+  [-12.85, 29.6, 3.7, 1, 0.85], [-12.55, 31.2, 3.3, 0, 0.7], // the swing stands in front of these two, open to the plaza
+  [6.6, 23.6, 3.4, 1, 0.8], [5.0, 24.55, 3.2, 0, 0.7],
+  [6.8, 29.5, 3.7, 0, 0.85], [5.1, 31.15, 3.4, 1, 0.8], [6.95, 31.25, 3.1, 2, 0.5],
+];
+// the rest of the plaza furniture that the ground paint also knows about (contact shadows, the swing's gravel pad)
+export const PLAZA_BENCHES = [[-3.2, 30.75], [-7.0, 30.2], [0.6, 30.2]]; // each faces the fountain
+export const PLAZA_SWING = { x: -10.95, z0: 28.95, z1: 30.95, pad: [-11.9, -10.0, 28.75, 31.15] };
+export const PLAZA_DRAINS = [[-8.4, 26.5], [2.0, 26.5], [-12.4, 26.5], [6.4, 26.5]];
+const plazaRamp = (z) => smooth(21.2, 22.75, z) * (1 - 0.7 * Math.min(1, Math.max(0, (z - 22.75) / 9.25)));
+
+// the street-house row in block sw1 (town/streetRow.js): the Kaigan-dori pavement and the buildings stand on one pad at
+// the height of the block's north edge; their front pavement (south) falls gently to the lane over ~2.4 m
+export const SW_ROW_PAD = [-48, -16.5, 12.0, 19.6];
+const swRowPad = (x, z) => {
+  const [x0, x1, z0, z1] = SW_ROW_PAD;
+  const dx = Math.max(x0 - x, 0, x - x1), dz = Math.max(z0 - z, 0, z - z1);
+  return 1 - smooth(0, 2.4, Math.hypot(dx, dz));
+};
+
 export const BLOCKS = [
   { id: 'lakePark', zone: 'D', poly: [[-48, -44], [-19, -44], [-19, -36], [-18, -29], [-16.6, -24.5], [-16.5, -23], [-48, -23]], h: lakeParkH, surf: 'park' },
   { id: 'terrace', zone: 'shrine', poly: [[-16, -44], [7.5, -44], [7.5, -23], [-13.5, -23], [-13.6, -24.5], [-15, -29], [-16, -36]], h: () => 2.2, surf: 'forest', wall: 'stone' },
@@ -99,9 +137,9 @@ export const BLOCKS = [
   { id: 'west3', zone: 'A', poly: [[-13.5, -12], [-12, -12], [-12, 6.5], [-13.5, 6.5]], h: () => PAV, surf: 'walk' },
   { id: 'eastShops', zone: 'A', poly: [[12, -12], [30, -12], [30, 6.5], [12, 6.5]], h: (x, z) => PAV + 0.22 * smooth(3, -11, z), surf: 'shops' },
   { id: 'east1', zone: 'A', poly: [[33, -12], [36, -12], [36, 6.5], [33, 6.5]], h: () => PAV, surf: 'verge' },
-  { id: 'sw1', zone: 'B', poly: [[-48, 12], [-16.5, 12], [-16.5, 22], [-30, 23], [-40, 21], [-48, 21.5]], h: (x, z) => PAV + 0.3 * (1 - smooth(13, 22, z)), surf: 'lots' },
+  { id: 'sw1', zone: 'B', poly: [[-48, 12], [-16.5, 12], [-16.5, 22], [-30, 23], [-40, 21], [-48, 21.5]], h: (x, z) => PAV + 0.3 * Math.max(1 - smooth(13, 22, z), swRowPad(x, z)), surf: 'lots' },
   { id: 'sw2', zone: 'B', poly: [[-48, 24.5], [-40, 24], [-30, 26], [-16.5, 25], [-16.5, 32], [-48, 32]], h: () => PAV, surf: 'lots' },
-  { id: 'south', zone: 'C', poly: [[-13.5, 12], [7.5, 12], [7.5, 32], [-13.5, 32]], h: (x, z) => PAV + 0.32 * (1 - smooth(13, 30, z)), surf: 'shops' },
+  { id: 'south', zone: 'C', poly: [[-13.5, 12], [7.5, 12], [7.5, 32], [-13.5, 32]], h: (x, z) => PAV + 0.32 * Math.max(1 - smooth(13, 30, z), shopsPad(x, z), plazaRamp(z)), surf: 'shops' },
   { id: 'southEast', zone: 'A', poly: [[12, 12], [30, 12], [30, 32], [12, 32]], h: (x, z) => PAV + 0.25 * Math.max(1 - smooth(13, 30, z), villaPad(x, z)), surf: 'shops' },
   { id: 'east2', zone: 'A', poly: [[33, 12], [36, 12], [36, 32], [33, 32]], h: () => PAV, surf: 'verge' },
 ];

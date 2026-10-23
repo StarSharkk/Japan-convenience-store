@@ -1,17 +1,17 @@
 import * as THREE from 'three';
-import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect, noSnowBox } from '../core.js';
+import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, rng, roundRect } from '../core.js';
 import { T } from '../tex.js';
-import { makeGlass } from '../fx.js';
 import { makeTree, makeShrub } from '../tree.js';
 import { makeHosta, makeFern, makeAspidistra } from '../plants/groundPlants.js';
-import { makeRhapisPot } from '../plants/pottedPlants.js';
 import { bladeGeo, placeLeaf, mergeInto, leafTex, leafMat } from '../plants/kit.js';
 import { flipWinding } from '../merge.js';
+import { buildVillaHouse } from './villaHouse.js';
+import { pondWaterMat } from './fountain.js';
 
 /* ====================================================================================================
    The large residence (大型住宅) - the south-east block, Kaigan-dori to the north, Hoshizora-dori to the west.
-   A walled lot: the white two-storey modern villa stands along Kaigan-dori, its glass living room looks south onto
-   the landscaped garden that fills the southern half of the lot.
+   A walled lot: a low one-storey Japanese modern courtyard house (town/villaHouse.js) stands along Kaigan-dori, an L
+   wrapping the landscaped garden that fills the southern half of the lot; its glass living room opens onto a deck.
    The garden + house are modelled with the garden on the north side (z 14 .. 21) and the house behind it
    (z 22.6 .. 29.8), then mirrored north-south as one group: z_world = MZ - z (merge.js flips the triangle winding).
 
@@ -23,17 +23,13 @@ import { flipWinding } from '../merge.js';
               held by a curved white planter wall, a cherry tree; a soft-edged pond with lily pads, rocks and a
               round overflowing stone basin; a lawn with a curving line of stepping stones from the front door
               to the fire deck; gravel borders with boulders, agaves and flowers; glowing ball lamps, path lights, uplights
-     villa    white boxes: a wide ground floor with floor-to-ceiling glass to the garden, a recessed timber-clad
-              entrance under a thin canopy; a narrower upper storey set back, a glass-railed roof terrace,
-              a timber screen panel, a long window; flat roofs with crisp fascias; warm light inside at night
-   Nothing inside the house takes snow; the roofs and the canopy take petals / leaves / snow (reg.extraRoofs).
+     house    town/villaHouse.js (plan, facades, entrance porch, deck, Japandi interior, its weather hooks)
+     paths    a stone walk from the gate along the garden, the entrance path to the porch, two small stone lanterns
    ==================================================================================================== */
 
 export const VILLA_LOT = [14.2, 29.2, 14.0, 31.0];
 const [LX0, LX1, LZ0, LZ1] = VILLA_LOT;
 const YL = 0.4; // the levelled lot
-const GF = { x0: 15.8, x1: 27.8, z0: 22.6, z1: 29.8, h: 3.3 };
-const UF = { x0: 17.6, x1: 27.8, z0: 23.4, z1: 29.4, h: 3.1 };
 const MZ = LZ0 + LZ1; // the north-south mirror (see the header)
 const GATE = { z0: 22.55, z1: 23.95 }; // the gate in the west fence (world z), onto the terrace
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -60,9 +56,19 @@ const gravelTex = () => ct('gravel', 128, 128, (g, w, h) => {
   g.fillStyle = '#b9a98f'; g.fillRect(0, 0, w, h);
   const R = rng(13); for (let i = 0; i < 700; i++) { g.fillStyle = ['#cbbca2', '#a6967d', '#d8cbb3', '#9a8b74'][(R() * 4) | 0]; g.fillRect(R() * w, R() * h, 2 + R() * 2, 2 + R() * 2); }
 }, { repeat: true });
-const lawnTex = () => ct('lawn', 128, 128, (g, w, h) => {
+// the lawn: soft mowing stripes, gentle tonal patches, blades (not one flat green)
+const lawnTex = () => ct('lawn', 256, 256, (g, w, h) => {
   g.fillStyle = '#3f7a3a'; g.fillRect(0, 0, w, h);
-  const R = rng(17); for (let i = 0; i < 900; i++) { g.fillStyle = R() < 0.5 ? 'rgba(120,170,90,0.35)' : 'rgba(30,70,30,0.3)'; g.fillRect(R() * w, R() * h, 1, 2 + R() * 3); }
+  for (let x = 0; x < w; x += 64) { g.fillStyle = 'rgba(190,230,140,0.07)'; g.fillRect(x, 0, 32, h); }
+  const R = rng(17);
+  for (let i = 0; i < 14; i++) { const x = R() * w, y = R() * h, r = 20 + R() * 46, gr = g.createRadialGradient(x, y, 0, x, y, r), c = R() < 0.5 ? '150,190,90' : '30,70,35'; gr.addColorStop(0, `rgba(${c},0.16)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  for (let i = 0; i < 3200; i++) { g.fillStyle = R() < 0.5 ? 'rgba(130,180,95,0.3)' : 'rgba(28,66,30,0.28)'; g.fillRect(R() * w, R() * h, 1, 2 + R() * 4); }
+}, { repeat: true });
+// raked gravel (the tea platform's border, the maple's crescent)
+const rakedTex = () => ct('raked', 128, 128, (g, w, h) => {
+  g.fillStyle = '#cfc8ba'; g.fillRect(0, 0, w, h);
+  const R = rng(19); for (let i = 0; i < 900; i++) { g.fillStyle = R() < 0.5 ? 'rgba(255,255,255,0.35)' : 'rgba(120,110,95,0.3)'; g.fillRect(R() * w, R() * h, 2, 2); }
+  for (let y = 4; y < h; y += 12) { g.fillStyle = 'rgba(110,100,86,0.35)'; g.fillRect(0, y, w, 2); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(0, y + 2, w, 1); }
 }, { repeat: true });
 const waterTex = () => ct('water', 256, 256, (g, w, h) => {
   const gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7); gr.addColorStop(0, '#9fd8dc'); gr.addColorStop(1, '#5fb0bf'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -164,6 +170,14 @@ function ballLamp(p, x, z, r = 0.22) {
   sph(p, glow('#ffe9c8', 1.8, { off: '#ece6d8' }), r, x, YL + r * 0.95, z);
   halo(p, x, YL + r, z, '#ffdcae', r * 5, 0.4);
 }
+/** a low mushroom lawn light (warm, glowing under its cap) */
+function lawnLight(p, x, z) {
+  const m = mats();
+  cy(p, m.dark, x, YL, z, 0.03, 0.32, 8);
+  cy(p, m.dark, x, YL + 0.32, z, 0.13, 0.03, 16, { rt: 0.5 });
+  cy(p, glow('#ffe2b8', 2.0, { off: '#d8d2c4' }), x, YL + 0.3, z, 0.1, 0.02, 14);
+  halo(p, x, YL + 0.2, z, '#ffd9a8', 0.9, 0.3);
+}
 function pathLight(p, x, z) {
   const m = mats();
   cy(p, m.dark, x, YL, z, 0.035, 0.42, 8);
@@ -174,6 +188,19 @@ function pathLight(p, x, z) {
 function uplight(p, x, z) {
   cy(p, glow('#fff0d0', 2.2, { off: '#5a5a5a' }), x, YL, z, 0.06, 0.03, 10);
   halo(p, x, YL + 0.6, z, '#ffe2b8', 1.6, 0.25);
+}
+
+/** a small stone lantern (tōrō): base, post, platform, the lit fire box, a pyramid cap (warm with the house lights) */
+function stoneLantern(p, x, z) {
+  const st = toon('#b8b0a2'), y = YL;
+  cy(p, st, x, y, z, 0.16, 0.08, 8); cy(p, st, x, y + 0.08, z, 0.06, 0.42, 8);
+  bx(p, st, x - 0.15, x + 0.15, y + 0.5, y + 0.56, z - 0.15, z + 0.15, { bevel: 0.015 });
+  bx(p, st, x - 0.1, x + 0.1, y + 0.56, y + 0.78, z - 0.1, z + 0.1, { bevel: 0.01 });
+  bx(p, glow('#ffd9a0', 2.0, { off: '#6a6258' }), x - 0.065, x + 0.065, y + 0.6, y + 0.74, z - 0.102, z + 0.102, { cast: false });
+  bx(p, glow('#ffd9a0', 2.0, { off: '#6a6258' }), x - 0.102, x + 0.102, y + 0.6, y + 0.74, z - 0.065, z + 0.065, { cast: false });
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.16, 4), st); cap.position.set(x, y + 0.86, z); cap.rotation.y = Math.PI / 4; cap.castShadow = true; p.add(cap);
+  sph(p, st, 0.04, x, y + 0.96, z);
+  halo(p, x, y + 0.68, z, '#ffd59a', 1.0, 0.3);
 }
 
 /* ---------------------------------------------------------------- the lot */
@@ -188,14 +215,15 @@ export function buildVilla(parent) {
 
   /* ---- ground: gravel under everything, the terrace in stone tiles, the lawn, the pond ---- */
   wbx(g, m.gravel, LX0, LX1, YL - 0.08, YL + 0.004, LZ0, LZ1, 1.5, { cast: false });
-  wbx(g, m.tile, 14.6, 28.8, YL, YL + 0.03, 20.9, 22.62, 1.6, { cast: false }); // terrace along the house front
-  wbx(g, m.tile, 14.6, 28.8, YL, YL + 0.03, 29.8, 30.7, 1.6, { cast: false }); // a strip round the back
-  [[14.6, 15.8], [27.8, 28.8]].forEach(([a, b]) => wbx(g, m.tile, a, b, YL, YL + 0.03, 22.62, 29.8, 1.6, { cast: false }));
+  wbx(g, m.tile, 14.6, 24.35, YL, YL + 0.03, 20.92, 21.82, 1.6, { cast: false }); // the walk from the gate along the garden
+  wbx(g, m.tile, 15.75, 17.85, YL, YL + 0.03, 21.82, 24.15, 1.6, { cast: false }); // the entrance path up to the porch steps
+  wbx(g, m.tile, 14.6, 28.8, YL, YL + 0.03, 29.95, 30.7, 1.6, { cast: false }); // a strip round the back
+  wbx(g, m.tile, 14.6, 15.5, YL, YL + 0.03, 24.15, 29.95, 1.6, { cast: false }); // and the west side
   bx(g, m.whiteW, 14.6, 28.8, YL, YL + 0.08, 20.84, 20.92, { cast: false }); // the terrace's edge kerb
-  const lawn = groundShape(g, [[19.3, 15.25], [23.0, 15.05], [26.6, 15.3], [26.9, 17.5], [26.7, 20.55], [23.5, 20.7], [21.4, 20.6], [20.6, 19.4], [20.1, 18.3], [19.4, 17.2], [19.1, 16.2]], YL + 0.012, m.lawn, 2);
-  // stepping stones from the gate to the front door
+  const lawn = groundShape(g, [[19.3, 15.25], [23.0, 15.05], [26.6, 15.3], [26.9, 17.5], [26.7, 20.55], [23.5, 20.7], [21.4, 20.6], [20.6, 19.4], [20.1, 18.3], [19.4, 17.2], [19.1, 16.2]], YL + 0.012, m.lawn, 3);
+  // stepping stones from the deck's front step across the lawn to the fire deck
   {
-    const path = new THREE.CatmullRomCurve3([V(24.3, 0, 20.6), V(23.7, 0, 19.6), V(23.0, 0, 18.7), V(22.5, 0, 17.7), V(21.7, 0, 16.8), V(20.5, 0, 16.4), V(19.2, 0, 16.6)]);
+    const path = new THREE.CatmullRomCurve3([V(21.9, 0, 20.5), V(22.35, 0, 19.6), V(22.6, 0, 18.7), V(22.3, 0, 17.7), V(21.6, 0, 16.9), V(20.5, 0, 16.4), V(19.2, 0, 16.6)]);
     const n = 12;
     for (let i = 0; i <= n; i++) {
       const t = i / n, p = path.getPointAt(t);
@@ -208,12 +236,19 @@ export function buildVilla(parent) {
   {
     const pts = [[15.2, 18.9], [16.6, 18.55], [18.0, 18.75], [19.2, 18.2], [19.9, 17.3], [20.6, 17.6], [20.7, 18.6], [21.1, 19.6], [20.6, 20.45], [18.8, 20.6], [16.9, 20.55], [15.4, 20.35], [14.95, 19.6]];
     groundShape(g, pts, YL + 0.006, toon('#2f5a5e', { lit: 0.05 }), 1);
-    const water = groundShape(g, pts, YL + 0.075, new THREE.MeshToonMaterial({ map: waterTex(), transparent: true, opacity: 0.72, color: 0xffffff }), 2.5);
-    water.mesh.userData.noLine = true; water.mesh.receiveShadow = false;
-    reg.updaters.push((t) => { water.mesh.material.map.offset.set(Math.sin(t * 0.15) * 0.05, t * 0.01); });
+    const water = groundShape(g, pts, YL + 0.075, pondWaterMat(18.0, 19.5, 3.0), 2.5); // sky reflection, rain rings, a soft night glow
+    water.mesh.userData.noLine = true; water.mesh.receiveShadow = false; water.mesh.renderOrder = 3;
     // rocks + pebbles round the rim, leaving the deck side open
-    water.outline.forEach((p, i) => { if (i % 5) return; const s = 0.13 + R() * 0.12; boulder(g, p.x + (R() - 0.5) * 0.1, p.z + (R() - 0.5) * 0.1, s, 100 + i); });
-    for (let i = 0; i < water.outline.length; i += 2) { const p = water.outline[i]; sph(g, m.rockL, 0.05 + R() * 0.03, p.x, YL + 0.04, p.z, 1.2, 0.6, 1); }
+    // rim stones at irregular spacing: some big ones (often with a small one beside), small ones between, pebbles
+    {
+      const Rr = rng(77), O = water.outline;
+      for (let i = 1; i < O.length; i += 3 + ((Rr() * 5) | 0)) {
+        const p = O[i], big = Rr() < 0.3, s = big ? 0.22 + Rr() * 0.1 : 0.1 + Rr() * 0.09;
+        boulder(g, p.x + (Rr() - 0.5) * 0.12, p.z + (Rr() - 0.5) * 0.12, s, 100 + i);
+        if (big && Rr() < 0.6) { const q = O[Math.min(O.length - 1, i + 1)]; boulder(g, q.x + (Rr() - 0.5) * 0.12, q.z + (Rr() - 0.5) * 0.12, s * 0.5, 160 + i); }
+      }
+      for (let i = 0; i < O.length; i++) { if (Rr() < 0.55) continue; const p = O[i]; sph(g, m.rockL, 0.035 + Rr() * 0.035, p.x + (Rr() - 0.5) * 0.08, YL + 0.035, p.z + (Rr() - 0.5) * 0.08, 1.2, 0.6, 1); }
+    }
     // lily pads with a few white / pink flowers
     [[16.0, 19.4], [16.6, 19.9], [17.3, 19.2], [18.4, 19.9], [19.6, 19.3], [20.1, 18.3], [20.3, 19.9], [15.7, 20.0], [18.9, 19.0]].forEach(([x, z], i) => {
       const pad = new THREE.Mesh(new THREE.CircleGeometry(0.17 + (i % 3) * 0.04, 14, 0.3, Math.PI * 1.8), toon(i % 2 ? '#4f8f4a' : '#5f9f52', { side: THREE.DoubleSide }));
@@ -282,16 +317,63 @@ export function buildVilla(parent) {
     agave(g, bins, 28.3, 16.4, 1.1, 1); agave(g, bins, 27.2, 17.9, 0.9, 2); agave(g, bins, 28.5, 18.6, 1.0, 3);
     flowers(g, 27.5, 19.3, 'cosmos', 11, 0.38); flowers(g, 28.4, 20.4, 'hydrangea', 12, 0.36); flowers(g, 27.2, 15.4, 'lavender', 13, 0.32);
     [[makeHosta, 21.0, 20.4, 0.6], [makeFern, 19.4, 16.6, 0.55], [makeAspidistra, 26.4, 20.5, 0.55], [makeFern, 21.6, 15.6, 0.5]].forEach(([mk, x, z, s], i) => { const p = mk({ seed: 300 + i * 7, scale: s }); p.position.set(x, YL, z); g.add(p); });
-    ballLamp(g, 19.0, 15.6); ballLamp(g, 27.0, 19.0, 0.26); ballLamp(g, 14.9, 18.3, 0.2); ballLamp(g, 21.3, 18.9, 0.18); ballLamp(g, 26.2, 15.6, 0.2);
-    // potted palms by the front door, a sculptural pot by the basin
-    [[22.9, 21.7], [26.0, 21.7]].forEach(([x, z], i) => { const p = makeRhapisPot({ seed: 50 + i }); p.position.set(x, YL + 0.03, z); p.scale.setScalar(1.05); g.add(p); });
+    ballLamp(g, 19.0, 15.6); ballLamp(g, 27.0, 19.0, 0.26); ballLamp(g, 14.9, 18.3, 0.2); ballLamp(g, 21.3, 18.9, 0.18);
+    // two small stone lanterns: by the pond, by the entrance path
+    [[21.45, 20.25], [15.05, 22.3]].forEach(([x, z]) => stoneLantern(g, x, z));
+  }
+
+  /* ---- the lawn: a small tea platform on raked gravel, the path to it, a Japanese maple, soft edges, lawn lights ---- */
+  {
+    const Rl = rng(515), raked = toon('#ffffff', { map: rakedTex(), nocache: true }), woodD = toon('#7a5a3c'), cushion = toon('#e9e2d4');
+    const px0 = 23.55, px1 = 25.75, pz0 = 16.8, pz1 = 18.6, cx = (px0 + px1) / 2, cz = (pz0 + pz1) / 2, py = YL + 0.14;
+    wbx(g, raked, px0 - 0.32, px1 + 0.32, YL + 0.004, YL + 0.018, pz0 - 0.32, pz1 + 0.32, 0.8, { cast: false });
+    [[px0 - 0.36, px1 + 0.36, pz0 - 0.36, pz0 - 0.32], [px0 - 0.36, px1 + 0.36, pz1 + 0.32, pz1 + 0.36], [px0 - 0.36, px0 - 0.32, pz0 - 0.32, pz1 + 0.32], [px1 + 0.32, px1 + 0.36, pz0 - 0.32, pz1 + 0.32]].forEach(([a, b, c, d]) => bx(g, m.stone, a, b, YL, YL + 0.045, c, d, { bevel: 0.01, cast: false }));
+    wbx(g, m.plank, px0, px1, YL, py, pz0, pz1, 1.2);
+    // the low tea table with a tea set, three low chairs round it (the side to the path stays open)
+    [[-0.34, -0.34], [0.34, -0.34], [-0.34, 0.34], [0.34, 0.34]].forEach(([a, b]) => bx(g, woodD, cx + a - 0.03, cx + a + 0.03, py, py + 0.3, cz + b - 0.03, cz + b + 0.03, { bevel: 0.008 }));
+    bx(g, m.wood, cx - 0.42, cx + 0.42, py + 0.3, py + 0.35, cz - 0.42, cz + 0.42, { bevel: 0.015 });
+    sph(g, toon('#4a5a50'), 0.07, cx - 0.1, py + 0.41, cz + 0.05, 1, 0.85, 1); cyl2(g, toon('#4a5a50'), [cx - 0.04, py + 0.41, cz + 0.05], [cx + 0.03, py + 0.45, cz + 0.05], 0.012, 5); sph(g, toon('#3a4a40'), 0.025, cx - 0.1, py + 0.47, cz + 0.05);
+    [[0.14, -0.12], [0.18, 0.12]].forEach(([a, b]) => cy(g, toon('#efe8da'), cx + a, py + 0.35, cz + b, 0.032, 0.05, 10, { rt: 1.15 }));
+    cy(g, toon('#d8cfc0'), cx - 0.2, py + 0.35, cz - 0.22, 0.03, 0.12, 8, { rt: 0.6 }); sph(g, toon('#f2a0c4'), 0.03, cx - 0.2, py + 0.5, cz - 0.22);
+    [[0, 0.78, Math.PI], [0, -0.78, 0], [0.8, 0, -Math.PI / 2]].forEach(([a, b, ry]) => {
+      const c = grp(g, cx + a, py, cz + b, ry);
+      [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].forEach(([u, v]) => bx(c, woodD, u - 0.025, u + 0.025, 0, 0.22, v - 0.025, v + 0.025, { cast: false }));
+      bx(c, m.wood, -0.25, 0.25, 0.2, 0.25, -0.25, 0.25, { bevel: 0.01 }); bx(c, cushion, -0.22, 0.22, 0.25, 0.31, -0.22, 0.22, { bevel: 0.025 });
+      const back = grp(c, 0, 0.25, -0.24, 0); back.rotation.x = -0.25; bx(back, m.wood, -0.25, 0.25, 0, 0.42, -0.025, 0.025, { bevel: 0.01 });
+    });
+    // two stepping stones off the curving path to the platform
+    [[22.98, 18.38], [23.3, 18.0]].forEach(([x, z]) => { const st = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.05, 9), m.stone); st.scale.set(0.26 + Rl() * 0.05, 1, 0.21 + Rl() * 0.04); st.rotation.y = Rl() * 3; st.position.set(x, YL + 0.03, z); st.receiveShadow = true; g.add(st); });
+    // a small Japanese maple in the lawn's front-left corner, by the fire deck (clear of every view onto the glass):
+    // moss, two stones, an uplight
+    { const t = makeTree({ seed: 233, height: 2.2, spread: 0.85, palette: 'maple', dens: 0.9, leafScale: 0.5, lean: -0.1 }); t.position.set(20.15, YL, 15.45); t.rotation.y = 1.1; g.add(t); }
+    for (let k = 0; k < 6; k++) { const a = k * 1.05 + Rl() * 0.4, r = 0.3 + Rl() * 0.2; sph(g, toon(k % 2 ? '#4f7a3a' : '#5d8a44'), 0.14 + Rl() * 0.05, 20.15 + Math.cos(a) * r, YL + 0.02, 15.45 + Math.sin(a) * r, 1.3, 0.28, 1.1); }
+    boulder(g, 20.75, 15.3, 0.22, 501); boulder(g, 20.95, 15.6, 0.12, 502);
+    uplight(g, 20.5, 15.85);
+    // soft lawn edges: groundcover, a few low shrubs, flower clumps and stones, at irregular intervals (not on the paths)
+    const O = lawn.outline;
+    for (let i = 0; i < O.length; i += 4 + ((Rl() * 4) | 0)) {
+      const p = O[i];
+      if (p.x < 21.6 || (Math.abs(p.x - 21.9) < 0.9 && p.z > 19.8)) continue; // the pond + maple side, the path's start
+      const k = Rl();
+      if (k < 0.45) for (let c = 0; c < 3; c++) sph(g, toon(c % 2 ? '#4f7a3a' : '#5f8a48'), 0.12 + Rl() * 0.06, p.x + (Rl() - 0.5) * 0.35, YL + 0.03, p.z + (Rl() - 0.5) * 0.25, 1.3, 0.35, 1.1);
+      else if (k < 0.65) { const sb = makeShrub({ seed: 520 + i, width: 0.45, height: 0.38, palette: 'deep' }); sb.position.set(p.x, YL, p.z); g.add(sb); }
+      else if (k < 0.85) flowers(g, p.x, p.z, ['lavender', 'hydrangea', 'daisy'][i % 3], 530 + i, 0.24);
+      else boulder(g, p.x, p.z, 0.12 + Rl() * 0.08, 540 + i);
+    }
+    // warm lawn lights round the tea platform
+    [[23.0, 16.55], [26.25, 18.95], [25.0, 19.2]].forEach(([x, z]) => lawnLight(g, x, z));
   }
 
   /* ---- the fence round the lot (world frame, not mirrored): white base + piers; metal bars on the street sides
      (north, west), slats on the private sides; the gate on Hoshizora-dori opens onto the terrace ---- */
   {
     const F = root;
-    const base = (x0, x1, z0, z1, h) => wbx(F, m.white, x0, x1, 0.1, YL + h, z0, z1, 1, {});
+    const coping = toon('#e6e0d4', { lit: 0.08 }), plinth = toon('#bdb7ad');
+    const base = (x0, x1, z0, z1, h) => {
+      wbx(F, m.white, x0, x1, 0.1, YL + h, z0, z1, 1, {});
+      bx(F, coping, x0 - 0.03, x1 + 0.03, YL + h, YL + h + 0.05, z0 - 0.03, z1 + 0.03, { bevel: 0.015 });
+      bx(F, plinth, x0 - 0.012, x1 + 0.012, 0.1, YL + 0.1, z0 - 0.012, z1 + 0.012, { bevel: 0.01, cast: false });
+    };
     const pier = (x, z, h = 1.55) => { bx(F, m.white, x - 0.17, x + 0.17, 0.1, YL + h, z - 0.17, z + 0.17, { bevel: 0.02 }); bx(F, m.fascia, x - 0.2, x + 0.2, YL + h, YL + h + 0.05, z - 0.2, z + 0.2, { bevel: 0.01 }); };
     const bars = (a, b, axis) => { // dark metal bars between y 0.55 .. 1.4 above the lot
       const L = axis === 'x' ? b[0] - a[0] : b[1] - a[1];
@@ -336,102 +418,8 @@ export function buildVilla(parent) {
     bx(gf, m.stone, -0.1, W + 0.1, 0.12, YL, zf - 0.6, zf - 0.1, { bevel: 0.02 });
   }
 
-  /* ---- the villa ---- */
-  {
-    const y0 = YL, y1 = YL + GF.h, y2 = y1 + UF.h;
-    // ground floor: a white box opened to the garden; the living room behind the glass is hollow
-    const liv = { x0: GF.x0 + 0.15, x1: 22.4, z0: GF.z0, z1: 26.4 };
-    wbx(g, m.white, GF.x0, GF.x1, y0, y1, liv.z1, GF.z1, 1.5); // back half
-    wbx(g, m.white, liv.x1, GF.x1, y0, y1, GF.z0 + 0.8, liv.z1, 1.5); // entrance / study block (the entrance is recessed)
-    wbx(g, m.white, GF.x0, liv.x0, y0, y1, GF.z0, liv.z1, 1.5); // west end wall
-    wbx(g, m.white, GF.x0, GF.x1, y1 - 0.42, y1, GF.z0, liv.z1, 1.5); // the band over the glass
-    bx(g, m.fascia, GF.x0 - 0.05, GF.x1 + 0.05, y1 - 0.02, y1 + 0.12, GF.z0 - 0.05, GF.z1 + 0.05, { bevel: 0.01 }); // GF roof edge
-    // the living room: floor, back wall, a sofa, rug, coffee table, a floor lamp, a plant, the warm light
-    wbx(g, toon('#d9c4a4', { lit: 0.2 }), liv.x0, liv.x1, y0, y0 + 0.02, liv.z0, liv.z1, 1, { cast: false });
-    bx(g, toon('#f2ece0', { lit: 0.25 }), liv.x0, liv.x1, y1 - 0.43, y1 - 0.42, liv.z0, liv.z1, { cast: false });
-    bx(g, toon('#e9e2d4', { lit: 0.3 }), liv.x0, liv.x1, y0, y1 - 0.42, liv.z1 - 0.02, liv.z1, { cast: false });
-    bx(g, m.cushion, 16.6, 20.2, y0, y0 + 0.42, 25.4, 26.2, { bevel: 0.05 }); bx(g, m.cushion, 16.6, 20.2, y0 + 0.42, y0 + 0.8, 25.95, 26.25, { bevel: 0.05 }); bx(g, m.cushion, 16.6, 17.4, y0, y0 + 0.42, 24.2, 25.4, { bevel: 0.05 });
-    bx(g, toon('#9a8c7a'), 17.6, 20.4, y0 + 0.02, y0 + 0.03, 23.6, 25.2, { cast: false });
-    cy(g, toon('#ece6da'), 18.7, y0, 24.4, 0.5, 0.36, 24); cy(g, toon('#2f3236'), 19.4, y0, 24.0, 0.35, 0.3, 20);
-    cyl2(g, m.dark, [21.6, y0, 25.8], [21.6, y0 + 1.5, 25.8], 0.015, 5); sph(g, glow('#ffe0b0', 1.8), 0.15, 21.6, y0 + 1.55, 25.8);
-    { const p = makeRhapisPot({ seed: 61 }); p.position.set(16.4, y0, 23.1); g.add(p); }
-    plight(g, '#ffd9a8', 9, 9, 19.0, y1 - 0.7, 24.6, 'villa');
-    // the glass wall: three big panes in thin dark frames, the middle one slid open
-    {
-      const zg = GF.z0 + 0.06, x0 = liv.x0 + 0.02, x1 = liv.x1, w = (x1 - x0) / 3, gh = y1 - 0.42 - y0;
-      const glass = makeGlass(2.2, 2.9, 81, { alpha: 0.08, drops: 0.35, tint: 0xeaf4f6 });
-      for (let k = 0; k < 3; k++) {
-        const a = x0 + k * w - (k === 1 ? 0.0 : 0), z = k === 1 ? zg + 0.07 : zg;
-        const xa = k === 1 ? a + w * 0.55 : a;
-        bx(g, m.dark, xa, xa + w, y0, y0 + 0.04, z - 0.03, z + 0.03, { cast: false });
-        bx(g, m.dark, xa, xa + w, y0 + gh - 0.04, y0 + gh, z - 0.03, z + 0.03, { cast: false });
-        [xa, xa + w].forEach((x) => bx(g, m.dark, x - 0.025, x + 0.025, y0, y0 + gh, z - 0.03, z + 0.03, { cast: false }));
-        const gp = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.05, gh - 0.08), glass); gp.position.set(xa + w / 2, y0 + gh / 2, z); gp.userData.noLine = true; g.add(gp); reg.noRefl.push(gp);
-      }
-    }
-    // a tall window in the west end wall (Hoshizora-dori side) into the living room
-    bx(g, m.dark, GF.x0 - 0.03, GF.x0 + 0.01, y0 + 0.35, y1 - 0.6, 23.3, 25.5, { cast: false });
-    pl(g, glow('#ffe3b8', 0.85, { cat: 'iza', off: '#7b8794' }), 2.1, y1 - 0.95 - y0 - 0.1, GF.x0 - 0.032, (y0 + 0.35 + y1 - 0.6) / 2, 24.4, -Math.PI / 2, 0);
-    [24.4].forEach((z) => bx(g, m.dark, GF.x0 - 0.05, GF.x0 - 0.03, y0 + 0.35, y1 - 0.6, z - 0.02, z + 0.02, { cast: false }));
-    // the entrance: recessed under a thin canopy, timber-clad walls, a tall pivot door, steps, wall lights
-    {
-      const ex0 = 22.6, ex1 = 25.7, ez = GF.z0 + 0.8;
-      wbx(g, m.slat, ex0, ex1, y0, y1 - 0.42, ez - 0.04, ez, 1);
-      wbx(g, m.slat, ex0, ex0 + 0.04, y0, y1 - 0.42, GF.z0, ez, 1); wbx(g, m.slat, ex1 - 0.04, ex1, y0, y1 - 0.42, GF.z0, ez, 1);
-      wbx(g, m.white, ex1, GF.x1, y0, y1, GF.z0, ez, 1.5); // the white wall right of the entrance
-      bx(g, toon('#7a5236', { lit: 0.08 }), 23.7, 24.9, y0, y0 + 2.6, ez - 0.07, ez - 0.04, { bevel: 0.01 }); // door
-      bx(g, toon('#c9a24a'), 24.7, 24.74, y0 + 0.6, y0 + 1.9, ez - 0.12, ez - 0.07, { cast: false }); // long pull
-      [y0 + 0.02, y0 + 0.14].forEach((yy, k) => bx(g, m.tile, 23.2 - k * 0.2, 25.4 + k * 0.2, YL - 0.0, yy + 0.06, GF.z0 - 0.3 - k * 0.3, ez - 0.04, { cast: false }));
-      wbx(g, m.fascia, 22.4, 26.0, y1 - 0.5, y1 - 0.36, 21.2, GF.z0 + 0.05, 1); // canopy slab
-      [23.3, 24.3, 25.2].forEach((x) => { cy(g, glow('#ffe8c8', 2.0, { off: '#e6e0d2' }), x, y1 - 0.515, 21.9, 0.05, 0.01, 12); halo(g, x, y1 - 0.6, 21.9, '#ffdcae', 0.9, 0.3); });
-      [ex0 + 0.25, ex1 - 0.25].forEach((x) => { bx(g, m.dark, x - 0.04, x + 0.04, y0 + 1.6, y0 + 2.0, ez - 0.07, ez - 0.04, { cast: false }); bx(g, glow('#ffe2b8', 1.8, { off: '#cfc8b8' }), x - 0.03, x + 0.03, y0 + 1.62, y0 + 1.98, ez - 0.075, ez - 0.07, { cast: false }); });
-      // a tall narrow window on the white wall to the right
-      bx(g, m.dark, 26.4, 26.9, y0 + 0.4, y1 - 0.6, GF.z0 - 0.03, GF.z0 + 0.02, { cast: false });
-      pl(g, glow('#ffe3b8', 0.9, { cat: 'iza', off: '#7b8794' }), 0.42, y1 - 1.08 - y0, 26.65, (y0 + 0.4 + y1 - 0.6) / 2, GF.z0 - 0.032, Math.PI, 0);
-    }
-    // upper storey: set back; a long window, a timber screen panel with a slit window, the roof terrace in front
-    {
-      wbx(g, m.white, UF.x0, UF.x1, y1, y2, UF.z0, UF.z1, 1.5);
-      bx(g, m.fascia, UF.x0 - 0.08, UF.x1 + 0.08, y2 - 0.02, y2 + 0.16, UF.z0 - 0.08, UF.z1 + 0.08, { bevel: 0.01 });
-      bx(g, toon('#c9cbc8'), UF.x0 + 0.1, UF.x1 - 0.1, y2 + 0.16, y2 + 0.2, UF.z0 + 0.1, UF.z1 - 0.1, { cast: false }); // roof
-      // the long window across the front
-      const wx0 = 18.6, wx1 = 23.4, wy0 = y1 + 0.35, wy1 = y2 - 0.45;
-      bx(g, m.dark, wx0 - 0.05, wx1 + 0.05, wy0 - 0.05, wy1 + 0.05, UF.z0 - 0.03, UF.z0 + 0.01, { cast: false });
-      pl(g, glow('#ffe6c4', 0.85, { cat: 'iza', off: '#7b8794' }), wx1 - wx0, wy1 - wy0, (wx0 + wx1) / 2, (wy0 + wy1) / 2, UF.z0 - 0.032, Math.PI, 0);
-      const ug = new THREE.Mesh(new THREE.PlaneGeometry(wx1 - wx0, wy1 - wy0), makeGlass(4.8, 2.3, 82, { alpha: 0.12, drops: 0.3, tint: 0xeaf4f6 })); ug.position.set((wx0 + wx1) / 2, (wy0 + wy1) / 2, UF.z0 - 0.04); ug.rotation.y = Math.PI; ug.userData.noLine = true; g.add(ug); reg.noRefl.push(ug);
-      [20.2, 21.8].forEach((x) => bx(g, m.dark, x - 0.02, x + 0.02, wy0, wy1, UF.z0 - 0.05, UF.z0 - 0.02, { cast: false }));
-      // the timber screen panel with a slit window
-      wbx(g, m.slat, 23.9, UF.x1 + 0.02, y1 + 0.1, y2 - 0.05, UF.z0 - 0.08, UF.z0, 1);
-      bx(g, m.dark, 26.6, 26.9, y1 + 0.4, y2 - 0.4, UF.z0 - 0.1, UF.z0 - 0.08, { cast: false });
-      // side + back windows
-      [[UF.x0, 24.5, 26.5, -1], [UF.x1, 25.0, 27.6, 1]].forEach(([x, z0, z1, s]) => { bx(g, m.dark, x + (s < 0 ? -0.03 : 0), x + (s < 0 ? 0 : 0.03), y1 + 0.5, y2 - 0.5, z0, z1, { cast: false }); pl(g, glow('#ffe3b8', 0.8, { cat: 'iza', off: '#7b8794' }), z1 - z0 - 0.1, y2 - y1 - 1.1, x + s * 0.032, (y1 + y2) / 2, (z0 + z1) / 2, s * Math.PI / 2, 0); });
-      [[18.8, 22.0], [24.0, 26.8]].forEach(([x0, x1]) => { bx(g, m.dark, x0, x1, y1 + 0.6, y2 - 0.6, UF.z1, UF.z1 + 0.03, { cast: false }); pl(g, glow('#ffe3b8', 0.8, { cat: 'iza', off: '#7b8794' }), x1 - x0 - 0.1, y2 - y1 - 1.3, (x0 + x1) / 2, (y1 + y2) / 2, UF.z1 + 0.032, 0, 0); });
-      [[17.0, 20.0], [22.8, 24.6]].forEach(([x0, x1]) => { bx(g, m.dark, x0, x1, y0 + 0.9, y1 - 0.6, GF.z1, GF.z1 + 0.03, { cast: false }); pl(g, glow('#ffe3b8', 0.8, { cat: 'iza', off: '#7b8794' }), x1 - x0 - 0.1, y1 - y0 - 1.6, (x0 + x1) / 2, (y0 + 0.9 + y1 - 0.6) / 2, GF.z1 + 0.032, 0, 0); });
-      // the roof terrace on the ground floor roof: timber deck, glass railing with a slim cap, two loungers
-      wbx(g, m.plank, GF.x0 + 0.1, UF.x0, y1 + 0.12, y1 + 0.16, GF.z0 + 0.1, GF.z1 - 0.1, 1.2, { cast: false });
-      wbx(g, m.plank, UF.x0, GF.x1 - 0.1, y1 + 0.12, y1 + 0.16, GF.z0 + 0.1, UF.z0, 1.2, { cast: false });
-      const rail = new THREE.MeshBasicMaterial({ color: 0xdfeef2, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
-      const glassRail = (x0, x1, z0, z1) => { const L = Math.hypot(x1 - x0, z1 - z0); const p2 = new THREE.Mesh(new THREE.PlaneGeometry(L, 0.95), rail); p2.position.set((x0 + x1) / 2, y1 + 0.62, (z0 + z1) / 2); p2.rotation.y = Math.atan2(-(z1 - z0), x1 - x0); p2.userData.noLine = true; g.add(p2); cyl2(g, m.fascia, [x0, y1 + 1.1, z0], [x1, y1 + 1.1, z1], 0.025, 6); };
-      glassRail(GF.x0 + 0.05, GF.x1 - 0.05, GF.z0 + 0.05, GF.z0 + 0.05); glassRail(GF.x0 + 0.05, GF.x0 + 0.05, GF.z0 + 0.05, GF.z1 - 0.05);
-      [[16.4, 27.0], [16.4, 28.4]].forEach(([x, z]) => { bx(g, m.white, x - 0.32, x + 0.32, y1 + 0.16, y1 + 0.42, z - 0.9, z + 0.9, { bevel: 0.03 }); bx(g, m.cushion, x - 0.28, x + 0.28, y1 + 0.42, y1 + 0.5, z - 0.85, z + 0.85, { bevel: 0.03 }); });
-      { const p = makeRhapisPot({ seed: 77 }); p.position.set(16.3, y1 + 0.16, 23.0); g.add(p); }
-    }
-    // the roofs and the canopy take petals / leaves / snow
-    const roofs = (id, x0, x1, z0, z1, y, o = {}) => {
-      const xc = (x0 + x1) / 2, half = (x1 - x0) / 2;
-      return [
-        { id: id + 'W', a: [xc, z1], b: [xc, z0], n: [-1, 0], D: half, y, drop: 0.02, w: { petal: 0.5, leaf: 0.5 }, snow: 0.14, ridge: true, ...o },
-        { id: id + 'E', a: [xc, z0], b: [xc, z1], n: [1, 0], D: half, y, drop: 0.02, w: { petal: 0.5, leaf: 0.5 }, snow: 0.14, ridge: true, ...o },
-      ];
-    };
-    (reg.extraRoofs ||= []).push(
-      ...roofs('villaUp', UF.x0, UF.x1, MZ - UF.z1, MZ - UF.z0, y2 + 0.2),
-      ...roofs('villaTerr', GF.x0 + 0.1, UF.x0, MZ - GF.z1 + 0.1, MZ - GF.z0 - 0.1, y1 + 0.16),
-      { id: 'villaCanopy', a: [26.0, MZ - GF.z0], b: [22.4, MZ - GF.z0], n: [0, 1], D: GF.z0 - 21.2, y: y1 - 0.36, drop: 0.02, w: { petal: 0.4, leaf: 0.4 }, snow: 0.08 },
-    );
-    // nothing inside the ground floor takes snow (world z)
-    noSnowBox(GF.x0 + 0.1, MZ - GF.z1 + 0.1, GF.x1 - 0.1, MZ - GF.z0 - 0.04, y1 - 0.1);
-  }
+  /* ---- the house (town/villaHouse.js) ---- */
+  const house = buildVillaHouse(g, root, { YL, MZ });
 
   /* ---- rain: the paving, the stepping stones and the deck darken as they soak, shallow puddles shine on the
      terrace (the town's wetness / puddle levels, reg.groundU) ---- */
@@ -440,7 +428,7 @@ export function buildVilla(parent) {
     const soft = ct('puddle', 128, 128, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
     const sheen = new THREE.MeshBasicMaterial({ color: 0x9fb6cc, alphaMap: soft, transparent: true, opacity: 0, depthWrite: false });
     const sky = new THREE.Color(0x9fb6cc), nightC = new THREE.Color(0x2c3a52);
-    [[17.2, 21.6, 1.5, 0.45], [20.6, 21.4, 1.1, 0.35], [27.0, 21.8, 0.9, 0.4], [24.1, 22.2, 0.8, 0.3], [21.6, 30.2, 1.6, 0.35]].forEach(([x, z, w, d], i) => {
+    [[17.0, 21.4, 1.2, 0.35], [20.4, 21.35, 1.0, 0.3], [16.8, 23.0, 0.5, 0.4], [21.6, 30.3, 1.6, 0.35]].forEach(([x, z, w, d], i) => {
       const pm = new THREE.Mesh(new THREE.CircleGeometry(1, 20), sheen); pm.rotation.x = -Math.PI / 2; pm.rotation.z = i; pm.scale.set(w, d, 1); pm.position.set(x, YL + 0.034, z); pm.userData.noLine = true; g.add(pm); reg.noRefl.push(pm);
     });
     let last = -1;
@@ -454,6 +442,6 @@ export function buildVilla(parent) {
 
   bins.flush();
   root.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) o.castShadow = false; });
-  reg.villa = { lot: VILLA_LOT };
+  reg.villa = { lot: VILLA_LOT, entrance: house.entrance };
   return root;
 }

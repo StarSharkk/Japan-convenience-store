@@ -12,17 +12,18 @@ import { OUTLINE } from './town/layout.js';
    Roofs / awnings occlude the particles through the shared box list.
    ==================================================================================================== */
 
+const NBOX = 16; // occluder slots
 const BOX_GLSL = /* glsl */ `
-uniform vec4 uBoxes[8]; uniform float uBoxH[8];
+uniform vec4 uBoxes[${NBOX}]; uniform float uBoxH[${NBOX}];
 float roofHidden(vec3 p, float lowY){
   float v = 0.0;
-  for(int i=0;i<8;i++){ vec4 b=uBoxes[i]; if(p.x>b.x && p.x<b.y && p.z>b.z && p.z<b.w && lowY<uBoxH[i]) v=1.0; }
+  for(int i=0;i<${NBOX};i++){ vec4 b=uBoxes[i]; if(p.x>b.x && p.x<b.y && p.z>b.z && p.z<b.w && lowY<uBoxH[i]) v=1.0; }
   return v;
 }`;
 
 function boxUniforms(occluders) {
   const boxes = [], hs = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < NBOX; i++) {
     const o = occluders[i];
     boxes.push(o ? new THREE.Vector4(o[0], o[1], o[2], o[3]) : new THREE.Vector4(0, 0, 0, 0));
     hs.push(o ? o[4] : 0);

@@ -73,9 +73,14 @@ export function buildWorld(scene, renderer, refl) {
       [-12.35, -7.8, -6.75, 1.98, 4.4], // bakery (with its canopy)
       [-29.3, -24.5, -7.3, 5.3, 7.0], // the izakaya in the west block (with its front eave)
       [-23.3, -18.3, -1.2, 4.7, 6.4], // the corner store (with its awning)
-      [15.85, 27.75, 15.25, 22.35, 3.7], // the villa's ground floor (town/villa.js)
+      [15.15, 29.05, 14.65, 21.65, 3.9], // the villa's back wing under its shed roofs + eaves (town/villaHouse.js)
+      [22.55, 29.05, 20.4, 24.2, 3.3], // its dining wing + the deck canopy
     ]),
     [14.45, 21.95, -6.95, 2.75, 5.6], // florist greenhouse roof
+    [-11.7, -4.3, 13.9, 20.85, 4.35], // the café (town/cafe.js) with its front hood
+    [-2.1, 4.5, 14.5, 19.7, 3.7], // the bookstore (town/bookstore.js)
+    [1.6, 4.55, 19.6, 20.75, 3.45], // the bookstore's awning
+    [-41.7, -19.5, 13.6, 20.5, 7.6], // the street-house row (town/streetRow.js) with its awnings + eave on the south fronts
   ]);
   createDrips(world, drips);
 

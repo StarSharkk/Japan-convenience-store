@@ -6,6 +6,11 @@ import { buildTrain } from './train.js';
 import { buildFlorist } from './florist.js';
 import { buildZakkaya } from './zakkaya.js';
 import { buildVilla } from './villa.js';
+import { buildCafe } from './cafe.js';
+import { buildBookstore } from './bookstore.js';
+import { buildSouthStreet } from './southstreet.js';
+import { buildPlaza } from './plaza.js';
+import { buildStreetRow } from './streetRow.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -32,7 +37,15 @@ export function buildTown(world, renderer, refl) {
   const zakkaya = buildZakkaya(world);
   // 星野邸: the large residence filling the south-east block (front garden + white modern villa)
   const villa = buildVilla(world);
+  // the south block facing the sakura plaza: 海辺の珈琲店 (COFFEE & BAKERY) + 海辺の本屋 (bookstore), one storey each
+  const cafe = buildCafe(world);
+  const bookstore = buildBookstore(world);
+  const southStreet = buildSouthStreet(world);
+  // 街屋の並び: four narrow town buildings on the south side of Kaigan-dori (block sw1)
+  const streetRow = buildStreetRow(world);
   setCat('street');
+  // 桜広場: the sakura plaza in front of the two shops (after greenery: its trees join the petal / leaf piles)
+  const plaza = buildPlaza(world);
   // the houses / shops kit (houses.js) is kept but switched off for now; ?houses=1 shows it
   let houses = null;
   if (new URLSearchParams(location.search).get('houses') === '1') {
@@ -40,6 +53,6 @@ export function buildTown(world, renderer, refl) {
     houses = buildHouses(world);
   }
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }

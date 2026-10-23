@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, canvasTex, rng, FONT, RAMP, patchToon } from '../core.js';
 import { makeGroundMaterial } from '../ground.js';
-import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD } from './layout.js';
+import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD, SAKURA_PLAZA, PLAZA_CENTRE, PLAZA_TREES, PLAZA_BENCHES, PLAZA_SWING, PLAZA_DRAINS, SW_ROW_PAD } from './layout.js';
 import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
 import { IZA_AWAY } from '../site.js';
 
@@ -105,7 +105,7 @@ function drawTown(g) {
       g.fillStyle = pave; g.fill();
       PLOTS.filter((q) => q.block === b.id).forEach((q) => {
         const [x0, x1, z0, z1] = q.rect;
-        g.fillStyle = q.type === 'public' ? COL.grass : '#2f3548'; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
+        g.fillStyle = q.id === 'C-plaza' ? pave : q.type === 'public' ? COL.grass : '#2f3548'; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
         for (let i = 0; i < 6; i++) blob(x0 + R() * (x1 - x0), z0 + R() * (z1 - z0), 0.4 + R() * 1.0, 'rgba(0,0,10,0.18)');
       });
     }
@@ -190,6 +190,55 @@ function drawTown(g) {
     g.restore();
   });
 
+  /* 街屋の並び (town/streetRow.js): the pavement along Kaigan-dori (the backs), concrete under the houses, the front
+     pavement on the lane side (the fronts face south), the parking corner's asphalt at the west end (no random numbers) */
+  {
+    const [x0, x1, z0, z1] = SW_ROW_PAD;
+    g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'sw1').poly); g.clip();
+    g.fillStyle = '#3f4554'; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); // concrete
+    const pv = tilePattern(g, '#4a5164', '#454c5f', 0.4);
+    g.fillStyle = pv; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, 1.7 * K); // Kaigan-dori's pavement
+    g.fillRect(X(x0), Z(z1 - 0.2), (x1 - x0) * K, 4.5 * K); // the front pavement down to the lane
+    g.fillStyle = '#2f3442'; g.fillRect(X(x0), Z(15.4), 5.6 * K, (z1 - 0.2 - 15.4) * K); // the parking corner
+    g.strokeStyle = 'rgba(20,22,30,0.5)'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(-41.8), Z(19.45)); g.lineTo(X(-19.4), Z(19.45)); g.stroke(); // the building line
+    g.restore();
+  }
+
+  /* 桜広場 (town/plaza.js): light stone slabs over the south part of the south block up to the kerbs - east-west in the
+     middle, north-south in the two cherry groves (a quiet change of direction marks the rest areas); round the
+     fountain a radial ring with a slotted ring drain and a soft contact shadow at the pool's foot; the swing's fine
+     gravel pad, gravel tree pits, square drain grates, soft shadows under the benches (no random numbers used) */
+  {
+    const [x0, x1, z0, z1] = SAKURA_PLAZA, [cx, cz] = PLAZA_CENTRE;
+    g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'south').poly); g.clip();
+    const slabs = (vertical) => { // light stone slabs, 0.6 x 0.3 m in running bond, soft joints
+      const a = Math.round(0.6 * K), b = Math.round(0.3 * K), w = vertical ? b : a, h = vertical ? a : b;
+      const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
+      const t = c.getContext('2d'), cols = ['#8a8279', '#857d74', '#8e867c', '#827a71'];
+      const cells = vertical ? [[0, 0, 0], [0, h, 1], [w, -h / 2, 2], [w, h / 2, 3], [w, h * 1.5, 0]] : [[0, 0, 0], [w, 0, 1], [-w / 2, h, 2], [w / 2, h, 3], [w * 1.5, h, 0]];
+      cells.forEach(([x, y, k]) => { t.fillStyle = cols[k]; t.fillRect(x, y, w, h); t.strokeStyle = 'rgba(40,32,26,0.3)'; t.lineWidth = 1; t.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); });
+      return g.createPattern(c, 'repeat');
+    };
+    g.fillStyle = slabs(false); g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
+    g.fillStyle = slabs(true); [[x0, -8.6], [4.25, x1]].forEach(([a, b]) => g.fillRect(X(a), Z(z0), (b - a) * K, (z1 - z0) * K));
+    g.strokeStyle = 'rgba(40,32,26,0.35)'; g.lineWidth = 2; [-8.6, 4.25].forEach((x) => { g.beginPath(); g.moveTo(X(x), Z(z0)); g.lineTo(X(x), Z(z1)); g.stroke(); });
+    // the fountain surround: radial slabs out to r 2.8, a ring drain, the contact shadow
+    const circ = (r, fill, stroke, lw = 3) => { g.beginPath(); g.arc(X(cx), Z(cz), r * K, 0, Math.PI * 2); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); } };
+    circ(2.8, '#857c72', 'rgba(40,32,26,0.45)');
+    for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; g.beginPath(); g.moveTo(X(cx + Math.cos(a) * 1.62), Z(cz + Math.sin(a) * 1.62)); g.lineTo(X(cx + Math.cos(a) * 2.8), Z(cz + Math.sin(a) * 2.8)); g.strokeStyle = 'rgba(40,32,26,0.26)'; g.lineWidth = 2; g.stroke(); }
+    circ(2.2, null, 'rgba(40,32,26,0.32)', 2);
+    circ(2.62, null, '#3d3832', 6); // the slotted ring drain
+    for (let i = 0; i < 90; i++) { const a = (i / 90) * Math.PI * 2; g.fillStyle = 'rgba(150,140,128,0.9)'; g.fillRect(X(cx + Math.cos(a) * 2.62) - 1, Z(cz + Math.sin(a) * 2.62) - 1, 2, 2); }
+    { const gr = g.createRadialGradient(X(cx), Z(cz), 1.55 * K, X(cx), Z(cz), 2.05 * K); gr.addColorStop(0, 'rgba(20,16,12,0.5)'); gr.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = gr; g.beginPath(); g.arc(X(cx), Z(cz), 2.05 * K, 0, Math.PI * 2); g.fill(); }
+    // the swing's fine gravel pad inside a stone edge
+    { const [a, b, c, d] = PLAZA_SWING.pad; g.fillStyle = '#7d756b'; g.fillRect(X(a), Z(c), (b - a) * K, (d - c) * K); for (let i = 0; i < 160; i++) { const u = (i * 0.618034) % 1, v = (i * 0.754877) % 1; g.fillStyle = i % 2 ? 'rgba(150,140,128,0.35)' : 'rgba(50,44,38,0.2)'; g.fillRect(X(a + u * (b - a)) - 1, Z(c + v * (d - c)) - 1, 2, 2); } g.strokeStyle = '#9a9086'; g.lineWidth = 5; g.strokeRect(X(a), Z(c), (b - a) * K, (d - c) * K); }
+    // gravel tree pits, drain grates, soft contact shadows under the benches
+    PLAZA_TREES.forEach(([x, z, , , r]) => { g.beginPath(); g.arc(X(x), Z(z), (r + 0.1) * K, 0, Math.PI * 2); g.fillStyle = '#3a332f'; g.fill(); for (let i = 0; i < 40; i++) { const a = i * 2.39996, rr = r * Math.sqrt((i + 0.5) / 40); g.fillStyle = i % 2 ? 'rgba(120,110,100,0.5)' : 'rgba(20,16,14,0.4)'; g.fillRect(X(x + Math.cos(a) * rr) - 2, Z(z + Math.sin(a) * rr) - 2, 4, 4); } });
+    PLAZA_DRAINS.forEach(([x, z]) => { g.fillStyle = '#4a4540'; g.fillRect(X(x - 0.22), Z(z - 0.22), 0.44 * K, 0.44 * K); g.fillStyle = '#1c1916'; for (let k = 0; k < 6; k++) g.fillRect(X(x - 0.18 + k * 0.066), Z(z - 0.18), 0.03 * K, 0.36 * K); });
+    PLAZA_BENCHES.forEach(([x, z]) => { const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), 1.0 * K); gr.addColorStop(0, 'rgba(20,16,12,0.28)'); gr.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = gr; g.fillRect(X(x - 1), Z(z - 1), 2 * K, 2 * K); });
+    g.restore();
+  }
+
   /* rail corridor: gravel shoulder under the track + the footpath over the sando crossing */
   g.save();
   BLOCKS.filter((b) => b.surf === 'verge' && b.id.startsWith('corr')).forEach((b) => { polyPath(g, b.poly); });
@@ -213,7 +262,7 @@ function drawTown(g) {
   [[-44, -12], [12, 32]].forEach(([za, zb]) => {
     gutter(7.5, 7.85, za, zb); gutter(11.65, 12, za, zb);
     line(7.95, za, 7.95, zb, W_, 0.1); line(11.55, za, 11.55, zb, W_, 0.1);
-    dash(9.75, za, 9.75, zb, 1.6, 1.4, W_, 0.12, (x, z) => (z > -21.2 && z < -17.3) || (z > -15.6 && z < -11.4) || (z > 11.5 && z < 15.2));
+    dash(9.75, za, 9.75, zb, 1.6, 1.4, W_, 0.12, (x, z) => (z > -21.2 && z < -17.3) || (z > -15.6 && z < -11.4) || (z > 11.5 && z < 15.2) || (z > 25.3 && z < 27.7));
   });
   // Kaigan-dori (R2)
   [[-48, -12], [12, 36]].forEach(([xa, xb]) => {
@@ -238,6 +287,7 @@ function drawTown(g) {
   const zebraZ = (x0, x1, z0, z1) => { for (let z = z0 + 0.05; z < z1 - 0.2; z += 0.62) rect(x0 + 0.25, x1 - 0.25, z, z + 0.34, W_); };
   zebraZ(5.4, 7.2, -15, -12); zebraZ(12.3, 14.1, -15, -12); // across Kita-dori either side of R1
   zebraX(7.5, 12, 12.6, 14.4); // across R1 south of the corner
+  zebraX(7.5, 12, 25.6, 27.4); zebraX(-16.5, -13.5, 25.6, 27.4); // from the sakura plaza (town/plaza.js) to the blocks either side
   zebraZ(-19.2, -17.4, 6.5, 12); zebraZ(27.4, 29.2, 6.5, 12); // across Kaigan-dori
   // stop lines + 止まれ
   const tomare = (cx, cz, ang) => {

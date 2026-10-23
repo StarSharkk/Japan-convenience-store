@@ -31,19 +31,21 @@ export const FOLIAGE = [];
 export function setFoliageDensity(f) { FOLIAGE.density = f; FOLIAGE.forEach((m) => (m.count = Math.max(1, Math.floor(m.userData.total * f * (m.userData.lod ?? 1))))); }
 FOLIAGE.density = 1;
 
-function leafMaterial(blossom, dropK) {
+/** pink: an optional per-tree tint of the blossom colour ([r, g, b], neutral by default: deep / light / pink-white trees) */
+function leafMaterial(blossom, dropK, pink = null) {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: RAMP, side: THREE.DoubleSide, emissive: '#0a241d' });
   const bl = { value: blossom ? 1 : 0 };
   const dk = { value: dropK };
+  const pt = { value: new THREE.Vector3(...(pink || [1, 1, 1])) };
   m.userData.blossomU = bl;
   m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uSeasonW: SEASON_U.W, uDrop: SEASON_U.drop, uSakura: SEASON_U.sakura, uBlossom: bl, uDropK: dk, uSnow: SNOW_U, uTint: SEASON_U.tint, uBGlow: SEASON_U.glow });
+    Object.assign(sh.uniforms, { uSeasonW: SEASON_U.W, uDrop: SEASON_U.drop, uSakura: SEASON_U.sakura, uBlossom: bl, uDropK: dk, uPinkT: pt, uSnow: SNOW_U, uTint: SEASON_U.tint, uBGlow: SEASON_U.glow });
     sh.vertexShader = sh.vertexShader
       .replace('void main() {', 'uniform float uDrop; uniform float uDropK; varying float vRnd;\nvoid main() {')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n vRnd = fract(sin(dot(instanceMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453);')
       .replace('#include <project_vertex>', '#include <project_vertex>\n if (vRnd < uDrop * uDropK) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);');
     sh.fragmentShader = sh.fragmentShader
-      .replace('uniform vec3 diffuse;', 'uniform vec3 diffuse; uniform vec4 uSeasonW; uniform float uBlossom; uniform float uSakura; uniform float uSnow; uniform vec3 uTint; uniform float uBGlow; varying float vRnd;')
+      .replace('uniform vec3 diffuse;', 'uniform vec3 diffuse; uniform vec4 uSeasonW; uniform float uBlossom; uniform vec3 uPinkT; uniform float uSakura; uniform float uSnow; uniform vec3 uTint; uniform float uBGlow; varying float vRnd;')
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
@@ -54,7 +56,7 @@ function leafMaterial(blossom, dropK) {
            vec3 spring = mix(base, vec3(lum * 0.7, lum * 1.45 + 0.012, lum * 0.55), 0.8);
            // cherry blossom: ~90% of the leaves become pink / pink-white, brighter near the leaf tips
            float blAmt = uBlossom * step(0.1, fract(vRnd * 7.3)) * max(uSeasonW.x, uSakura);
-           vec3 pink = mix(vec3(0.95, 0.5, 0.68), vec3(1.0, 0.88, 0.93), fract(vRnd * 3.1)) * (0.42 + lum * 5.4);
+           vec3 pink = mix(vec3(0.95, 0.5, 0.68), vec3(1.0, 0.88, 0.93), fract(vRnd * 3.1)) * (0.42 + lum * 5.4) * uPinkT;
            spring = mix(spring, pink, blAmt);
            gBl = blAmt; gPink = pink;
            // autumn: gold / orange / red-brown / brown, almost no green left
@@ -87,6 +89,7 @@ export const LEAF_PALETTES = {
   deep: ['#16332b', '#25493c', '#376553', '#55876f'],
   teal: ['#14323a', '#224a54', '#34687a', '#527f8f'],
   grey: ['#233d35', '#35544a', '#4d7164', '#6e9286'],
+  maple: ['#2c3b1e', '#425a26', '#5d7a30', '#7f9c3c'], // a lighter, yellower green (Japanese maple: red in autumn via the shader)
 };
 const BARK = '#433e40';
 
@@ -220,8 +223,8 @@ class Foliage {
       }
     }
   }
-  mesh(castShadow = true, blossom = 0, dropK = 1) {
-    const mat = leafMaterial(blossom, dropK);
+  mesh(castShadow = true, blossom = 0, dropK = 1, pink = null) {
+    const mat = leafMaterial(blossom, dropK, pink);
     const im = new THREE.InstancedMesh(getLeafGeo(), mat, this.leaves.length);
     // random order, so that lowering `count` (quality setting) thins the canopy evenly instead of cutting whole clusters
     const L = this.leaves;
@@ -262,7 +265,7 @@ function crownCore(R, center, rx, ry, rz, color) {
 }
 
 /* ---------------------------------------------------------------- tree */
-export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, palette = 'deep', dens = 1, leafScale = 1, fill = 1, blossom = 0, evergreen = false } = {}) {
+export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, palette = 'deep', dens = 1, leafScale = 1, fill = 1, blossom = 0, evergreen = false, pink = null } = {}) {
   const R = rng(seed * 7919 + 11);
   const root = new THREE.Group();
   const jitter = (a) => (R() - 0.5) * 2 * a;
@@ -363,7 +366,7 @@ export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, pa
     const c = new THREE.Vector3(cen.x + Math.cos(a) * half.x * 0.7, mn.y + baseR * 0.55, cen.z + Math.sin(a) * half.z * 0.7);
     place(c, baseR * (0.6 + R() * 0.25), null);
   }
-  root.add(F.mesh(true, blossom, evergreen ? 0.12 : 1)); // evergreens keep most leaves in winter
+  root.add(F.mesh(true, blossom, evergreen ? 0.12 : 1, pink)); // evergreens keep most leaves in winter
   // NOTE: no solid crown core any more - it showed through as big flat dark lumps. Depth now comes only
   // from real leaves (dark inner masses + bright outer masses).
   root.userData.leafCount = F.leaves.length;

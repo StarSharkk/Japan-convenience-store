@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, rng } from '../core.js';
 import { makeTree, makeShrub, FOLIAGE, SEASON_U } from '../tree.js';
-import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD } from './layout.js';
+import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD, SOUTH_SHOPS_PAD, SAKURA_PLAZA, SW_ROW_PAD } from './layout.js';
 import { IZA_AWAY } from '../site.js';
 
 /* ====================================================================================================
@@ -226,7 +226,11 @@ export function buildGreenery(parent, lake) {
   };
   const bySp = (list) => list.reduce((a, t) => ((a[t.sp] = a[t.sp] || []).push(t), a), {});
   // the large residence's walled lot (town/villa.js) has its own garden: drop what fell inside the wall
-  const inVilla = (p) => p.x > VILLA_PAD[0] - 0.3 && p.x < VILLA_PAD[1] + 0.3 && p.z > VILLA_PAD[2] - 0.3 && p.z < VILLA_PAD[3] + 0.3;
+  // ... and so do the south block's two shops (town/cafe.js, town/bookstore.js) on their paved pad
+  const inVilla = (p) => (p.x > VILLA_PAD[0] - 0.3 && p.x < VILLA_PAD[1] + 0.3 && p.z > VILLA_PAD[2] - 0.3 && p.z < VILLA_PAD[3] + 0.3)
+    || (p.x > SOUTH_SHOPS_PAD[0] && p.x < SOUTH_SHOPS_PAD[1] - 0.1 && p.z > SOUTH_SHOPS_PAD[2] && p.z < SOUTH_SHOPS_PAD[3])
+    || (p.x > SAKURA_PLAZA[0] && p.x < SAKURA_PLAZA[1] && p.z > SAKURA_PLAZA[2] - 0.2 && p.z < SAKURA_PLAZA[3] + 0.5) // town/plaza.js plants its own
+    || (p.x > SW_ROW_PAD[0] && p.x < SW_ROW_PAD[1] && p.z > SW_ROW_PAD[2] - 0.2 && p.z < SW_ROW_PAD[3] + 3.8); // the street-house row + its front pavement (town/streetRow.js)
   trees.splice(0, trees.length, ...trees.filter((p) => !inVilla(p)));
   shrubs.splice(0, shrubs.length, ...shrubs.filter((p) => !inVilla(p)));
   Object.entries(bySp(trees)).forEach(([sp, list]) => instance(extract(makeTree(SPECIES[sp])), list));
@@ -284,7 +288,7 @@ export function buildGreenery(parent, lake) {
       const s = 0.7 + R() * 0.9;
       // the paved lots (corner store, izakaya) grow none: the tuft is sunk out of sight, so the rest of the town's
       // tufts keep exactly their places
-      const paved = (x > ZAK_PAD[0] && x < ZAK_PAD[1] && z > ZAK_PAD[2] && z < ZAK_PAD[3]) || (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.4 && x < IZA_AWAY.rect[1] + 0.9 && z > IZA_AWAY.rect[2] - 0.6 && z < 6.6);
+      const paved = (x > ZAK_PAD[0] && x < ZAK_PAD[1] && z > ZAK_PAD[2] && z < ZAK_PAD[3]) || (x > SW_ROW_PAD[0] && x < SW_ROW_PAD[1] && z > SW_ROW_PAD[2] && z < SW_ROW_PAD[3] + 3.8) || (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.4 && x < IZA_AWAY.rect[1] + 0.9 && z > IZA_AWAY.rect[2] - 0.6 && z < 6.6);
       m4.compose(v.set(x, paved ? -60 : groundY(x, z) - 0.01, z), q.setFromAxisAngle(up, R() * 6.28), sc.set(s, s * (0.7 + R() * 0.6), s));
       tufts.setMatrixAt(n, m4);
       tufts.setColorAt(n, col.setHSL(0.27 + R() * 0.08, 0.35 + R() * 0.2, 0.55 + R() * 0.35));

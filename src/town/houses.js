@@ -321,7 +321,9 @@ const PICK = [
 
 export function buildHouses(parent) {
   const root = grp(parent);
+  const TAKEN = new Set(['B-house-8', 'B-house-9', 'B-house-10']); // the street-house row stands there (town/streetRow.js)
   PICK.forEach(([id, type, kind], i) => {
+    if (TAKEN.has(id)) return;
     const p = PLOTS.find((q) => q.id === id);
     if (!p) return;
     const R = rng(101 + i * 17);
