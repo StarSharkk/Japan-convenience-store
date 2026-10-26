@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SITE, IZA_AWAY } from './site.js';
 import { reg, rng } from './core.js';
-import { inOld, blockAt, groundY, lakeF, RAIL, MAP } from './town/layout.js';
+import { inOld, blockAt, groundY, lakeF, RAIL, MAP, PLAZA_TREES } from './town/layout.js';
 
 /* ====================================================================================================
    Ground accumulation: snow drifts, autumn leaf piles, cherry-petal drifts.
@@ -56,6 +56,16 @@ T([-13.4, -28.5], [-13.4, -23.5], ROAD, [-1, 0], Wl, 'foot of the terrace wall o
 T([-46, -16.05], [-18, -16.05], PAV, [0, 1], Rl, 'rail fence / Kita-dori verge W'); T([-12, -16.05], [5, -16.05], PAV, [0, 1], Rl, 'rail fence / Kita-dori verge'); T([14, -16.05], [30, -16.05], PAV, [0, 1], Rl, 'Kita-dori verge E');
 T([-46, -11.6], [-34, -11.6], 0.98, [0, 1], Wl, 'top of the west slope (Kita-dori)'); T([-28, -11.6], [-18, -11.6], 0.85, [0, 1], Wl, 'top of the west slope (Kita-dori) 2');
 T([-18.9, -40], [-18.6, -27], 0.1, [-1, 0], { leaf: 0.6, petal: 0.8, snow: 0.6 }, 'lake lane guardrail foot');
+// the newer parts of town (y null: the pile sits on the real ground height there)
+const Tn = { leaf: 0.7, petal: 0.75, snow: 0.85 }, Tw = { leaf: 0.55, petal: 0.6, snow: 0.8 };
+T([-46, -12.16], [-17, -12.16], ROAD, [0, -1], G, 'Kita-dori gutter W (north side of the west blocks)', 0.3, 0); T([13, -12.16], [30, -12.16], ROAD, [0, -1], G, 'Kita-dori gutter E', 0.3, 0);
+T([-46.8, 5.12], [-43.6, 5.12], null, [0, 1], Tw, '西の住宅地: house 3 breeze-block wall'); T([-46.5, -10.22], [-34.0, -10.22], null, [0, 1], Tw, '西の住宅地: the block wall on Kita-dori (garden side)');
+T([-46.8, -1.95], [-41.1, -1.95], null, [0, 1], Tw, '西の住宅地: retaining wall foot W'); T([-39.7, -1.95], [-34.6, -1.95], null, [0, 1], Tw, '西の住宅地: retaining wall foot E');
+T([13.28, -26.9], [13.28, -24.3], null, [-1, 0], Tn, '星空町駅: west wall foot'); T([16.2, -28.0], [21.0, -28.0], null, [0, -1], Tn, '星空町駅: along the front (ramp foot)');
+T([12.08, -43.5], [12.08, -29.0], null, [1, 0], Tn, '星空町駅: forecourt edge on Hoshizora-dori'); T([21.5, -29.1], [25.2, -29.1], null, [0, -1], Tw, '星空町駅: bicycle park');
+T([-41.5, 19.55], [-19.8, 19.55], null, [0, 1], Tn, 'street-house row: the front pavement'); T([-13.3, 23.2], [-13.3, 31.6], null, [1, 0], Tn, 'sakura plaza: west edge');
+T([7.3, 23.2], [7.3, 31.6], null, [-1, 0], Tn, 'sakura plaza: east edge'); T([-12.0, 31.75], [7.0, 31.75], null, [0, -1], Tw, 'sakura plaza: south edge');
+T([14.0, 13.85], [29.4, 13.85], null, [0, -1], Tw, 'villa: north wall (outside)'); T([12.3, 14.4], [12.3, 31.0], null, [1, 0], Tw, 'villa: west wall (outside)');
 // point collectors (inside corners): pile hugs both walls
 const CORNERS = [
   { p: [-6.15, -7.15], n: [0.7, 0.7], w: { leaf: 0.4, petal: 0.4, snow: 0.5 } },
@@ -91,6 +101,12 @@ function blockedTown(x, z) {
   if (x > -2.2 && x < 4.6 && z > 14.4 && z < 20.9) return true; // the bookstore (town/bookstore.js) + its deck
   if (x > 13.9 && x < 29.5 && z > 13.7 && z < 31.3 && !(z > 24.2 && x > 18.8 && x < 27.2)) return true; // the villa's lot: piles on the lawn only
   if (IZA_AWAY) { const [x0, x1, z0, z1] = IZA_AWAY.rect; if (x > x0 - 0.3 && x < x1 + 0.3 && z > z0 - 0.3 && z < z1 + 0.3) return true; } // the izakaya in the west block
+  // 西の住宅地 (town/westHomes.js): the four houses + their eaves
+  if ([[-46.9, -41.1, -10.05, -4.7], [-39.75, -34.65, -9.95, -4.7], [-46.75, -41.65, -1.25, 3.95], [-39.45, -35.25, -0.95, 3.75]].some(([a, b, c, d]) => x > a && x < b && z > c && z < d)) return true;
+  // 星空町駅 (town/station.js): the building, its steps + ramp, the bicycle park, the flower bed
+  if (x > 13.2 && x < 21.3 && z > -28.1 && z < -23.0) return true;
+  if (x > 21.55 && x < 25.15 && z > -29.0 && z < -25.6) return true;
+  if (Math.hypot(x - 17.2, z + 30.6) < 1.35) return true;
   if (x < MAP.x0 + 0.6 || x > MAP.x1 - 0.6 || z < MAP.z0 + 0.6 || z > MAP.z1 - 0.6) return true;
   if (Math.abs(z - RAIL.z) < 2.2 && x < 23) return true;
   const b = blockAt(x, z);
@@ -107,18 +123,18 @@ function blockedAny(x, z) {
 /* ---------------------------------------------------------------- per-kind look */
 export const KIND = {
   leaf: {
-    clusters: [9, 14], size: 0.62, lobes: [2, 4], aspect: [1.4, 2.6], height: 0.075,
-    core: 90, tail: 34, loose: 420, flake: [0.1, 0.17], tilt: 0.75, pad: ['#6a3c1c', '#8a4a1e'], padA: 0.62,
+    clusters: [50, 64], size: 0.62, lobes: [2, 4], aspect: [1.4, 2.6], height: 0.075,
+    core: 90, tail: 34, loose: 1300, flake: [0.1, 0.17], tilt: 0.75, pad: ['#6a3c1c', '#8a4a1e'], padA: 0.62,
     palette: ['#7a4a22', '#94561f', '#b56a24', '#c98a2b', '#d27a2a', '#9b3a20', '#7c2a1a', '#a8892f', '#5e3c1f'],
     tree: 0.7,
   },
   petal: {
-    clusters: [9, 14], size: 0.52, lobes: [2, 3], aspect: [1.6, 3.0], height: 0.028,
-    core: 130, tail: 50, loose: 560, flake: [0.065, 0.1], tilt: 0.45, pad: ['#f3aec4', '#f8c3d3'], padA: 0.6,
-    palette: ['#fff0f4', '#ffdbe5', '#ffc8d8', '#f9b6cb', '#f4a3bd', '#ffe6ee'],
+    clusters: [50, 64], size: 0.66, lobes: [2, 3], aspect: [1.6, 3.0], height: 0.032,
+    core: 150, tail: 55, loose: 1700, flake: [0.065, 0.1], tilt: 0.45, pad: ['#f0a2ba', '#f5b5c8'], padA: 0.62,
+    palette: ['#ffe4ec', '#ffd0de', '#fbbacd', '#f6a6bf', '#f095b3', '#ffdae5'], // a step pinker: they read on the pale paving
     tree: 0.8,
   },
-  snow: { clusters: [10, 15], size: 0.55, aspect: [1.5, 3.2], height: 0.2, tree: 0.3 },
+  snow: { clusters: [45, 58], size: 0.55, aspect: [1.5, 3.2], height: 0.2, tree: 0.3 },
 };
 
 /* ---------------------------------------------------------------- flake material (leaves + petals) */
@@ -203,8 +219,8 @@ export function createGroundPiles(parent) {
     reg.noRefl.push(im); parent.add(im);
     kinds[name] = { name, im, pad, u, cap, col, th, cc, amt: 0, hidden: 99, seeded: false };
   };
-  flakeKind('leaf', 0, 2200);
-  flakeKind('petal', 1, 2800);
+  flakeKind('leaf', 0, 13000);
+  flakeKind('petal', 1, 16000);
 
   // snow: one merged, regenerated mesh of soft drifts
   {
@@ -246,7 +262,8 @@ export function createGroundPiles(parent) {
 
   /* ---------------------------------------------------------------- collector sampling */
   const treeSpots = () => (reg.trees || []).map((t) => ({ x: t.center.x, z: t.center.z, rx: Math.max(0.8, t.half.x * 0.8), rz: Math.max(0.6, t.half.z * 0.7) }))
-    .concat(((reg.townGreenery && reg.townGreenery.trees) || []).map((t) => ({ x: t.x, z: t.z, rx: 1.8 * t.s, rz: 1.8 * t.s, town: true })));
+    .concat(((reg.townGreenery && reg.townGreenery.trees) || []).map((t) => ({ x: t.x, z: t.z, rx: 1.8 * t.s, rz: 1.8 * t.s, town: true, cherry: t.sp === 'cherry' })))
+    .concat(PLAZA_TREES.map(([x, z, , , pit]) => ({ x, z, rx: 2.1, rz: 2.1, rin: pit + 0.2, town: true, cherry: true }))); // the sakura plaza's own cherries (town/plaza.js), round their raised pits
 
   /** pick one collector for a pile; returns { x, z, y, t:[tx,tz], n:[nx,nz], hug } */
   function pickSite(kind, R) {
@@ -254,18 +271,20 @@ export function createGroundPiles(parent) {
     const opts = [];
     SEGMENTS.forEach((s) => { const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]); opts.push({ w: s.w[kind] * Math.sqrt(len), s }); });
     CORNERS.forEach((c) => opts.push({ w: c.w[kind] * 1.1, c }));
-    trees.forEach((t) => opts.push({ w: KIND[kind].tree * 1.2, t }));
+    // petals fall from the cherries (a little from anywhere on the wind), leaves from every tree
+    trees.forEach((t) => opts.push({ w: KIND[kind].tree * 1.2 * (kind === 'petal' ? (t.cherry ? 2.6 : 0.12) : 1), t }));
     const tot = opts.reduce((a, o) => a + o.w, 0);
     let r = R() * tot, o = opts[0];
     for (const it of opts) { r -= it.w; if (r <= 0) { o = it; break; } }
     if (o.s) {
       const s = o.s, f = 0.05 + R() * 0.9;
       const tx = s.b[0] - s.a[0], tz = s.b[1] - s.a[1], tl = Math.hypot(tx, tz);
-      return { x: s.a[0] + tx * f, z: s.a[1] + tz * f, y: s.y, t: [tx / tl, tz / tl], n: s.n, hug: 1, off: s.off, maxW: s.maxW || 9 };
+      const x = s.a[0] + tx * f, z = s.a[1] + tz * f;
+      return { x, z, y: s.y ?? groundY(x + s.n[0] * 0.3, z + s.n[1] * 0.3), t: [tx / tl, tz / tl], n: s.n, hug: 1, off: s.off, maxW: s.maxW || 9 };
     }
     if (o.c) { const n = o.c.n; return { x: o.c.p[0], z: o.c.p[1], y: PAV, t: [-n[1], n[0]], n, hug: 1, off: 0.05, corner: true, maxW: 9 }; }
     // under a tree crown (behind the wall on the lawn): no edge to lean on, spread is rounder
-    const a = R() * Math.PI * 2, rr = Math.sqrt(R());
+    const a = R() * Math.PI * 2, k0 = (o.t.rin || 0) / o.t.rx, rr = k0 + (1 - k0) * Math.sqrt(R()); // (outside a raised pit)
     const x = o.t.x + Math.cos(a) * o.t.rx * rr, z = o.t.z + Math.sin(a) * o.t.rz * rr;
     const ang = R() * Math.PI;
     return { x, z, y: o.t.town ? groundY(x, z) : PAV, t: [Math.cos(ang), Math.sin(ang)], n: [-Math.sin(ang), Math.cos(ang)], hug: 0, off: 0, maxW: 9 };
@@ -315,7 +334,7 @@ export function createGroundPiles(parent) {
     const nC = cfg.clusters[0] + Math.floor(R() * (cfg.clusters[1] - cfg.clusters[0] + 1));
     const centres = [];
     let made = 0, guard = 0;
-    while (made < nC && guard++ < 200) {
+    while (made < nC && guard++ < 900) {
       const s = pickSite(K.name, R);
       const big = Math.pow(R(), 1.6); // mostly small piles, now and then a big one
       const size = cfg.size * (0.45 + big * 1.25);
@@ -427,7 +446,7 @@ export function createGroundPiles(parent) {
     const nC = cfg.clusters[0] + Math.floor(R() * (cfg.clusters[1] - cfg.clusters[0] + 1));
     const centres = [];
     let made = 0, guard = 0;
-    while (made < nC && guard++ < 200) {
+    while (made < nC && guard++ < 900) {
       const s = pickSite('snow', R);
       const thin = R() < 0.3; // thin skin of snow vs. a real little drift
       const big = Math.pow(R(), 1.5);

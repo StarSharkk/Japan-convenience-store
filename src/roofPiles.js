@@ -251,7 +251,7 @@ export function createRoofPiles(parent, root) {
     const pad = (S, cu, cv, a, b, ang, alpha, thv) => {
       const base = K.pp.length / 3;
       const ph = [R() * 6.28, R() * 6.28, R() * 6.28];
-      _c.set(cfg.pad[(R() * cfg.pad.length) | 0]);
+      _c.set(cfg.pad[(R() * cfg.pad.length) | 0]).multiplyScalar(leaf ? 0.92 : 0.88); // a touch darker than the flakes: the pile's shaded body
       const ca = Math.cos(ang), sa = Math.sin(ang);
       P(S, cu, cv, 0.004, _w); const cx = _w.x, cy = _w.y, cz = _w.z;
       const push = (u, v, al) => {
@@ -277,12 +277,13 @@ export function createRoofPiles(parent, root) {
     };
     const fsz = () => (cfg.flake[0] + R() * (cfg.flake[1] - cfg.flake[0])) * (leaf ? 0.9 : 1);
     /** one pile: lobes along direction ang, length L, width W, height H; flakes stacked in a dome */
-    const pile = (S, cu, cv, ang, L, W, H, wk, th0, padA = cfg.padA) => {
+    const RPAD = leaf ? 0.6 : 0.42; // roofs: the flakes carry a pile, the pad only gives it a little body (no pink washes)
+    const pile = (S, cu, cv, ang, L, W, H, wk, th0, padA = cfg.padA * RPAD) => {
       const nl = 2 + ((R() * 3) | 0);
       const ca = Math.cos(ang), sa = Math.sin(ang);
       const lobes = Array.from({ length: nl }, () => ({ x: (R() - 0.5) * L * 0.9, y: (R() - 0.5) * W * 0.4, a: (L / nl) * (0.8 + R() * 0.6), b: W * (0.55 + R() * 0.45), h: H * (0.6 + R() * 0.6) }));
-      lobes.forEach((lb) => pad(S, cu + lb.x * ca - lb.y * sa, cv + lb.x * sa + lb.y * ca, lb.a * 1.25, lb.b * 1.2, ang, Math.min(0.95, padA * (0.85 + R() * 0.3)), th0));
-      const n = Math.round((leaf ? 40 : 72) * L * W * 6 * wk);
+      lobes.forEach((lb) => pad(S, cu + lb.x * ca - lb.y * sa, cv + lb.x * sa + lb.y * ca, lb.a * 0.88, lb.b * 0.85, ang, Math.min(0.8, padA * (0.85 + R() * 0.3)), th0));
+      const n = Math.round((leaf ? 58 : 110) * L * W * 6 * wk); // denser: the pile reads as flakes
       for (let k = 0; k < n; k++) {
         const lb = lobes[(R() * nl) | 0];
         const t = R() * Math.PI * 2, rr = Math.sqrt(R());
@@ -294,8 +295,16 @@ export function createRoofPiles(parent, root) {
         put(S, u, v, h, fsz(), cfg.tilt * (0.4 + hk), 0.76 + 0.24 * hk + h * 1.4, th0 + R() * 0.15, cu, cv);
       }
     };
+    // petals come from the cherries, leaves from any tree: roofs near them collect much more
+    const src = ((reg.townGreenery && reg.townGreenery.trees) || []).filter((t) => leaf || t.sp === 'cherry');
+    const nearK = (S) => {
+      if (!src.length) return 1;
+      const c = P(S, S.lu / 2, S.lv / 2, 0, new THREE.Vector3());
+      const d = Math.min(...src.map((t) => Math.hypot(t.x - c.x, t.z - c.z)));
+      return 0.35 + 0.9 * Math.exp(-d / (leaf ? 10 : 8));
+    };
     SURFACES.forEach((S) => {
-      const wk = S.w[K.name] || 0;
+      const wk = Math.min(1.25, (S.w[K.name] || 0) * nearK(S));
       if (!wk) return;
       const area = S.lu * S.lv;
       const big = Math.min(S.lu, S.lv);
@@ -327,12 +336,12 @@ export function createRoofPiles(parent, root) {
         }
       });
       // 2. big open patches across the surface (wind-swept heaps, irregular)
-      const nOpen = Math.round(area * (S.eave ? 0.11 : 0.09) * wk);
+      const nOpen = Math.round(area * (S.eave ? 0.08 : 0.07) * wk);
       for (let k = 0; k < nOpen; k++) {
         const cu = 0.2 + R() * (S.lu - 0.4), cv = 0.15 + R() * (S.lv - 0.3);
         if (!inside(S, cu, cv, 0.05)) continue;
-        const L = Math.min(big * 0.8, 0.5 + Math.pow(R(), 1.5) * 1.5), W = L * (0.45 + R() * 0.4);
-        pile(S, cu, cv, R() * Math.PI, L, W, (leaf ? 0.05 : 0.025) * (0.5 + R()), wk, 0.25 + R() * 0.4, cfg.padA * 0.85);
+        const L = Math.min(big * 0.7, 0.35 + Math.pow(R(), 1.6) * 0.95), W = L * (0.45 + R() * 0.4);
+        pile(S, cu, cv, R() * Math.PI, L, W, (leaf ? 0.05 : 0.025) * (0.5 + R()), wk, 0.25 + R() * 0.4, cfg.padA * RPAD * 0.6);
       }
       // 3. dense loose layer everywhere (denser where the patches are, thinner towards the open edges)
       const nLoose = Math.round(area * (leaf ? 34 : 70) * wk * (S.eave ? 1.35 : 1));
@@ -356,15 +365,15 @@ export function createRoofPiles(parent, root) {
     K.col.needsUpdate = true; K.th.needsUpdate = true; K.cc.needsUpdate = true;
     K.pp = K.pth = K.pc = K.pca = K.pidx = null;
   }
-  genFlakes(flakeKind('leaf', 0, 24000));
-  genFlakes(flakeKind('petal', 1, 36000));
+  genFlakes(flakeKind('leaf', 0, 30000));
+  genFlakes(flakeKind('petal', 1, 46000));
   console.log(`roof piles: ${kinds.leaf.i} leaves, ${kinds.petal.i} petals`);
 
   /* ================================================================ snow blanket */
   const snowU = { ...U, uAmt: { value: 0 } };
   const geos = [];
   SURFACES.forEach((S) => {
-    const T = S.snow;
+    const T = S.snow * (0.6 + 0.4 * S.N.y * S.N.y); // steeper slopes hold less
     if (!T) return;
     const ov = S.ov;
     // overhang beyond open edges (none against walls)
