@@ -102,35 +102,7 @@ function drawGround(g) {
   stall.forEach((s) => line(+s, 2.9, +s, 5.6, '#cfd6e6', 0.07));
   line(-5.75, 2.9, 0.55, 2.9, '#cfd6e6', 0.05);
 
-  // tactile paving (yellow) along curbs
-  const tactile = (xa, xb, za, zb, vertical) => {
-    g.fillStyle = '#9b8227';
-    g.fillRect(X(xa), Z(za), (xb - xa) * K, (zb - za) * K);
-    g.fillStyle = '#c7a933';
-    if (vertical) {
-      for (let z = za; z < zb; z += 0.1) g.fillRect(X(xa) + 0.06 * K, Z(z), (xb - xa - 0.12) * K, 0.045 * K);
-      g.fillStyle = '#6f5c1a';
-      g.fillRect(X(xa), Z(za), 3, (zb - za) * K);
-      g.fillRect(X(xb) - 3, Z(za), 3, (zb - za) * K);
-    } else {
-      for (let x = xa; x < xb; x += 0.1) g.fillRect(X(x), Z(za) + 0.06 * K, 0.045 * K, (zb - za - 0.12) * K);
-      g.fillStyle = '#6f5c1a';
-      g.fillRect(X(xa), Z(za), (xb - xa) * K, 3);
-      g.fillRect(X(xa), Z(zb) - 3, (xb - xa) * K, 3);
-    }
-  };
-  tactile(6.35, 6.7, -12, 4.2, true);
-  tactile(0.55, 5.0, 6.1, 6.45, false);
-  tactile(-12, -5.8, 6.1, 6.45, false);
-  // dotted warning blocks at crossing landings
-  const dots = (xa, xb, za, zb) => {
-    g.fillStyle = '#9b8227';
-    g.fillRect(X(xa), Z(za), (xb - xa) * K, (zb - za) * K);
-    g.fillStyle = '#d3b53a';
-    for (let x = xa + 0.06; x < xb - 0.03; x += 0.12) for (let z = za + 0.06; z < zb - 0.03; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); }
-  };
-  dots(5.2, 6.8, 5.5, 6.5);
-  dots(6.5, 7.5, 4.5, 6.1);
+  // tactile paving: town/roadside.js (3D blocks over the whole town)
 
   // door mat zone (lighter) + guide
   rect(1.1, 3.3, 1.5, 2.7, groundPaint(P.cream));

@@ -3,7 +3,7 @@ import { reg, toon, glow, bx, cy, cyl2, sph, grp, halo, rng, patchToon, RAMP } f
 import { OUTLINE, RAIL, groundY } from './layout.js';
 import { makeWater, BED_PLAIN } from '../waterSystem.js';
 import { makeShrub, makeTree } from '../tree.js';
-import { guardrail } from '../street.js';
+import { guardRailW } from './roadside.js';
 import { rockBatch, rockMat, rockGeo, footY } from '../rocks.js';
 import { plantBatch } from '../plants/wild.js';
 
@@ -332,8 +332,9 @@ function buildEdge(g, samples) {
     const flush = () => {
       if (run.length > 3) {
         const a = run[0], b = run[run.length - 1], o = 0.35;
-        guardrail(grp(g, 0, -0.15 + Math.min(topAt(a.x, a.z, a.nx, a.nz), topAt(b.x, b.z, b.nx, b.nz)), 0), a.x + a.nx * o, a.z + a.nz * o, b.x + b.nx * o, b.z + b.nz * o);
-        [a, b].forEach((p) => { const y = topAt(p.x, p.z, p.nx, p.nz); cy(g, toon('#f2f0ea'), p.x + p.nx * o, y, p.z + p.nz * o, 0.04, 0.9, 8); bx(g, glow('#ff8a3c', 1.2, { cat: 'lamp', off: '#e06a2a' }), p.x + p.nx * o - 0.03, p.x + p.nx * o + 0.03, y + 0.7, y + 0.85, p.z + p.nz * o - 0.03, p.z + p.nz * o + 0.03, { cast: false }); });
+        const y = Math.min(topAt(a.x, a.z, a.nx, a.nz), topAt(b.x, b.z, b.nx, b.nz));
+        guardRailW(g, a.x + a.nx * o, a.z + a.nz * o, b.x + b.nx * o, b.z + b.nz * o, [-a.nx, -a.nz], y); // the beam faces the road
+        [a, b].forEach((p) => { const px = p.x + p.nx * (o + 0.25), pz = p.z + p.nz * (o + 0.25); cy(g, toon('#f2f0ea'), px, y, pz, 0.035, 0.95, 8); bx(g, glow('#ff8a3c', 1.2, { cat: 'lamp', off: '#e06a2a' }), px - 0.03, px + 0.03, y + 0.78, y + 0.92, pz - 0.03, pz + 0.03, { cast: false }); }); // reflector posts just behind the ends
       }
       run = [];
     };

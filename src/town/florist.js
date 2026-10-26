@@ -3,7 +3,7 @@ import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, r
 import { makeGlass } from '../fx.js';
 import { swingDoors, doorHit } from '../doors.js';
 import { T } from '../tex.js';
-import { guardrail, bicycle } from '../street.js';
+import { bicycle } from '../street.js';
 import { makeTree, makeShrub } from '../tree.js';
 import { groundY, PAV } from './layout.js';
 import { bladeGeo, taperTube, placeLeaf, tint, mergeInto, leafTex, leafMat, stemMat } from '../plants/kit.js';
@@ -22,7 +22,7 @@ import { sharedPlants, plantAt, potPlants } from '../plants/wild.js';
      corner walk │ greenhouse 7.2 x 9.4 m   │ green strip   │ house 4.7 x 5.2  │ lane
                  │ (entrance gable south)   │ trees, board  │ + front yard     │
      z 2.6 ─ 4.0   shop forecourt (displays, steps, bench, post box)
-     z 4.0 ─ 6.5   sidewalk (pavers, tactile strip, guard rails, poles at the strip and the corner)
+     z 4.0 ─ 6.5   sidewalk (pavers, poles at the strip and the corner; tactile + fences: town/roadside.js)
 
    greenhouse  white frame on a cream-brick base; entrance gable on the street: pale green double glass
                doors (they swing open when the camera comes close, or on a click), fan window, wooden
@@ -1288,7 +1288,7 @@ function sideDisplay(g, bins, m) {
     bx(g, m.wood, x0, x0 + 0.28, gy, gy + 0.34, z1, z0, { bevel: 0.015 });
     ['gerbera', 'rose', 'lavender', 'gerbera', 'hydrangea'].forEach((kd, i) => flowers(g, x0 + 0.14, gy + 0.34, z0 - 0.22 - i * 0.44, kd, 1560 + i, false));
     const lift = grp(g, 0, groundY(12.8, -4.9) - PAV, 0);
-    bicycle(lift, 12.8, -4.9, 0.04, '#e9e2cf', 0, { type: 'basket', steer: 0.15, case: '#d6cdb6' });
+    bicycle(lift, 13.75, -4.9, 0.04, '#e9e2cf', 0, { type: 'basket', steer: 0.15, case: '#d6cdb6' });
   }
   // (7) wall brackets on the frame posts with trailing pots above the shelves
   [[0.95, 1600], [-1.0, 1601]].forEach(([z, seed]) => {
@@ -1404,12 +1404,7 @@ export function buildFlorist(parent) {
   }
   bench(g, ORIGIN.x + W - 0.5, fz + 1.15, 0, 1.3); // in front of the tiered flower stand, right of the door
 
-  /* ---- the sidewalk edge: white guard rails along both kerbs (gaps for the poles, the lamp and the crossing) ---- */
-  guardrail(g, 13.4, 6.28, 17.1, 6.28);
-  guardrail(g, 19.3, 6.28, 22.7, 6.28);
-  guardrail(g, 23.7, 6.28, 25.95, 6.28);
-  guardrail(g, 26.85, 6.28, 28.8, 6.28);
-  guardrail(g, 12.28, -5.6, 12.28, 4.1);
+  /* ---- the sidewalk fences along both kerbs + the tactile paving: town/roadside.js ---- */
 
   bins.flush(g);
   g.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) o.castShadow = false; });

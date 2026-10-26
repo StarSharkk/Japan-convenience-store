@@ -378,15 +378,9 @@ export function buildStreetRow(parent) {
   const st = (y = Y) => grp(g, 0, y - 0.15, 0); // street.js props stand at y 0.15
   const gy = (x, z) => groundY(x, z);
 
-  /* ---- Kaigan-dori side (the backs): the kerb-side railing, grates (power: drops across the road, town/power.js) ---- */
+  /* ---- Kaigan-dori side (the backs): grates, a meter box (the kerb-side fence: town/roadside.js; power: drops across the
+     road, town/power.js) ---- */
   {
-    const zr = 12.32;
-    [[-47.4, -43.2], [-41.4, -36.1], [-35.3, -29.2], [-26.4, -20.2], [-19.2, -17.0]].forEach(([a, b]) => {
-      const n = Math.max(1, Math.round((b - a) / 1.6));
-      for (let k = 0; k <= n; k++) { const x = a + ((b - a) * k) / n; cy(g, m.rail, x, Y, zr, 0.025, 0.82, 8); sph(g, m.rail, 0.035, x, Y + 0.84, zr); }
-      cyl2(g, m.rail, [a, Y + 0.8, zr], [b, Y + 0.8, zr], 0.02, 6); cyl2(g, m.rail, [a, Y + 0.45, zr], [b, Y + 0.45, zr], 0.014, 5, { noLine: true });
-      for (let k = 0; k < n; k++) { const xa = a + ((b - a) * k) / n, xb = a + ((b - a) * (k + 1)) / n, xm = (xa + xb) / 2; cyl2(g, m.rail, [xa + 0.1, Y + 0.45, zr], [xm, Y + 0.72, zr], 0.01, 4, { noLine: true }); cyl2(g, m.rail, [xm, Y + 0.72, zr], [xb - 0.1, Y + 0.45, zr], 0.01, 4, { noLine: true }); }
-    });
     [-44.0, -37.6, -31.0, -24.8, -18.4].forEach((x) => { bx(g, toon('#2a2d31'), x - 0.3, x + 0.3, Y + 0.002, Y + 0.012, 12.08, 12.3, { cast: false }); for (let k = 0; k < 7; k++) bx(g, toon('#5a5d61'), x - 0.27 + k * 0.09, x - 0.25 + k * 0.09, Y + 0.012, Y + 0.016, 12.1, 12.28, { cast: false }); });
     bx(g, toon('#cfcac0'), -19.95, -19.7, Y + 1.0, Y + 1.4, ZB - 0.12, ZB, { cast: false }); // a meter box
   }

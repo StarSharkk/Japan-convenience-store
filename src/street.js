@@ -395,26 +395,6 @@ export function streetLamp(parent, x, z, dirx, dirz, h, armLen, color, lightI, n
   return { p, halo: hl, L };
 }
 
-/* ================================================================ guardrail */
-export function guardrail(parent, x0, z0, x1, z1) {
-  const g = grp(parent, 0, Y0, 0);
-  const L = Math.hypot(x1 - x0, z1 - z0);
-  const n = Math.max(1, Math.round(L / 1.3));
-  const white = toon('#e8ebf2');
-  const yel = toon('#e8c53a');
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const x = lerp(x0, x1, t), z = lerp(z0, z1, t);
-    cy(g, white, x, 0, z, 0.028, 0.9, 8);
-    cy(g, toon('#d9b32e', { e: '#4a3a08', ei: 0.4 }), x, 0.45, z, 0.03, 0.06, 8, { cast: false });
-  }
-  [0.86, 0.5].forEach((y, k) => {
-    const rail = cyl2(g, k ? white : white, [x0, y, z0], [x1, y, z1], 0.022, 8);
-  });
-  cyl2(g, yel, [x0, 0.86, z0], [x1, 0.86, z1], 0.0, 4);
-  return g;
-}
-
 /* ================================================================ misc small */
 export function trashBins(parent, x, z, ry) {
   const g = grp(parent, x, Y0, z, ry);
@@ -703,10 +683,7 @@ export function buildStreet(parent, drips) {
     cyl2(g, ym, [x - 0.4, Y0 + 0.28, z], [x + 0.4, Y0 + 0.28, z], 0.02, 8);
   });
 
-  /* ---- guardrails ---- */
-  guardrail(g, 1.0, 6.2, 4.9, 6.2);
-  guardrail(g, 7.33, -0.4, 7.33, 3.9);
-  guardrail(g, 4.9, 6.2, 4.9, 5.45);
+  /* ---- the sidewalk fences + tactile paving: town/roadside.js ---- */
 
   /* ---- wheel stops & parked kei car ---- */
   [-4.9, -3.2, -1.5].forEach((x) => wheelStop(g, x, 5.5));

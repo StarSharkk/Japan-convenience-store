@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, glow, cy, cyl2, bx, grp, halo, rng } from '../core.js';
-import { streetLamp, roadSign, signalHead, guardrail } from '../street.js';
+import { streetLamp, roadSign, signalHead } from '../street.js';
+import { guardRailW } from './roadside.js';
 import { snowCapBox } from '../roofPiles.js';
 import { groundY, PAV, BLOCKS, LANES, CROSSINGS, RAIL, lakeParkH } from './layout.js';
 
@@ -139,10 +140,10 @@ export function buildFurniture(parent, lake) {
     });
   }
 
-  /* ---------------------------------------------------------------- guardrail on the bank side of the lake lane */
+  /* ---------------------------------------------------------------- a W-beam guard rail on the bank side of the lake lane */
   {
     const segs = [[[-16.7, -24.6], [-18.15, -29.2]], [[-18.15, -29.2], [-19.15, -36]], [[-19.15, -36], [-19.15, -42.8]]];
-    segs.forEach(([a, b]) => { const y = Math.min(groundY(a[0], a[1]), groundY(b[0], b[1])); const G = grp(g, 0, y - PAV, 0); guardrail(G, a[0], a[1], b[0], b[1]); });
+    segs.forEach(([a, b]) => guardRailW(g, a[0], a[1], b[0], b[1], [1, 0], Math.min(groundY(a[0], a[1]), groundY(b[0], b[1])))); // the beam faces the lane
   }
 
   /* ---------------------------------------------------------------- bollards at the footpath crossing */

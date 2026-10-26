@@ -10,6 +10,7 @@ import { mergeStatic } from './merge.js';
 import { buildBackdrop } from './backdrop.js';
 import { buildTown } from './town/index.js';
 import { buildPlantings } from './plants/placement.js';
+import { buildRoadside } from './town/roadside.js';
 import { SITE } from './site.js';
 
 const flick = (period, dur, depth, seed = 0) => (t) => {
@@ -56,6 +57,8 @@ export function buildWorld(scene, renderer, refl) {
   buildTown(world, renderer, refl);
   // potted plants at the izakaya entrance + the planting bed across the main road
   buildPlantings(world);
+  // the tactile paving + sidewalk fences: one plan for the whole town, placed round whatever stands on the walks
+  buildRoadside(world);
 
   mergeStatic(world);
 

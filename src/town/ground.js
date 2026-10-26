@@ -131,17 +131,13 @@ function drawTown(g) {
   // 西の住宅地 (town/westHomes.js): lawn over the four gardens (the plots' earth above still paints: same random stream)
   { const [x0, x1, z0, z1] = WEST_HOMES.area; g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'west1').poly); g.clip(); g.fillStyle = COL.grass; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); g.restore(); }
 
-  // 星空町駅 (town/station.js): the tactile path from the road edge to the entrance steps (linear blocks along the walk,
-  // warning dots where it turns and at the steps), drain grates along the front, a manhole in the forecourt
+  // 星空町駅 (town/station.js): drain grates along the front, a manhole in the forecourt (its tactile path: town/roadside.js)
   {
-    const lin = (x0, x1, z0, z1, along) => { rect(x0, x1, z0, z1, '#9b8227'); if (along === 'x') for (let x = x0; x < x1 - 0.02; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, z0 + 0.04 + k * 0.065, z0 + 0.065 + k * 0.065, '#d3b53a'); else for (let z = z0; z < z1 - 0.02; z += 0.3) for (let k = 0; k < 4; k++) rect(x0 + 0.04 + k * 0.065, x0 + 0.065 + k * 0.065, z + 0.03, z + 0.27, '#d3b53a'); };
-    const dot = (x0, x1, z0, z1) => { rect(x0, x1, z0, z1, '#9b8227'); g.fillStyle = '#d3b53a'; for (let x = x0 + 0.06; x < x1 - 0.03; x += 0.12) for (let z = z0 + 0.06; z < z1 - 0.03; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); } };
-    lin(12.05, 14.55, -28.75, -28.45, 'x'); dot(14.55, 15.15, -28.75, -28.15); lin(14.7, 15.0, -28.15, -27.95, 'z'); dot(14.5, 15.2, -27.95, -27.85);
     [[16.6, -28.05], [18.4, -28.05], [20.2, -27.9]].forEach(([cx, cz]) => { rect(cx - 0.45, cx + 0.45, cz - 0.12, cz + 0.12, '#1c2030'); g.strokeStyle = '#4a5572'; g.lineWidth = 2; g.strokeRect(X(cx - 0.45), Z(cz - 0.12), 0.9 * K, 0.24 * K); for (let k = 0; k < 8; k++) rect(cx - 0.4 + k * 0.105, cx - 0.37 + k * 0.105, cz - 0.09, cz + 0.09, '#3a4258'); });
     g.fillStyle = '#20263a'; g.beginPath(); g.arc(X(19.6), Z(-33.2), 0.32 * K, 0, 7); g.fill(); g.strokeStyle = '#59627e'; g.lineWidth = 3; g.stroke(); g.beginPath(); g.arc(X(19.6), Z(-33.2), 0.2 * K, 0, 7); g.stroke();
   }
 
-  /* しずく花店 corner (town/florist.js): sidewalk pavers along both kerbs with a guide strip, the shop's tiled
+  /* しずく花店 corner (town/florist.js): sidewalk pavers along both kerbs, the shop's tiled
      forecourt, the planting strip between the shop and the house, the house's gravel yard (own rng: the rest
      of the town paints exactly as before) */
   {
@@ -149,8 +145,6 @@ function drawTown(g) {
     g.fillStyle = tiles;
     g.fillRect(X(12), Z(4.0), 18 * K, 2.5 * K); // Kaigan-dori sidewalk
     g.fillRect(X(12), Z(-7.2), 2.2 * K, 11.2 * K); // Hoshizora-dori side
-    rect(12.7, 29.8, 5.0, 5.3, '#9b8227'); // linear guide blocks (bars run with the walk)
-    for (let x = 12.7; x < 29.75; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, 5.04 + k * 0.065, 5.065 + k * 0.065, '#d3b53a');
     line(12, 4.0, 30, 4.0, joint(0.45), 0.05);
     g.fillStyle = tilePattern(g, '#5a4a52', '#52434b', 0.4);
     g.fillRect(X(14.2), Z(2.6), 10.4 * K, 1.4 * K); // forecourt (terracotta tiles)
@@ -161,18 +155,12 @@ function drawTown(g) {
     for (let i = 0; i < 40; i++) blob(24.6 + Rf() * 4.8, 1.0 + Rf() * 2.8, 0.1 + Rf() * 0.25, Rf() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,10,0.12)');
     rect(24.55, 29.45, -4.6, 1.0, COL.concrete); // round the house
   }
-  // 青空雑貨店 at Kaigan-dori x 裏路地 (town/zakkaya.js): grey pavers round the corner, guide blocks along the 裏路地
-  // walk past the machines and along Kaigan-dori, warning dots at the corner, a manhole, kerb grates (own rng)
+  // 青空雑貨店 at Kaigan-dori x 裏路地 (town/zakkaya.js): grey pavers round the corner, a manhole, kerb grates (own rng;
+  // the tactile paving: town/roadside.js)
   {
     const [x0, x1, z0, z1] = ZAK_PAD;
     g.fillStyle = tiles;
     g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
-    rect(-17.35, -17.05, -1.5, 5.3, '#9b8227'); // along 裏路地 (bars run with the walk)
-    for (let z = -1.5; z < 5.25; z += 0.3) for (let k = 0; k < 4; k++) rect(-17.32 + k * 0.065, -17.3 + k * 0.065, z + 0.03, z + 0.27, '#d3b53a');
-    rect(-23.4, -17.35, 5.65, 5.95, '#9b8227'); // along Kaigan-dori
-    for (let x = -23.4; x < -17.4; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, 5.68 + k * 0.065, 5.7 + k * 0.065, '#d3b53a');
-    rect(-17.35, -16.65, 5.3, 6.0, '#9b8227'); g.fillStyle = '#d3b53a'; // warning dots at the corner
-    for (let x = -17.3; x < -16.67; x += 0.12) for (let z = 5.35; z < 5.98; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); }
     const mh = (cx, cz, r) => { g.fillStyle = '#20263a'; g.beginPath(); g.arc(X(cx), Z(cz), r * K, 0, 7); g.fill(); g.strokeStyle = '#59627e'; g.lineWidth = 3; g.stroke(); g.strokeStyle = 'rgba(120,130,160,0.5)'; g.lineWidth = 1.5; for (let a = 0; a < 6.28; a += 0.5) { g.beginPath(); g.moveTo(X(cx), Z(cz)); g.lineTo(X(cx + Math.cos(a) * r * 0.9), Z(cz + Math.sin(a) * r * 0.9)); g.stroke(); } };
     mh(-15.4, 2.4, 0.32);
     [[-16.62, 1.2], [-16.62, 3.6], [-21.3, 6.38]].forEach(([cx, cz], i) => { const w = i < 2 ? 0.25 : 0.9, h = i < 2 ? 0.9 : 0.25; rect(cx - w / 2, cx + w / 2, cz - h / 2, cz + h / 2, '#0a0d15'); g.strokeStyle = '#4a5572'; g.lineWidth = 2; g.strokeRect(X(cx - w / 2), Z(cz - h / 2), w * K, h * K); });
@@ -327,13 +315,6 @@ function drawTown(g) {
   stopZ(-32, -29, -11.4); tomare(-30.6, -10.2, Math.PI);
   stopZ(-16.5, -13.5, -11.4); tomare(-15, -10.2, Math.PI);
   stopX(-17.0, 22, 25); tomare(-18.3, 23.5, Math.PI / 2);
-  // tactile warning blocks at the new crossings / station
-  const dots = (x0, x1, z0, z1) => {
-    rect(x0, x1, z0, z1, '#9b8227'); g.fillStyle = '#d3b53a';
-    for (let x = x0 + 0.06; x < x1 - 0.03; x += 0.12) for (let z = z0 + 0.06; z < z1 - 0.03; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); }
-  };
-  dots(5.2, 6.8, 12, 12.6); dots(12, 12.6, 4.6, 6.2);
-  dots(12.6, 14.1, -11.9, -11.3); dots(5.5, 7.1, -11.9, -11.3);
   // storm grates + manholes
   const grate = (cx, cz, w, h) => { rect(cx - w / 2, cx + w / 2, cz - h / 2, cz + h / 2, '#0a0d15'); g.strokeStyle = '#4a5572'; g.lineWidth = 3; g.strokeRect(X(cx - w / 2), Z(cz - h / 2), w * K, h * K); };
   for (let x = -46; x < 36; x += 7.5) { if (!old(x, 6.7)) grate(x, 6.675, 0.9, 0.3); if (!old(x, 11.8)) grate(x + 3, 11.825, 0.9, 0.3); }
