@@ -166,8 +166,19 @@ class ScenePass extends Pass {
     // dry / snowy ground has nothing to mirror, but the lake always does when it is on screen
     reg.reflActive = reg.reflOn !== false || !!reg.lakeVisible;
     if (reg.groundU) reg.groundU.uReflOn.value = reg.reflActive ? 1 : 0;
-    // lake only (dry streets): the far greenery cannot show in the lake, leave it out of the mirror pass
-    if (reg.reflActive) this.refl.render(renderer, scene, camera, reg.reflOn === false ? reg.ground.concat(reg.noRefl, reg.reflLakeHide || []) : reg.ground.concat(reg.noRefl));
+    // lake only (dry streets): the far greenery cannot show in the lake, leave it out of the mirror pass; the mirror plane
+    // drops to the lake's level and the lake park's own ground joins the pass (its banks mirror in the water), drawn with a
+    // plain stand-in material because the ground material reads this very target (reg.reflSwap, town/lake.js)
+    if (reg.reflActive) {
+      const lakeOnly = reg.reflOn === false;
+      this.refl.P.y = lakeOnly ? reg.lakeReflY || 0 : 0;
+      if (reg.waterU) reg.waterU.uReflY.value = this.refl.P.y;
+      const hide = lakeOnly ? reg.ground.filter((o) => o.userData.block !== 'lakePark').concat(reg.noRefl, reg.reflLakeHide || []) : reg.ground.concat(reg.noRefl);
+      const swap = lakeOnly ? reg.reflSwap || [] : [];
+      swap.forEach((w) => { w.keep = w.mesh.material; w.mesh.material = w.mat; });
+      this.refl.render(renderer, scene, camera, hide);
+      swap.forEach((w) => (w.mesh.material = w.keep));
+    }
 
     renderer.setRenderTarget(readBuffer);
     renderer.clear(true, true, true);

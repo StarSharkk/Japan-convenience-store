@@ -9,6 +9,7 @@ import { createUI } from './ui.js';
 import { groundY, MAP } from './town/layout.js';
 import { buildPlantStage } from './plants/preview.js';
 import { createCamPan } from './camPan.js';
+import { setWaterQuality } from './waterSystem.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -177,7 +178,7 @@ const env = createEnvironment({ camera, scene, renderer, post: pipe, hemi: handl
 }
 
 /* ---- quality: pixel ratio cap, particle density, reflection resolution ---- */
-const QUALITY = { auto: { cap: 2, part: 1, refl: 0.75, leaf: 1 }, high: { cap: 2, part: 1, refl: 0.85, leaf: 1 }, med: { cap: 1.25, part: 0.6, refl: 0.6, leaf: 0.78 }, low: { cap: 1, part: 0.3, refl: 0.45, leaf: 0.55 } };
+const QUALITY = { auto: { cap: 2, part: 1, refl: 0.75, leaf: 1, water: 2 }, high: { cap: 2, part: 1, refl: 0.85, leaf: 1, water: 2 }, med: { cap: 1.25, part: 0.6, refl: 0.6, leaf: 0.78, water: 1 }, low: { cap: 1, part: 0.3, refl: 0.45, leaf: 0.55, water: 0 } };
 let qNow = 'auto';
 function setQuality(q) {
   qNow = q;
@@ -186,6 +187,7 @@ function setQuality(q) {
   handles.particles.setDensity(c.part);
   setFoliageDensity(c.leaf);
   pipe.refl.scale = c.refl;
+  setWaterQuality(c.water); // waterSystem.js: wave layers + rain ring layers
   onResize();
 }
 const ui = createUI(env, { setQuality, reset: () => {}, home: camHome, town: camTown, florist: camFlorist, bakery: camBakery });

@@ -6,7 +6,7 @@ import { makeHosta, makeFern, makeAspidistra } from '../plants/groundPlants.js';
 import { bladeGeo, placeLeaf, mergeInto, leafTex, leafMat } from '../plants/kit.js';
 import { flipWinding } from '../merge.js';
 import { buildVillaHouse } from './villaHouse.js';
-import { pondWaterMat } from './fountain.js';
+import { makeWater, BED_PEBBLES } from '../waterSystem.js';
 
 /* ====================================================================================================
    The large residence (大型住宅) - the south-east block, Kaigan-dori to the north, Hoshizora-dori to the west.
@@ -110,6 +110,63 @@ function wbx(parent, mat, x0, x1, y0, y1, z0, z1, tile = 1, o = {}) {
   return m;
 }
 /** a flat shape on the ground through smooth points [x, z] (closed), UVs in metres / tile */
+/* ---------------------------------------------------------------- the pond's water (waterSystem.js) */
+// depth comes from a small map of the distance to the pond's outline (in the garden's own frame: the garden is mirrored)
+const POND_DEPTH = 0.3; // the water's look reads this depth (the real basin is shallow)
+function pondWater() {
+  return makeWater('pond', {
+    bed: BED_PEBBLES,
+    depth: /* glsl */ `uniform sampler2D tDepth; uniform vec4 uDBox; uniform mat3 uW2L;
+      float wDepth(vec2 p){ vec2 uv = ((uW2L * vec3(p, 1.0)).xy - uDBox.xy) / uDBox.zw;
+        if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -1.0;
+        return texture2D(tDepth, uv).r * ${POND_DEPTH.toFixed(2)} - 0.003; }`,
+    uniforms: { tDepth: { value: null }, uDBox: { value: new THREE.Vector4() }, uW2L: { value: new THREE.Matrix3() } },
+  });
+}
+const inPolyXZ = (x, z, O) => { let c = false; for (let i = 0, j = O.length - 1; i < O.length; j = i++) { const a = O[i], b = O[j]; if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) c = !c; } return c; };
+const edgeDistXZ = (x, z, O) => { let d = 1e9; for (let i = 0; i < O.length; i++) { const a = O[i], b = O[(i + 1) % O.length], vx = b.x - a.x, vz = b.z - a.z, L = vx * vx + vz * vz || 1; const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / L)); d = Math.min(d, Math.hypot(x - a.x - vx * t, z - a.z - vz * t)); } return d; };
+/** the depth map, the world -> garden transform, the ripple sources (the spill stone, a few rim rocks), the night light */
+function bindPond(mesh, O) {
+  const U = mesh.material.uniforms;
+  const xs = O.map((p) => p.x), zs = O.map((p) => p.z), x0 = Math.min(...xs) - 0.1, z0 = Math.min(...zs) - 0.1, w = Math.max(...xs) + 0.1 - x0, h = Math.max(...zs) + 0.1 - z0;
+  const W = 128, H = Math.max(8, Math.round((W * h) / w)), data = new Uint8Array(W * H * 4);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = x0 + ((i + 0.5) / W) * w, z = z0 + ((j + 0.5) / H) * h, o = (j * W + i) * 4;
+    const k = inPolyXZ(x, z, O) ? Math.min(1, edgeDistXZ(x, z, O) / 0.85) : 0;
+    data[o] = Math.round(255 * k * k * (3 - 2 * k)); data[o + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat); tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  U.tDepth.value = tex; U.uDBox.value.set(x0, z0, w, h);
+  // world positions are known once the garden is placed (it is mirrored): set them on the first draw
+  let done = false;
+  mesh.onBeforeRender = () => {
+    if (done) return;
+    done = true;
+    const m = new THREE.Matrix4().copy(mesh.matrixWorld).invert().elements;
+    U.uW2L.value.set(m[0], m[8], m[12], m[2], m[10], m[14], 0, 0, 1);
+    const wp = (x, z) => mesh.localToWorld(new THREE.Vector3(x, 0, z));
+    const src = [[15.95, 20.0, 0.9, 0.66], [O[12].x, O[12].z, 0.25, 0], [O[48].x, O[48].z, 0.2, 0], [O[90].x, O[90].z, 0.25, 0]];
+    src.forEach(([x, z, k, r], i) => { const p = wp(x, z); U.uSrc.value[i].set(p.x, p.z, k, r); });
+    U.uNSrc.value = src.length;
+    const gp = wp(18.2, 19.6); U.uGlow.value.set(gp.x, gp.z, 0.7, 0.45); U.uGlowCol.value.set('#d4efff');
+  };
+}
+/** pebbles on the pond's floor, seen through the clear water */
+function pondPebbles(g, O) {
+  const R = rng(311), geo = new THREE.IcosahedronGeometry(1, 1), mat = toon('#ffffff', { lit: 0.04 });
+  const im = new THREE.InstancedMesh(geo, mat, 46), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+  const xs = O.map((p) => p.x), zs = O.map((p) => p.z), cols = ['#a9a596', '#8f8a7c', '#b8b2a2', '#7d7a70', '#c4bba6'];
+  let n = 0;
+  for (let k = 0; k < 600 && n < 46; k++) {
+    const x = Math.min(...xs) + R() * (Math.max(...xs) - Math.min(...xs)), z = Math.min(...zs) + R() * (Math.max(...zs) - Math.min(...zs));
+    if (!inPolyXZ(x, z, O) || edgeDistXZ(x, z, O) < 0.12) continue;
+    const s = 0.04 + R() * 0.07;
+    m4.compose(new THREE.Vector3(x, YL + 0.008, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), R() * 6.28), new THREE.Vector3(s * (1 + R() * 0.5), s * 0.35, s));
+    im.setMatrixAt(n, m4); im.setColorAt(n, c.set(cols[(R() * cols.length) | 0])); n++;
+  }
+  im.count = n; im.receiveShadow = true; g.add(im);
+}
+
 function groundShape(parent, pts, y, mat, tile = 1) {
   const sh = new THREE.Shape();
   const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => V(x, 0, z)), true, 'centripetal');
@@ -235,9 +292,11 @@ export function buildVilla(parent) {
   // the pond: a soft kidney shape, dark basin, clear water, lily pads, rocks round the rim, a stream lobe by the deck
   {
     const pts = [[15.2, 18.9], [16.6, 18.55], [18.0, 18.75], [19.2, 18.2], [19.9, 17.3], [20.6, 17.6], [20.7, 18.6], [21.1, 19.6], [20.6, 20.45], [18.8, 20.6], [16.9, 20.55], [15.4, 20.35], [14.95, 19.6]];
-    groundShape(g, pts, YL + 0.006, toon('#2f5a5e', { lit: 0.05 }), 1);
-    const water = groundShape(g, pts, YL + 0.075, pondWaterMat(18.0, 19.5, 3.0), 2.5); // sky reflection, rain rings, a soft night glow
+    groundShape(g, pts, YL + 0.006, toon('#7f9488', { lit: 0.05 }), 1); // a pale stone floor that shows through the clear water
+    const water = groundShape(g, pts, YL + 0.075, pondWater(), 2.5); // the town's shared water, 'pond' preset (waterSystem.js)
     water.mesh.userData.noLine = true; water.mesh.receiveShadow = false; water.mesh.renderOrder = 3;
+    bindPond(water.mesh, water.outline);
+    pondPebbles(g, water.outline);
     // rocks + pebbles round the rim, leaving the deck side open
     // rim stones at irregular spacing: some big ones (often with a small one beside), small ones between, pebbles
     {

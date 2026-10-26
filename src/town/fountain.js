@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { reg, toon, glow, cy, grp, halo, pl } from '../core.js';
-import { GLASS_U } from '../fx.js';
+import { makeWater, BED_PLAIN, WATER_U } from '../waterSystem.js';
 import { SEASON_U } from '../tree.js';
 import { ct, txt, SERIF } from './shopkit.js';
 
@@ -8,12 +8,13 @@ import { ct, txt, SERIF } from './shopkit.js';
    The sakura plaza's fountain (town/plaza.js): a low round pool of pale stone with softly bevelled rims, a pedestal
    with a small overflowing bowl, a slim central jet and eight low arcs curving in towards the pedestal.
 
-     streams   translucent tubes with a flowing stripe (one draw for the eight arcs, one for the column, one for the
-               bowl's overflow sheet)
+     streams   translucent tubes (one draw for the eight arcs, one for the column, one for the bowl's overflow sheet):
+               they taper and swell as the water pulses through, catch the sun, and break into drops near their ends
      drops     one Points draw, all motion in the vertex shader (no per-frame CPU work): the column's crown falling
                back into the bowl, drops along the arcs, small splashes where they land, drips off the bowl's lip
-     water     translucent blue-green with moving rings round the landing ring, rain rings when it rains, a fresnel
-               sky reflection, small sparkles by day and a soft warm-white underwater glow at night
+     water     the town's shared water (waterSystem.js, 'fountain' preset): clear over the pale stone floor, rings
+               spreading from each arc's landing point and from under the bowl's falling sheet, rain rings, fresnel
+               sky reflection, sun glints, a soft warm-white underwater glow at night
      seasons   in winter the fountain is shut off: the jets stop and the water lies calm (the rims take snow)
    ==================================================================================================== */
 
@@ -21,78 +22,52 @@ const R_OUT = 1.62, R_IN = 1.38, RIM = 0.44, WATER = 0.33;
 const G = 4.0; // a gentle "gravity" for a quiet, light fountain
 const LAND = 0.64, NOZ = 1.24, ARCH = 0.4, NARC = 8, TOP = 1.42, BOWL = 0.76;
 
-const T = { value: 0 }, ON = { value: 1 }, NIGHT = { value: 0 }, RAIN = { value: 0 }, DAY = { value: 1 };
+const T = { value: 0 }, ON = { value: 1 }, NIGHT = { value: 0 }, DAY = { value: 1 };
 
 /* ---------------------------------------------------------------- materials */
-/** the water surface; o.centre: the surface's centre in its geometry's x / z, o.rings: the fountain's moving rings,
-    o.glow: the strength of the underwater light at night */
-function waterMat(radius, o = {}) {
+/**
+ * a stream of water. kind 'arc' (along the tube from nozzle to landing), 'column' (up from the bowl), 'sheet' (down off
+ * the bowl's lip); r: its radius. The water pulses along it (it swells a little where a pulse passes), the sun catches it,
+ * and near its end it breaks into drops.
+ */
+function streamMat(kind, r) {
+  const sExpr = kind === 'arc' ? 'uv.x' : kind === 'column' ? 'uv.y' : '1.0 - uv.y';
+  const sp = { arc: '1.6', column: '2.4', sheet: '1.2' }[kind], brk = { arc: '0.72', column: '0.8', sheet: '0.9' }[kind];
   return new THREE.ShaderMaterial({
-    uniforms: { uTime: T, uOn: ON, uNight: NIGHT, uRain: RAIN, uDay: DAY, uR: { value: radius }, uSky: GLASS_U.uSkyCol, uC: { value: new THREE.Vector2(...(o.centre || [0, 0])) }, uRing: { value: o.rings === false ? 0 : 1 }, uGlowK: { value: o.glow ?? 1 } },
+    uniforms: { uTime: T, uOn: ON, uNight: NIGHT, uDay: DAY, uSunDir: WATER_U.uSunDir, uSunVis: WATER_U.uSunVis },
     vertexShader: /* glsl */ `
-      varying vec2 vP; varying vec3 vW;
-      void main() { vP = position.xz; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime, uOn, uNight, uRain, uDay, uR, uRing, uGlowK; uniform vec3 uSky; uniform vec2 uC;
-      varying vec2 vP; varying vec3 vW;
-      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      uniform float uTime; varying float vS; varying vec3 vN; varying vec3 vW;
       void main() {
-        float d = length(vP - uC), r = min(1.0, d / uR);
-        // rings: round the landing ring of the arcs (pool) / from the centre (bowl)
-        float src = uR > 1.0 ? ${LAND.toFixed(2)} : 0.0;
-        float h = uRing * uOn * sin(d * 30.0 - uTime * 5.0) * exp(-abs(d - src) * 2.6);
-        // rain: little rings popping up in cells
-        vec2 q = vP * 4.0, cell = floor(q), f = fract(q) - 0.5;
-        float rnd = hash(cell), ph = fract(uTime * 0.85 + rnd);
-        vec2 c = (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.5;
-        float rain = smoothstep(0.05, 0.0, abs(length(f - c) - ph * 0.42)) * (1.0 - ph) * uRain;
-        float lines = smoothstep(0.55, 0.95, h) * 0.55 + rain * 0.6;
-        vec3 V = normalize(cameraPosition - vW);
-        float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);
-        vec3 deep = vec3(0.16, 0.38, 0.42), light = vec3(0.5, 0.78, 0.8);
-        vec3 col = mix(deep, light, 0.35 + 0.35 * (1.0 - r));
-        col = mix(col, uSky, fres * 0.55);
-        col = mix(col, col * 0.82 + 0.04, 1.0 - uOn) ; // calm, a little greyer when the fountain is off
-        col += lines * vec3(0.85, 0.95, 1.0) * (0.35 + 0.65 * uDay);
-        float sp = pow(hash(floor(vP * 40.0) + floor(uTime * 6.0)), 40.0) * uDay * (0.4 + uOn);
-        col += sp * 0.8;
-        col *= mix(0.42, 1.0, uDay); // the water darkens with the evening; the light below then carries it
-        // night: the warm-white underwater light
-        col += uNight * uGlowK * vec3(1.0, 0.88, 0.68) * (0.42 * exp(-r * 1.7) + lines * 0.35);
-        gl_FragColor = vec4(col, 0.8 + fres * 0.15);
-      }`,
-    transparent: true,
-    depthWrite: false,
-  });
-}
-function streamMat(vertical) {
-  return new THREE.ShaderMaterial({
-    uniforms: { uTime: T, uOn: ON, uNight: NIGHT },
-    vertexShader: /* glsl */ `
-      varying float vS; varying float vF;
-      void main() {
-        vS = ${vertical ? '1.0 - uv.y' : 'uv.x'};
-        vec4 w = modelMatrix * vec4(position, 1.0);
-        vec3 n = normalize(mat3(modelMatrix) * normal);
-        vF = 1.0 - abs(dot(n, normalize(cameraPosition - w.xyz)));
+        vS = ${sExpr};
+        float flow = vS * 6.0 - uTime * ${sp} * 2.0;
+        float swell = 1.0 + 0.18 * sin(flow * 6.2832) * ${kind === 'sheet' ? '0.3' : '1.0'};
+        vec3 p = position + normal * ${r.toFixed(3)} * (swell - 1.0);
+        vec4 w = modelMatrix * vec4(p, 1.0); vW = w.xyz;
+        vec3 nn = mat3(modelMatrix) * normal; vN = nn / max(length(nn), 1e-5);
         gl_Position = projectionMatrix * viewMatrix * w;
       }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime, uOn, uNight; varying float vS; varying float vF;
+      uniform float uTime, uOn, uNight, uDay, uSunVis; uniform vec3 uSunDir;
+      varying float vS; varying vec3 vN; varying vec3 vW;
       void main() {
-        float stripe = 0.72 + 0.28 * sin(vS * ${vertical ? '34.0' : '58.0'} - uTime * ${vertical ? '9.0' : '13.0'});
-        float a = (0.22 + 0.5 * vF) * stripe * uOn;
-        vec3 col = mix(vec3(0.74, 0.92, 0.95), vec3(1.0), vF * 0.6) + uNight * vec3(1.0, 0.9, 0.72) * 0.3;
-        gl_FragColor = vec4(col, a);
+        vec3 V = normalize(cameraPosition - vW), n = vN / max(length(vN), 1e-5);
+        float rim = clamp(1.0 - abs(dot(n, V)), 0.0, 1.0);
+        float flow = vS * 6.0 - uTime * ${sp} * 2.0;
+        float pulse = 0.72 + 0.28 * sin(flow * 6.2832 + sin(flow * 2.3) * 1.4);
+        // near the end the stream breaks into drops
+        float brk = smoothstep(${brk}, 1.0, vS), drops = step(0.4, fract(flow * 2.0 + sin(flow * 3.7) * 0.25));
+        vec3 H = normalize(normalize(uSunDir) + V + vec3(0.0, 1e-4, 0.0));
+        float spec = pow(clamp(dot(n, H), 0.0, 1.0), 140.0) * uSunVis * 0.5; // a thin glint, kept low (bloom)
+        float a = ((0.14 + 0.5 * rim) * pulse + spec * 0.5) * mix(1.0, drops, brk) * uOn;
+        vec3 col = mix(vec3(0.76, 0.92, 0.95), vec3(1.0), rim * 0.6) * mix(0.4, 1.0, uDay) * 0.9 + spec * 0.5 + uNight * vec3(1.0, 0.9, 0.72) * 0.32;
+        if (isnan(a) || isnan(col.x + col.y + col.z)) discard; // never hand the bloom a NaN
+        gl_FragColor = vec4(clamp(col, 0.0, 2.0), clamp(a, 0.0, 0.95));
       }`,
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
 }
-
-/** the same water for a still garden pond (town/villa.js): sky reflection, rain rings, sparkles, a soft night glow */
-export function pondWaterMat(cx, cz, radius) { return waterMat(radius, { centre: [cx, cz], rings: false, glow: 0.35 }); }
 
 /* ---------------------------------------------------------------- drops (one Points draw, motion in the shader) */
 function drops() {
@@ -160,7 +135,7 @@ export function buildFountain(parent, x, y, z) {
 
   // the pool: rim with soft bevels, the floor, nozzles
   lathe([[R_IN - 0.01, 0.02], [R_IN, 0.06], [R_IN, RIM - 0.05], [R_IN + 0.02, RIM - 0.015], [R_IN + 0.06, RIM], [R_OUT - 0.06, RIM], [R_OUT - 0.015, RIM - 0.015], [R_OUT, RIM - 0.06], [R_OUT, 0.1], [R_OUT + 0.04, 0.04], [R_OUT + 0.05, -0.14]]); // the foot reaches below the gently falling paving
-  cy(g, toon('#5c7774', { lit: 0.04 }), 0, -0.02, 0, R_IN + 0.01, 0.06, 56);
+  cy(g, toon('#cfc8b8', { lit: 0.04 }), 0, -0.02, 0, R_IN + 0.01, 0.06, 56); // pale stone under the clear water
   for (let k = 0; k < NARC; k++) { const a = (k / NARC) * Math.PI * 2; cy(g, toon('#8a7350'), Math.cos(a) * NOZ, WATER - 0.06, Math.sin(a) * NOZ, 0.022, 0.09, 8); }
   // the pedestal and the little bowl
   lathe([[0.0, 0.03], [0.3, 0.03], [0.3, 0.08], [0.22, 0.14], [0.16, 0.22], [0.14, 0.5], [0.18, 0.6], [0.32, 0.66], [0.47, BOWL - 0.03], [0.53, BOWL], [0.5, BOWL + 0.015], [0.44, BOWL - 0.01], [0.0, BOWL - 0.05]], 48);
@@ -170,23 +145,39 @@ export function buildFountain(parent, x, y, z) {
   halo(g, 0, WATER + 0.05, 0, '#ffeacc', 3.0, 0.22, 'lamp');
 
   // water: pool + bowl
-  const water = new THREE.Mesh(new THREE.CircleGeometry(R_IN + 0.005, 72).rotateX(-Math.PI / 2), waterMat(R_IN));
+  // the shared water ('fountain' preset): ripple sources at the arcs' landing points + under the bowl's falling sheet,
+  // set in world space on the first draw (the plaza places the fountain)
+  const poolMat = makeWater('fountain', { bed: BED_PLAIN, depth: 'float wDepth(vec2 p){ return 0.3; }', srcOn: ON });
+  const bowlMat = makeWater('fountain', { bed: BED_PLAIN, depth: 'float wDepth(vec2 p){ return 0.06; }', srcOn: ON, preset: { alphaDeep: 0.6 } });
+  const water = new THREE.Mesh(new THREE.CircleGeometry(R_IN + 0.005, 72).rotateX(-Math.PI / 2), poolMat);
   water.position.y = WATER; water.renderOrder = 3; water.userData.noLine = true; g.add(water);
-  const bw = new THREE.Mesh(new THREE.CircleGeometry(0.45, 40).rotateX(-Math.PI / 2), waterMat(0.45));
+  const bw = new THREE.Mesh(new THREE.CircleGeometry(0.45, 40).rotateX(-Math.PI / 2), bowlMat);
   bw.position.y = BOWL - 0.012; bw.renderOrder = 3; bw.userData.noLine = true; g.add(bw);
+  {
+    let done = false;
+    water.onBeforeRender = () => {
+      if (done) return;
+      done = true;
+      const c = g.localToWorld(new THREE.Vector3(0, 0, 0)), U = poolMat.uniforms, B = bowlMat.uniforms;
+      for (let k = 0; k < NARC; k++) { const a = (k / NARC) * Math.PI * 2, p = g.localToWorld(new THREE.Vector3(Math.cos(a) * LAND, 0, Math.sin(a) * LAND)); U.uSrc.value[k].set(p.x, p.z, 0.8, 0); }
+      U.uSrc.value[NARC].set(c.x, c.z, 0.7, 0.56); U.uNSrc.value = NARC + 1;
+      B.uSrc.value[0].set(c.x, c.z, 0.9, 0); B.uNSrc.value = 1;
+      [U, B].forEach((u, i) => { u.uGlow.value.set(c.x, c.z, i ? 0.4 : 0.9, i ? 0.25 : 0.45); u.uGlowCol.value.set('#fff1d6'); });
+    };
+  }
 
   // streams: the eight arcs (one geometry), the column, the bowl's overflow sheet
   const arcs = [];
   for (let k = 0; k < NARC; k++) {
     const a = (k / NARC) * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a), P = [];
     for (let i = 0; i <= 16; i++) { const s = i / 16, r = NOZ + (LAND - NOZ) * s; P.push(new THREE.Vector3(cx * r, WATER + 0.02 + 4 * ARCH * s * (1 - s), cz * r)); }
-    arcs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(P), 28, 0.013, 5, false));
+    arcs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(P), 40, 0.013, 6, false));
   }
   const merged = mergeTubes(arcs);
   const streams = [
-    new THREE.Mesh(merged, streamMat(false)),
-    new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.034, TOP - BOWL, 10, 1, true).translate(0, (TOP + BOWL) / 2, 0), streamMat(true)),
-    new THREE.Mesh(new THREE.CylinderGeometry(0.515, 0.58, BOWL - WATER, 40, 1, true).translate(0, (BOWL + WATER) / 2, 0), streamMat(true)),
+    new THREE.Mesh(merged, streamMat('arc', 0.013)),
+    new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.034, TOP - BOWL, 10, 12, true).translate(0, (TOP + BOWL) / 2, 0), streamMat('column', 0.024)),
+    new THREE.Mesh(new THREE.CylinderGeometry(0.515, 0.58, BOWL - WATER, 40, 6, true).translate(0, (BOWL + WATER) / 2, 0), streamMat('sheet', 0.02)),
   ];
   streams.forEach((m) => { m.renderOrder = 4; m.userData.noLine = true; g.add(m); reg.noRefl.push(m); });
   const pts = drops(); pts.renderOrder = 5; g.add(pts); reg.noRefl.push(pts);
@@ -203,7 +194,7 @@ export function buildFountain(parent, x, y, z) {
     const want = 1 - THREE.MathUtils.smoothstep(SEASON_U.W.value.w, 0.3, 0.7);
     ON.value += (want - ON.value) * Math.min(1, (dt || 0.016) * 1.5);
     const Gu = reg.groundU;
-    if (Gu) { DAY.value = Gu.uDay.value; NIGHT.value = 1 - Gu.uDay.value; RAIN.value = Gu.uRipple.value; }
+    if (Gu) { DAY.value = Gu.uDay.value; NIGHT.value = 1 - Gu.uDay.value; }
     const vis = ON.value > 0.01;
     streams.forEach((m) => (m.visible = vis)); pts.visible = vis;
   });

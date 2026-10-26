@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { reg, toon, cy, cyl2, bx, grp, rng } from '../core.js';
 import { LAKE, lakeF, lakeParkH, WATER_Y } from './layout.js';
+import { makeWater, WATER_U } from '../waterSystem.js';
 
 /* ====================================================================================================
    The lake (Block D). The basin is part of the lake-park terrain (layout.lakeParkH); this file adds the
    water surface, the lakeside walk, a short timber railing, a small jetty, shore rocks and reeds.
-   Water colour follows the environment (sky colour, day/night, cold season), rain draws rings,
-   sun / moon leave glints and, whenever the planar reflection is rendered, the shore mirrors in it.
+   The water is the town's shared water (waterSystem.js, 'lake' preset): blue-green by depth with the bed showing in
+   the shallows, layered moving ripples, the planar reflection of the sky and the banks, sun / moon glints, rain rings.
    ==================================================================================================== */
 
 const GLSL_LAKE = /* glsl */ `
@@ -24,98 +25,31 @@ export function buildLake(parent, refl) {
   const g = grp(parent);
   const R = rng(5150);
 
-  /* ---------------------------------------------------------------- water */
-  const U = {
-    uTime: { value: 0 }, uRain: { value: 0 }, uDay: { value: 0 }, uNight: { value: 1 },
-    uSkyLo: { value: new THREE.Color('#1c2550') }, uSkyHi: { value: new THREE.Color('#0b1030') },
-    uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 0.95, 0.85) }, uSunVis: { value: 0 },
-    uMoonDir: { value: new THREE.Vector3(0, 1, 0) }, uMoonVis: { value: 0 },
-    uCold: { value: 0 }, uFlash: { value: 0 }, uWind: { value: 0 },
-    tRefl: { value: refl.rt.texture }, uTexMat: { value: refl.texMat }, uReflK: { value: 0 },
-  };
-  reg.lakeU = U;
-  const mat = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {}]),
-    vertexShader: /* glsl */ `
-      varying vec3 vWPos;
-      #include <fog_pars_vertex>
-      void main(){
-        vec4 wp = modelMatrix * vec4(position, 1.0);
-        vWPos = wp.xyz;
-        vec4 mvPosition = viewMatrix * wp;
-        gl_Position = projectionMatrix * mvPosition;
-        #include <fog_vertex>
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime, uRain, uDay, uNight, uSunVis, uMoonVis, uCold, uFlash, uReflK, uWind;
-      uniform vec3 uSkyLo, uSkyHi, uSunDir, uSunCol, uMoonDir;
-      uniform sampler2D tRefl; uniform mat4 uTexMat;
-      varying vec3 vWPos;
-      #include <fog_pars_fragment>
-      ${GLSL_LAKE}
-      float h21(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-      vec3 ring(vec2 p, float t, float cell, float seed){
-        vec2 q = p / cell; vec2 id = floor(q); vec2 f = fract(q);
-        float h = h21(id + seed), h2 = h21(id + seed + 17.3);
-        float ph = fract(t / (0.8 + h * 0.8) + h2);
-        vec2 c = vec2(0.3 + 0.4 * h21(id + seed + 3.1), 0.3 + 0.4 * h21(id + seed + 9.7));
-        vec2 d = (f - c) * cell; float r = length(d);
-        float R = ph * cell * 0.42, w = 0.03 + ph * 0.02 + fwidth(r);
-        float k = smoothstep(w, 0.0, abs(r - R)) * (1.0 - ph) * (1.0 - ph) * step(0.35, h);
-        return vec3(k, d / (r + 1e-4) * k);
-      }
-      void main(){
-        vec2 p = vWPos.xz;
-        float depth = ${WATER_Y.toFixed(2)} - bedH(p);
-        if (depth < -0.02) discard;
-        // gentle wind waves + rain rings perturb the normal
-        float t = uTime;
-        vec2 gr = vec2(
-          cos(p.x * 1.7 + t * 1.1) * 0.6 + cos(p.x * 3.1 - p.y * 2.3 + t * 1.7) * 0.35,
-          cos(p.y * 1.9 - t * 0.9) * 0.6 + cos(p.y * 2.7 + p.x * 1.6 - t * 1.4) * 0.35) * (0.012 + uWind * 0.08);
-        vec3 r1 = ring(p, t, 0.8, 1.0), r2 = ring(p + 3.7, t * 1.13, 0.55, 7.0), r3 = ring(p - 5.1, t * 0.91, 1.1, 13.0);
-        vec3 rr = (r1 + r2 + r3) * uRain;
-        gr += rr.yz * 0.22;
-        vec3 N = normalize(vec3(-gr.x, 1.0, -gr.y));
-        vec3 V = normalize(cameraPosition - vWPos);
-        float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-        vec3 Rv = reflect(-V, N);
-        vec3 sky = mix(uSkyLo, uSkyHi, clamp(Rv.y * 1.5, 0.0, 1.0));
-        // planar reflection (rendered when the lake or wet streets are on screen)
-        vec4 rc = uTexMat * vec4(vWPos.x, 0.0, vWPos.z, 1.0);
-        vec3 rt = texture2D(tRefl, rc.xy / rc.w + N.xz * 0.04).rgb;
-        vec3 refl = mix(sky, rt + sky * 0.25, uReflK);
-        // water body: deep teal by day, ink blue at night, grey-blue and clear in the cold season
-        vec3 deepD = mix(vec3(0.07, 0.2, 0.24), vec3(0.16, 0.22, 0.28), uCold);
-        vec3 deepN = mix(vec3(0.015, 0.04, 0.07), vec3(0.03, 0.05, 0.08), uCold);
-        vec3 deep = mix(deepN, deepD, uDay);
-        vec3 shallow = mix(vec3(0.03, 0.06, 0.07), vec3(0.24, 0.3, 0.26), uDay);
-        vec3 body = mix(shallow, deep, smoothstep(0.0, 0.45, depth));
-        vec3 col = mix(body, refl, clamp(fres * 0.9 + 0.12, 0.0, 1.0));
-        // glints
-        float sg = pow(max(dot(reflect(-normalize(uSunDir), N), V), 0.0), 140.0) * uSunVis;
-        float mg = pow(max(dot(reflect(-normalize(uMoonDir), N), V), 0.0), 90.0) * uMoonVis;
-        col += uSunCol * sg * 2.2 + vec3(0.7, 0.8, 1.0) * mg * 0.9;
-        col += vec3(0.55, 0.7, 0.95) * rr.x * (0.25 + 0.25 * uNight);
-        // a little foam / lighter water where it laps the shore
-        col = mix(col, mix(vec3(0.25, 0.3, 0.35), vec3(0.8, 0.85, 0.85), uDay), smoothstep(0.07, 0.0, depth) * 0.3);
-        col += vec3(0.45, 0.55, 0.85) * uFlash * 0.45;
-        float alpha = mix(0.45, 0.94, smoothstep(0.0, 0.28, depth));
-        gl_FragColor = vec4(col, alpha);
-        #include <fog_fragment>
-      }`,
-    transparent: true,
-    depthWrite: false,
-    fog: true,
-  });
-  Object.assign(mat.uniforms, U);
+  /* ---------------------------------------------------------------- water (waterSystem.js, the 'lake' preset) */
+  WATER_U.tRefl.value = refl.rt.texture; WATER_U.uTexMat.value = refl.texMat;
+  reg.lakeReflY = WATER_Y; // post.js: the mirror plane's height while only the lake mirrors
+  const mat = makeWater('lake', { planar: true, depth: `${GLSL_LAKE}\n  float wDepth(vec2 p){ return ${WATER_Y.toFixed(2)} - bedH(p); }` });
   const water = new THREE.Mesh(new THREE.PlaneGeometry(27, 19, 1, 1).rotateX(-Math.PI / 2), mat);
   water.position.set(-32.2, WATER_Y, -33.3);
   water.userData.noLine = true;
   water.renderOrder = 2;
   reg.noRefl.push(water);
   g.add(water);
-  reg.updaters.push((t) => (U.uTime.value = t));
+  // the lake park's ground in the mirror pass: a plain stand-in for the ground material (which reads the mirror
+  // target); brightened by day like the ground shader's daylight lift
+  {
+    let w = null;
+    reg.updaters.push(() => {
+      if (!w) {
+        const mesh = reg.ground.find((o) => o.userData.block === 'lakePark');
+        if (!mesh || !mesh.material.map) return;
+        w = { mesh, mat: new THREE.MeshLambertMaterial({ map: mesh.material.map }) };
+        (reg.reflSwap ||= []).push(w);
+      }
+      w.mat.color.setScalar(1 + 1.6 * WATER_U.uDay.value);
+    });
+  }
+  const U = WATER_U;
 
   /* ---------------------------------------------------------------- lakeside walk (ribbon on the bank) */
   const PATH_F = 1.2;

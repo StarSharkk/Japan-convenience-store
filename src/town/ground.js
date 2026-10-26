@@ -190,7 +190,7 @@ function drawTown(g) {
         const f = lakeF(x, z);
         const n = 0.5 + 0.5 * Math.sin(x * 2.1 + z * 1.3) * Math.cos(z * 1.7 - x * 0.6);
         let col;
-        if (f < 0.985) col = cb;
+        if (f < 0.985) { const k = Math.min(1, Math.max(0, (0.985 - f) / 0.4)), e = k * k * (3 - 2 * k); col = [cs[0] + (cb[0] - cs[0]) * e, cs[1] + (cb[1] - cs[1]) * e, cs[2] + (cb[2] - cs[2]) * e]; } // the bed: sand easing into the deep (no step under the clear shallows)
         else if (f < 1.075 + n * 0.035) col = cs;
         else { const k = Math.min(1, (f - 1.07) * 3); col = [cg[0] + (cg2[0] - cg[0]) * n * k, cg[1] + (cg2[1] - cg[1]) * n * k, cg[2] + (cg2[2] - cg[2]) * n * k]; }
         const o = (j * (px1 - px0) + i) * 4;

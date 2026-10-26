@@ -435,7 +435,7 @@ export function createEnvironment(ctx) {
       L.uSkyLo.value.copy(mid).multiplyScalar(0.9 + 0.2 * day); L.uSkyHi.value.copy(top);
       L.uSunDir.value.copy(sunDir); L.uSunCol.value.copy(kf.sunC); L.uSunVis.value = smooth(-0.05, 0.1, sunSin) * (1 - cur.cloud * 0.85);
       L.uMoonDir.value.copy(moonDir); L.uMoonVis.value = moonUp * (1 - day) * (1 - cur.cloud * 0.8);
-      L.uCold.value = clamp(sw[3] * 0.8 + snowCover * 0.4, 0, 1); L.uFlash.value = flashA; L.uWind.value = cur.wind;
+      L.uCold.value = clamp(sw[3] * 0.8 + snowCover * 0.4, 0, 1); L.uFlash.value = flashA; L.uWind.value = cur.wind; L.uCloud.value = cur.cloud;
       L.uReflK.value = reg.reflActive ? 1 : 0;
     }
     SNOW_U.value = snowCover;
