@@ -246,8 +246,8 @@ function house3(g, piles) {
   rbx(g, m.white, x0 - 0.04, x1 + 0.04, g1 - 0.05, g1 + 0.05, z0 - 0.04, z1 + 0.04, { r: 0.01 }); // floor band
   const r = gable(g, x0, x1, z0, z1, top, 1.2, 0.45, 0.35, M.seam, m.siding, { tile: 1, ridge: toon(shade(P.roofMetal, -0.2)) });
   piles.push(
-    { id: 'wh3s', a: [r.xb, r.zr], b: [r.xa, r.zr], n: [0, 1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { leaf: 0.5 }, snow: 0.16, ridge: true },
-    { id: 'wh3n', a: [r.xa, r.zr], b: [r.xb, r.zr], n: [0, -1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { leaf: 0.5 }, snow: 0.16, ridge: true },
+    { id: 'wh3s', a: [r.xb, r.zr], b: [r.xa, r.zr], n: [0, 1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { petal: 0.6, leaf: 0.5 }, snow: 0.16, ridge: true },
+    { id: 'wh3n', a: [r.xa, r.zr], b: [r.xb, r.zr], n: [0, -1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { petal: 0.6, leaf: 0.5 }, snow: 0.16, ridge: true },
   );
   // ground floor: the living-room window (left), the front door with its canopy (right)
   win(g, z1, 1, -45.9, -44.2, y + 0.75, y + 2.25, { mull: 1, inner: 'curtain' });
@@ -263,7 +263,7 @@ function house3(g, piles) {
     for (let x = a + 0.06; x < c; x += 0.09) rbx(g, m.timberD, x - 0.025, x + 0.025, yb, yb + 0.55, z1 + d - 0.06, z1 + d - 0.02, { r: 0.004, cast: false });
     [a, c].forEach((x) => rbx(g, m.white, x - 0.04, x + 0.04, yb, yb + 0.61, z1, z1 + d, { r: 0.006 }));
     rbx(g, m.white, a - 0.04, c + 0.04, yb + 0.55, yb + 0.61, z1 + d - 0.08, z1 + d, { r: 0.006 });
-    piles.push({ id: 'wh3b', a: [c, z1], b: [a, z1], n: [0, 1], D: d - 0.08, y: yb + 0.01, drop: 0.01, w: { leaf: 0.3 }, snow: 0.06 }); }
+    piles.push({ id: 'wh3b', a: [c, z1], b: [a, z1], n: [0, 1], D: d - 0.08, y: yb + 0.01, drop: 0.01, w: { petal: 0.3, leaf: 0.3 }, snow: 0.06 }); }
   win(g, z1, 1, -43.3, -42.4, g1 + 0.3, g1 + 0.95, { inner: 'curtain' });
   // the sides + back: windows, the AC unit, a downpipe, the laundry pole in the back garden
   winX(g, x0, -1, 0.2, 1.4, y + 1.0, y + 2.0, { mull: 1, inner: 'curtain' });
@@ -296,8 +296,8 @@ function house4(g, piles) {
   const xc = (x0 + x1) / 2;
   const r = gable(g, x0, x1, z0, z1, top, 1.15, 0.25, 0.22, M.seam, m.white, { tile: 1, ridge: toon(shade(P.roofMetal, -0.2)), fascia: m.white });
   piles.push(
-    { id: 'wh4s', a: [r.xb, r.zr], b: [r.xa, r.zr], n: [0, 1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { leaf: 0.5 }, snow: 0.16, ridge: true },
-    { id: 'wh4n', a: [r.xa, r.zr], b: [r.xb, r.zr], n: [0, -1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { leaf: 0.5 }, snow: 0.16, ridge: true },
+    { id: 'wh4s', a: [r.xb, r.zr], b: [r.xa, r.zr], n: [0, 1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { petal: 0.6, leaf: 0.5 }, snow: 0.16, ridge: true },
+    { id: 'wh4n', a: [r.xa, r.zr], b: [r.xb, r.zr], n: [0, -1], D: r.half, y: r.yR + 0.05, drop: r.drop, w: { petal: 0.6, leaf: 0.5 }, snow: 0.16, ridge: true },
   );
   // the front: a picture window, a dark door with a slit of glass, one small window upstairs, a vent in the gable
   win(g, z1, 1, -38.8, -37.05, y + 0.45, y + 2.3, { mull: 1, inner: 'curtain', sill: false });

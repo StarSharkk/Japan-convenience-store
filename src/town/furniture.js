@@ -105,8 +105,9 @@ export function buildFurniture(parent, lake) {
       cyl2(P, orange, [0, 2.7, 0], [0, 2.75, 0.12], 0.03, 6);
       const back = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 20), orange);
       back.rotation.x = Math.PI / 2; back.position.set(0, 2.85, 0.15); back.castShadow = true; P.add(back);
-      const face_ = new THREE.Mesh(new THREE.SphereGeometry(0.31, 18, 8, 0, Math.PI * 2, 0, 0.5), glass);
-      face_.rotation.x = Math.PI / 2; face_.position.set(0, 2.85, 0.16); face_.userData.noLine = true; P.add(face_);
+      // the convex glass: a shallow cap of a 0.6 m sphere filling the rim, its base flush on the back's front face
+      const th = Math.asin(0.31 / 0.6), face_ = new THREE.Mesh(new THREE.SphereGeometry(0.6, 24, 6, 0, Math.PI * 2, 0, th), glass);
+      face_.rotation.x = Math.PI / 2; face_.position.set(0, 2.85, 0.18 - 0.6 * Math.cos(th)); face_.userData.noLine = true; P.add(face_);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.03, 6, 22), orange);
       rim.position.set(0, 2.85, 0.19); P.add(rim);
     };

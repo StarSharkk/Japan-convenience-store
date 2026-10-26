@@ -135,7 +135,7 @@ export function createEnvironment(ctx) {
 
   /* ------------------------------------------------ state (user intent) */
   const state = {
-    weather: 'rainy', season: 'summer', time: 23, holiday: 'none',
+    weather: 'sunny', season: 'spring', time: 7.3, holiday: 'sakura', // the default scene: 樱花清晨 (PRESETS.sakuraMorning)
     storeStatus: 'open', storeMode: 'manual', openFrom: 7, openTo: 23, alwaysOpen: true,
     autoTime: false, autoSpeed: 0.25, realClock: false,
     quality: 'auto', fireworks: true,
@@ -204,7 +204,7 @@ export function createEnvironment(ctx) {
     wet = w.wet; puddle = w.puddle; snowCover = w.snow > 0.3 ? 0.9 : 0;
   }
   function preset(id) { if (PRESETS[id]) set({ ...PRESETS[id], autoTime: false }); }
-  function reset() { set({ ...PRESETS.rainyMidnight, storeMode: 'manual', autoTime: false, realClock: false, alwaysOpen: true }); }
+  function reset() { set({ ...PRESETS.sakuraMorning, storeMode: 'manual', autoTime: false, realClock: false, alwaysOpen: true }); }
   function random() {
     const pick = (arr, wts) => { const tot = wts.reduce((a, b) => a + b, 0); let r = Math.random() * tot; for (let i = 0; i < arr.length; i++) { r -= wts[i]; if (r <= 0) return arr[i]; } return arr[0]; };
     const weather = pick(WEATHERS, [2, 1.6, 2, 0.8, 1, 0.8, 0.6]);

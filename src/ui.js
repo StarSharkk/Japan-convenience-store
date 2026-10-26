@@ -217,8 +217,7 @@ export function createUI(env, hooks = {}) {
   sync();
 
   /* ---------------------------------------------------------------- open / close */
-  const wide = window.matchMedia('(min-width: 900px)').matches;
-  let open = wide;
+  let open = false; // closed until the toggle is pressed
   const apply = () => { root.classList.toggle('open', open); };
   toggle.addEventListener('click', () => { open = !open; apply(); });
   close.addEventListener('click', () => { open = false; apply(); });

@@ -45,15 +45,43 @@ const ARC_R = 4;
 const turn = (i) => { const a = EDGES[i], b = EDGES[(i + 1) % N]; let d = Math.atan2(b.nz, b.nx) - Math.atan2(a.nz, a.nx); while (d < 0) d += Math.PI * 2; while (d > Math.PI * 2) d -= Math.PI * 2; return d > Math.PI ? d - Math.PI * 2 : d; };
 const S0 = []; { let s = 0; EDGES.forEach((e, i) => { S0.push(s); s += e.L + Math.abs(turn(i)) * ARC_R; }); }
 
+const S_TOT = S0[N - 1] + EDGES[N - 1].L + Math.abs(turn(N - 1)) * ARC_R;
+const wrapS = (s) => ((s % S_TOT) + S_TOT) % S_TOT;
+/** a smooth swell along the coast in 0..1: a few whole-number harmonics of the coast's length (so it closes on itself),
+    no plateaus or ramps like the value noise - the outline's widths ease in and out */
+const swell = (s, ks, seed) => {
+  let v = 0, A = 0;
+  ks.forEach((k, i) => { const a = 0.55 + 0.45 * hsh(seed + i * 7.3); v += a * Math.sin((Math.PI * 2 * k * s) / S_TOT + 6.283 * hsh(seed + i * 3.1)); A += a; });
+  return Math.min(1, Math.max(0, 0.5 + 0.8 * v / A));
+};
+const W_A = [11, 15, 19], W_B = [8, 13, 23], W_SPIT = [3, 5, 7], W_C = [9, 14, 21];
+
+/* the steep stretches along the coast (under the raised terrace, and here and there by noise), eased over ~±8 m of s:
+   a hard on / off switch made the slope - and with it the beach line - jump in steps */
+let CLIFF = null; const CL_D = 0.5;
+function cliffAt(s) {
+  if (!CLIFF) {
+    const raw = coastSamples().map((sm) => [sm.s, Math.max(ss(0.8, 1.2, topAt(sm.x, sm.z, sm.nx, sm.nz)), ss(0.6, 0.8, swell(sm.s, W_C, 11.3)))]);
+    const n = Math.ceil(S_TOT / CL_D), W = 8; CLIFF = new Float32Array(n + 1);
+    for (let i = 0; i <= n; i++) {
+      const s0 = i * CL_D; let sw = 0, sv = 0;
+      raw.forEach(([sr, v]) => { let ds = Math.abs(sr - s0); ds = Math.min(ds, S_TOT - ds); if (ds < W) { const w = Math.cos((ds / W) * Math.PI) + 1; sw += w; sv += w * v; } });
+      CLIFF[i] = sw ? ss(0.15, 0.75, sv / sw) : 0;
+    }
+  }
+  const f = wrapS(s) / CL_D, i = Math.floor(f), t = f - i;
+  return CLIFF[i] * (1 - t) + CLIFF[Math.min(i + 1, CLIFF.length - 1)] * t;
+}
+
 /** the land profile at coast parameter s, distance d out from the town's edge (whose height is hTop) */
 function profile(s, d, hTop) {
-  const a = fbm(s * 0.045), b = fbm(s * 0.09 + 11.3);
-  const cliff = Math.max(hTop > 1.0 ? 1 : 0, ss(0.64, 0.76, b));
-  const spit = 7 * ss(0.58, 0.86, fbm(s * 0.021 + 3.7)); // now and then a sand spit / a broad beach: an irregular, tidy outline
+  const a = swell(s, W_A, 1.7), b = swell(s, W_B, 11.3);
+  const cliff = cliffAt(s);
+  const spit = 6 * ss(0.45, 0.85, swell(s, W_SPIT, 3.7)); // now and then a broad beach, swelling and easing back
   const lip = 0.6, dS = (2.4 + 4.2 * a) * (1 - cliff) + (1.0 + 0.9 * a) * cliff;
-  const dB = dS + 1.4 + 2.8 * b + spit, dU = dB + 5 + 3 * a;
+  const dB = dS + 1.6 + 2.4 * b + spit + 1.2 * cliff, dU = dB + 5 + 3 * a; // a cliff keeps a strip of beach at its foot
   if (d <= lip) return { h: hTop - 0.03 * (d / lip), dS, dB, dU, cliff };
-  if (d <= dS) { const t = (d - lip) / (dS - lip), e = cliff ? 1 - Math.pow(1 - t, 2.2) : t * t * (3 - 2 * t); return { h: hTop - 0.03 + (SEA + 0.28 - hTop + 0.03) * e, dS, dB, dU, cliff }; }
+  if (d <= dS) { const t = (d - lip) / (dS - lip), e = t * t * (3 - 2 * t) * (1 - cliff) + (1 - Math.pow(1 - t, 2.2)) * cliff; return { h: hTop - 0.03 + (SEA + 0.28 - hTop + 0.03) * e, dS, dB, dU, cliff }; }
   if (d <= dB) return { h: SEA + 0.28 - 0.42 * (d - dS) / (dB - dS), dS, dB, dU, cliff };
   if (d <= dU) { const t = (d - dB) / (dU - dB); return { h: SEA - 0.14 + (FLOOR + 0.12 - SEA + 0.14) * t * t * (3 - 2 * t), dS, dB, dU, cliff }; }
   return { h: FLOOR + 0.12 - 0.12 * ss(dU, dU + 3, d), dS, dB, dU, cliff };
