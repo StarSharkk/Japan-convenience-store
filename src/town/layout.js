@@ -102,15 +102,15 @@ const shopsPad = (x, z) => {
 export const SAKURA_PLAZA = [-13.5, 7.5, 22.75, 32];
 export const PLAZA_CENTRE = [-3.2, 27.4]; // the fountain (pool r 1.62, a walking ring out to r ~2.8)
 // two cherry groves on the west / east edges, clear of the east-west walk (z 25.3 .. 27.7, from crossing to crossing
-// round the fountain) and of the walks from the shop doors, plus two big old trees on the south edge between the
-// benches; heights from small young trees (~3 m) to big ones as tall as the grove behind LAWSON (~7-8 m), so the
-// canopy steps up and down; x, z, height, blossom tone (0 deep, 1 light, 2 pink-white), pit radius
+// round the fountain) and of the walks from the shop doors, plus two on the south edge between the benches; heights
+// varied (~3 - 5.6 m) but kept low enough that the shops behind stay in view from the front (south)
+// x, z, height, blossom tone (0 deep, 1 light, 2 pink-white), pit radius
 export const PLAZA_TREES = [
-  [-12.6, 23.6, 4.3, 0, 0.85], [-11.1, 24.55, 3.0, 2, 0.7],
-  [-12.85, 29.6, 6.9, 1, 0.85], [-12.55, 31.2, 3.4, 0, 0.7], // the swing stands in front of these two, open to the plaza
-  [6.6, 23.6, 3.6, 1, 0.8], [5.0, 24.55, 2.9, 0, 0.7],
-  [6.8, 29.5, 7.8, 0, 1.0], [5.1, 31.15, 4.4, 1, 0.8], [6.95, 31.25, 3.1, 2, 0.5],
-  [-8.8, 31.35, 7.4, 2, 0.95], [2.9, 31.35, 6.4, 1, 0.9], // the two big ones on the south edge
+  [-12.6, 23.6, 3.9, 0, 0.85], [-11.1, 24.55, 2.9, 2, 0.7],
+  [-12.85, 29.6, 5.2, 1, 0.85], [-12.55, 31.2, 3.2, 0, 0.7], // the swing stands in front of these two, open to the plaza
+  [6.6, 23.6, 3.4, 1, 0.8], [5.0, 24.55, 2.8, 0, 0.7],
+  [6.8, 29.5, 5.6, 0, 1.0], [5.1, 31.15, 3.8, 1, 0.8], [6.95, 31.25, 3.0, 2, 0.5],
+  [-8.8, 31.35, 4.4, 2, 0.9], [2.9, 31.35, 4.0, 1, 0.85], // the south edge, in front of the shops: kept moderate
 ];
 // the rest of the plaza furniture that the ground paint also knows about (contact shadows, the swing's gravel pad)
 export const PLAZA_BENCHES = [[-3.2, 30.75], [-7.0, 30.2], [0.6, 30.2]]; // each faces the fountain
