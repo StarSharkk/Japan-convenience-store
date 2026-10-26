@@ -10,6 +10,7 @@ import { groundY, MAP } from './town/layout.js';
 import { buildPlantStage } from './plants/preview.js';
 import { createCamPan } from './camPan.js';
 import { setWaterQuality } from './waterSystem.js';
+import * as ROCKS from './rocks.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -352,4 +353,4 @@ function frame() {
 frame();
 
 // debug hook
-window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles, pan };
+window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles, pan, rocks: ROCKS };

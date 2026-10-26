@@ -9,6 +9,7 @@ import { groundY, PAV } from './layout.js';
 import { bladeGeo, taperTube, placeLeaf, tint, mergeInto, leafTex, leafMat, stemMat } from '../plants/kit.js';
 import { makePot, makeRhapisPot, makeFicusPot } from '../plants/pottedPlants.js';
 import { makeTaro, makeFern, makeHosta, makeAspidistra } from '../plants/groundPlants.js';
+import { rockBatch, rockMat, scatterRocks } from '../rocks.js';
 
 /* ====================================================================================================
    しずく花店 + the florist's house - the street corner across Hoshizora-dori from the LAWSON
@@ -1028,7 +1029,17 @@ function buildHouse(g, YH, m) {
     const hn = canvasTex(96, 48, (c, w, h) => { c.fillStyle = '#2f4a6a'; c.fillRect(0, 0, w, h); T(c, '星空 4-12', w / 2, h / 2 + 1, 20, '#ffffff', { weight: 700 }); });
     const hp = pl(g, new THREE.MeshBasicMaterial({ map: hn }), 0.26, 0.13, gate1, gy + 1.15, wz + 0.145, 0, 0); hp.userData.noLine = true;
     // stepping stones from the gate to the porch step
-    for (let z = wz - 0.4, i = 0; z > HZ1 + 1.4; z -= 0.52, i++) { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.27, 0.06, 10), toon('#a8a296')); s.scale.set(1, 1, 0.75); s.position.set((g0 + g1) / 2 + (i % 2 ? 0.08 : -0.06), groundY((g0 + g1) / 2, z) + 0.02, z); s.receiveShadow = true; g.add(s); }
+    {
+      // flat stepping stones (rocks.js), tops ~3 cm proud of the ground, and two small stones bedded at the bed's corner
+      const B = rockBatch(g, rockMat({ moss: 0.6, tint: '#f8f4ec' }), { name: 'FloristYardRocks' });
+      for (let z = wz - 0.4, i = 0; z > HZ1 + 1.4; z -= 0.52, i++) {
+        const x = (g0 + g1) / 2 + (i % 2 ? 0.08 : -0.06), y = groundY(x, z), r = 0.27;
+        B.add('step', i % 3, x, y, z, r, { ry: i * 1.7, sink: 0.55, sq: [1, 1, 0.82], tint: i % 2 ? '#ffffff' : '#f3ede2' });
+      }
+      B.add('embedded', 1, HX0 + 2.75, gy + 0.13, wz - 0.42, 0.14, { ry: 0.8, sink: 0.35 });
+      B.add('pebble', 2, HX0 + 3.0, gy + 0.13, wz - 0.3, 0.06, { ry: 2.0, sink: 0.3 });
+      B.flush();
+    }
     // planted bed on the right with an edging, a small tree, ground plants
     const b0 = HX0 + 2.6, b1 = HX1 - 0.15, bz0 = HZ1 + 0.3, bz1 = wz - 0.15;
     bx(g, toon('#b9b3a7'), b0, b1, gy, gy + 0.18, bz0, bz0 + 0.08); bx(g, toon('#b9b3a7'), b0, b0 + 0.08, gy, gy + 0.18, bz0, bz1);
@@ -1377,6 +1388,19 @@ export function buildFlorist(parent) {
     for (let z = z1; z > z0 + 0.01; z -= 1.0) { const za = Math.max(z0, z - 1.0), y = groundY(x0, za); bx(g, ed, x0, x0 + 0.08, y - 0.05, y + 0.16, za, z); bx(g, ed, x1 - 0.08, x1, y - 0.05, y + 0.16, za, z); }
     for (let z = z1 - 0.08; z > z0 + 0.01; z -= 1.0) { const za = Math.max(z0, z - 1.0), y = groundY((x0 + x1) / 2, (z + za) / 2); bx(g, toon('#3d3226', { lit: 0.02 }), x0 + 0.08, x1 - 0.08, y - 0.04, y + 0.11, za, z, { cast: false, bevel: 0 }); }
     const soil = (x, z) => groundY(x, z) + 0.1;
+    // small garden stones and a little warm-grey gravel along the bed's edges, clear of the trees and plants
+    {
+      const keep = [[23.1, 0.4, 0.5], [23.0, -4.6, 0.5], [22.6, -1.6, 0.6], [23.5, -2.6, 0.5], [22.7, -6.0, 0.55], [23.6, 1.8, 0.45], [22.4, 1.9, 0.3], [24.0, -0.6, 0.3], [22.45, -3.3, 0.3], [23.9, -5.4, 0.3], [22.5, 0.6, 0.25], [23.95, -3.6, 0.25]];
+      const B = rockBatch(g, rockMat({ moss: 0.7, tint: '#f8f3ea' }), { name: 'FloristBedRocks' });
+      scatterRocks(B, {
+        seed: 4800, clusters: 4, per: [0, 1], pebbles: [2, 4], singles: 2,
+        at: (R) => [R() < 0.5 ? x0 + 0.24 + R() * 0.12 : x1 - 0.24 - R() * 0.12, z0 + 0.3 + R() * (z1 - z0 - 0.6)],
+        ok: (x, z, r) => x - r > x0 + 0.1 && x + r < x1 - 0.1 && z - r > z0 + 0.12 && z + r < z1 - 0.12 && keep.every(([px, pz, pr]) => Math.hypot(px - x, pz - z) > pr + r),
+        ground: soil, lead: { embedded: 2, medium: 1, flat: 1 }, kinds: { embedded: 1, flat: 1 },
+        size: [0.13, 0.2], sizeS: [0.07, 0.11], sink: [0.25, 0.4], tilt: 0.08, moss: 0.3, tints: ['#ffffff', '#f4ece0'],
+      });
+      B.flush();
+    }
     const t1 = makeTree({ seed: 47, height: 5.4, lean: 0.04, palette: 'deep', spread: 0.85 }); t1.position.set(23.1, soil(23.1, 0.4), 0.4); g.add(t1);
     const t2 = makeTree({ seed: 52, height: 4.4, lean: -0.03, palette: 'deep', spread: 0.7 }); t2.position.set(23.0, soil(23.0, -4.6), -4.6); g.add(t2);
     [[22.6, -1.6, 1.3, 0.85, 3], [23.5, -2.6, 1.1, 0.75, 4], [22.7, -6.0, 1.2, 0.8, 6], [23.6, 1.8, 0.9, 0.6, 8]].forEach(([x, z, w, h, s]) => { const sb = makeShrub({ seed: s, width: w, height: h, palette: 'deep' }); sb.position.set(x, soil(x, z), z); g.add(sb); });

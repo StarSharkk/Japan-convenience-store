@@ -7,6 +7,7 @@ import { rbx, win, acUnit, pipe } from './streetRow.js';
 import { wetPass } from './shopkit.js';
 import { WEST_HOMES, groundY } from './layout.js';
 import { P, shade } from '../palette.js';
+import { rockBatch, rockMat } from '../rocks.js';
 
 /* ====================================================================================================
    西の住宅地 - four quiet south-facing houses in block west1 (between Kita-dori and Kaigan-dori), two by two on two
@@ -180,7 +181,17 @@ function house1(g, piles) {
   );
   // the small dry garden: rounded stones in a gravel bed, low shrubs, a stool, pots
   rbx(g, M.gravel, -43.2, -41.3, y - 0.02, y + 0.03, -4.55, -3.6, { r: 0.01, cast: false });
-  [[-42.9, -4.2, 0.22], [-42.35, -3.95, 0.15], [-41.75, -4.3, 0.18], [-46.4, -4.1, 0.26]].forEach(([x, z, r]) => sph(g, toon(shade(P.stone, -0.12)), r, x, y + r * 0.35, z, 1.25, 0.7, 1));
+  {
+    // a main stone with a low flat one and a half-buried one beside it (a 三尊 group in miniature), pebbles in the
+    // gravel, a mossy stone under the shrub by the gate
+    const B = rockBatch(g, rockMat({ moss: 0.8, tint: '#f7f4ee' }), { name: 'DryGardenRocks' });
+    B.add('medium', 0, -42.9, y, -4.2, 0.27, { ry: 0.6, sink: 0.18, sq: [1, 1.1, 0.9] });
+    B.add('flat', 1, -42.38, y, -3.92, 0.2, { ry: 2.1, sink: 0.3 });
+    B.add('embedded', 0, -41.78, y, -4.3, 0.2, { ry: 4.0, sink: 0.38 });
+    [[-42.6, -4.48, 0.05], [-42.05, -4.05, 0.045], [-41.55, -3.82, 0.04]].forEach(([x, z, r], i) => B.add('pebble', i, x, y, z, r, { ry: i * 2, sink: 0.3 }));
+    B.add('mossy', 1, -46.4, y, -4.1, 0.3, { ry: 1.3, sink: 0.25 });
+    B.flush();
+  }
   shrub(g, -41.6, -3.75, y, 701, 0.55, 0.45); shrub(g, -46.5, -4.6, y, 702, 0.7, 0.55, 'grey');
   { const b = grp(g, -44.2, y, -3.8, 0); rbx(b, m.timberM, -0.45, 0.45, 0.36, 0.42, -0.15, 0.15, { r: 0.01 }); [-0.36, 0.36].forEach((a) => rbx(b, m.timberD, a - 0.04, a + 0.04, 0, 0.36, -0.12, 0.12, { r: 0.005, cast: false })); }
   pot(g, -45.0, -3.65, y, 11, 0.12, '#f3a8be'); pot(g, -42.25, -5.2, fl, 12, 0.1);

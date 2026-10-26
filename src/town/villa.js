@@ -7,6 +7,7 @@ import { bladeGeo, placeLeaf, mergeInto, leafTex, leafMat } from '../plants/kit.
 import { flipWinding } from '../merge.js';
 import { buildVillaHouse } from './villaHouse.js';
 import { makeWater, BED_PEBBLES } from '../waterSystem.js';
+import { rockBatch, rockMat, rockGeo } from '../rocks.js';
 
 /* ====================================================================================================
    The large residence (大型住宅) - the south-east block, Kaigan-dori to the north, Hoshizora-dori to the west.
@@ -93,7 +94,6 @@ function mats() {
   M.gravel = toon('#ffffff', { map: gravelTex(), nocache: true });
   M.lawn = toon('#ffffff', { map: lawnTex(), nocache: true });
   M.stone = toon('#b7ada0', { nocache: true });
-  M.rock = toon('#9d9384');
   M.rockL = toon('#c2b7a6');
   M.cushion = toon('#efe9dc');
   M.wood = toon('#b8875a', { lit: 0.15 });
@@ -153,15 +153,15 @@ function bindPond(mesh, O) {
 }
 /** pebbles on the pond's floor, seen through the clear water */
 function pondPebbles(g, O) {
-  const R = rng(311), geo = new THREE.IcosahedronGeometry(1, 1), mat = toon('#ffffff', { lit: 0.04 });
+  const R = rng(311), geo = rockGeo('pebble', 1), mat = rockMat({ waterY: YL + 0.07, band: 0.3, wet: 0, moss: 0, tint: '#ffffff' });
   const im = new THREE.InstancedMesh(geo, mat, 46), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
-  const xs = O.map((p) => p.x), zs = O.map((p) => p.z), cols = ['#a9a596', '#8f8a7c', '#b8b2a2', '#7d7a70', '#c4bba6'];
+  const xs = O.map((p) => p.x), zs = O.map((p) => p.z), cols = ['#f2efe6', '#d8d4ca', '#ffffff', '#c9c6be', '#fff6e6']; // casts over the pebbles' own colours
   let n = 0;
   for (let k = 0; k < 600 && n < 46; k++) {
     const x = Math.min(...xs) + R() * (Math.max(...xs) - Math.min(...xs)), z = Math.min(...zs) + R() * (Math.max(...zs) - Math.min(...zs));
     if (!inPolyXZ(x, z, O) || edgeDistXZ(x, z, O) < 0.12) continue;
     const s = 0.04 + R() * 0.07;
-    m4.compose(new THREE.Vector3(x, YL + 0.008, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), R() * 6.28), new THREE.Vector3(s * (1 + R() * 0.5), s * 0.35, s));
+    m4.compose(new THREE.Vector3(x, YL + 0.004, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), R() * 6.28), new THREE.Vector3(s * (1 + R() * 0.5), s * 0.7, s));
     im.setMatrixAt(n, m4); im.setColorAt(n, c.set(cols[(R() * cols.length) | 0])); n++;
   }
   im.count = n; im.receiveShadow = true; g.add(im);
@@ -192,11 +192,18 @@ function makeBins(root) {
 }
 
 /* ---------------------------------------------------------------- garden pieces */
-function boulder(p, x, z, s, seed) {
-  const R = rng(seed), m = mats();
-  const b = sph(p, R() < 0.5 ? m.rock : m.rockL, s, x, YL + s * 0.25, z, 1.2 + R() * 0.4, 0.55 + R() * 0.2, 1 + R() * 0.3);
-  b.rotation.y = R() * 6.28; b.castShadow = true;
-  return b;
+// the garden's stones (rocks.js): restrained Japanese-garden stones, bedded into the gravel / lawn, flat stepping stones
+let VB = null, VBP = null; // the garden's stones / the pond's (with its waterline)
+/** a garden stone: bigger ones natural / mossy / half-buried, small ones half-buried or pebbles (s: the old radius) */
+function boulder(p, x, z, s, seed, pond = false) {
+  const R = rng(seed), big = s > 0.2;
+  const type = big ? ['medium', 'mossy', 'embedded'][(R() * 3) | 0] : R() < 0.6 ? 'embedded' : 'pebble';
+  (pond ? VBP : VB).add(type, (R() * 3) | 0, x, YL, z, s * (pond ? 1.0 : 1.15), { ry: R() * 6.28, tilt: [(R() - 0.5) * 0.15, (R() - 0.5) * 0.15], sink: type === 'embedded' ? 0.35 : 0.2, sq: [1, 0.85 + R() * 0.3, 1], tint: R() < 0.5 ? '#ffffff' : '#f3ede2' });
+}
+/** a flat stepping stone, its top ~3 cm above the lawn */
+function stepStone(x, z, rx, rz, ry, i) {
+  const h = rockGeo('step', i % 3).userData.h * Math.max(rx, rz);
+  VB.add('step', i % 3, x, YL + 0.012, z, Math.max(rx, rz), { ry, sink: Math.max(0, 1 - 0.035 / h), sq: [1, 1, rz / Math.max(rx, rz)], tint: i % 2 ? '#ffffff' : '#f4efe6' });
 }
 function flowers(p, x, z, kind, seed, r = 0.35) {
   // a clump: hydrangea (blue / violet balls), cosmos (pink / white), lavender spikes, white daisies
@@ -269,6 +276,8 @@ export function buildVilla(parent) {
   g.scale.z = -1;
   const bins = makeBins(root);
   const R = rng(64);
+  VB = rockBatch(g, rockMat({ wet: 1.0, moss: 0.8, tint: '#faf6ee' }), { name: 'VillaRocks' });
+  VBP = rockBatch(g, rockMat({ waterY: YL + 0.07, band: 0.3, wet: 1.1, moss: 1.0, tint: '#faf6ee' }), { name: 'VillaPondRocks' });
 
   /* ---- ground: gravel under everything, the terrace in stone tiles, the lawn, the pond ---- */
   wbx(g, m.gravel, LX0, LX1, YL - 0.08, YL + 0.004, LZ0, LZ1, 1.5, { cast: false });
@@ -284,8 +293,8 @@ export function buildVilla(parent) {
     const n = 12;
     for (let i = 0; i <= n; i++) {
       const t = i / n, p = path.getPointAt(t);
-      const st = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.05, 9), m.stone);
-      st.scale.set(0.3 + R() * 0.08, 1, 0.24 + R() * 0.06); st.rotation.y = R() * 3; st.position.set(p.x + (R() - 0.5) * 0.12, YL + 0.03, p.z); st.receiveShadow = true; g.add(st);
+      const rx = 0.3 + R() * 0.08, rz = 0.24 + R() * 0.06, ry = R() * 3;
+      stepStone(p.x + (R() - 0.5) * 0.12, p.z, rx, rz, ry, i);
       if (i % 3 === 1) pathLight(g, p.x + (i % 2 ? 0.55 : -0.55), p.z + 0.1);
     }
   }
@@ -303,10 +312,10 @@ export function buildVilla(parent) {
       const Rr = rng(77), O = water.outline;
       for (let i = 1; i < O.length; i += 3 + ((Rr() * 5) | 0)) {
         const p = O[i], big = Rr() < 0.3, s = big ? 0.22 + Rr() * 0.1 : 0.1 + Rr() * 0.09;
-        boulder(g, p.x + (Rr() - 0.5) * 0.12, p.z + (Rr() - 0.5) * 0.12, s, 100 + i);
-        if (big && Rr() < 0.6) { const q = O[Math.min(O.length - 1, i + 1)]; boulder(g, q.x + (Rr() - 0.5) * 0.12, q.z + (Rr() - 0.5) * 0.12, s * 0.5, 160 + i); }
+        boulder(g, p.x + (Rr() - 0.5) * 0.12, p.z + (Rr() - 0.5) * 0.12, s, 100 + i, true);
+        if (big && Rr() < 0.6) { const q = O[Math.min(O.length - 1, i + 1)]; boulder(g, q.x + (Rr() - 0.5) * 0.12, q.z + (Rr() - 0.5) * 0.12, s * 0.5, 160 + i, true); }
       }
-      for (let i = 0; i < O.length; i++) { if (Rr() < 0.55) continue; const p = O[i]; sph(g, m.rockL, 0.035 + Rr() * 0.035, p.x + (Rr() - 0.5) * 0.08, YL + 0.035, p.z + (Rr() - 0.5) * 0.08, 1.2, 0.6, 1); }
+      for (let i = 0; i < O.length; i++) { if (Rr() < 0.55) continue; const p = O[i], r = 0.045 + Rr() * 0.045; VBP.add('pebble', i % 3, p.x + (Rr() - 0.5) * 0.08, YL, p.z + (Rr() - 0.5) * 0.08, r, { ry: i * 2.1, sink: 0.25 }); }
     }
     // lily pads with a few white / pink flowers
     [[16.0, 19.4], [16.6, 19.9], [17.3, 19.2], [18.4, 19.9], [19.6, 19.3], [20.1, 18.3], [20.3, 19.9], [15.7, 20.0], [18.9, 19.0]].forEach(([x, z], i) => {
@@ -401,7 +410,7 @@ export function buildVilla(parent) {
       const back = grp(c, 0, 0.25, -0.24, 0); back.rotation.x = -0.25; bx(back, m.wood, -0.25, 0.25, 0, 0.42, -0.025, 0.025, { bevel: 0.01 });
     });
     // two stepping stones off the curving path to the platform
-    [[22.98, 18.38], [23.3, 18.0]].forEach(([x, z]) => { const st = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.05, 9), m.stone); st.scale.set(0.26 + Rl() * 0.05, 1, 0.21 + Rl() * 0.04); st.rotation.y = Rl() * 3; st.position.set(x, YL + 0.03, z); st.receiveShadow = true; g.add(st); });
+    [[22.98, 18.38], [23.3, 18.0]].forEach(([x, z], i) => { const rx = 0.26 + Rl() * 0.05, rz = 0.21 + Rl() * 0.04; stepStone(x, z, rx, rz, Rl() * 3, 20 + i); });
     // a small Japanese maple in the lawn's front-left corner, by the fire deck (clear of every view onto the glass):
     // moss, two stones, an uplight
     { const t = makeTree({ seed: 233, height: 2.2, spread: 0.85, palette: 'maple', dens: 0.9, leafScale: 0.5, lean: -0.1 }); t.position.set(20.15, YL, 15.45); t.rotation.y = 1.1; g.add(t); }
@@ -500,6 +509,7 @@ export function buildVilla(parent) {
   }
 
   bins.flush();
+  VB.flush(); VBP.flush();
   root.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) o.castShadow = false; });
   reg.villa = { lot: VILLA_LOT, entrance: house.entrance };
   return root;

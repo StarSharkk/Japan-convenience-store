@@ -4,6 +4,7 @@ import { OUTLINE, RAIL, groundY } from './layout.js';
 import { makeWater, BED_PLAIN } from '../waterSystem.js';
 import { makeShrub, makeTree } from '../tree.js';
 import { guardrail } from '../street.js';
+import { rockBatch, rockMat, rockGeo, footY } from '../rocks.js';
 
 /* ====================================================================================================
    The island: the town (its outline, layout.js OUTLINE) becomes a small island in a round sea, the whole thing a
@@ -213,24 +214,57 @@ function buildEdge(g, samples) {
   const at = (sm, d) => { const hTop = topAt(sm.x, sm.z, sm.nx, sm.nz); return { x: sm.x + sm.nx * d, z: sm.z + sm.nz * d, ...profile(sm.s, d, hTop), hTop }; };
   const road = (sm) => topAt(sm.x, sm.z, sm.nx, sm.nz) < 0.08; // a road meets the edge here
 
-  /* rocks: on the slope foot, the beach, the shallows; clusters on the steep bits */
+  /* rocks (rocks.js): water-worn stones on the slope foot, the beach and the shallows; on the steep stretches a
+     continuous wall of layered cliff rock bedded into the slope, with fallen blocks and debris at its foot */
   {
-    const geo = new THREE.IcosahedronGeometry(1, 1), mat = toon('#ffffff', { nocache: true });
-    const im = new THREE.InstancedMesh(geo, mat, 420), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    // the ground anywhere on the rim (outside the town): the same profile as the rim mesh
+    const edgeGround = (x, z) => { const c = coastOf(x, z); return c ? profile(c.s, c.d, topAt(c.bx, c.bz, c.nx, c.nz)).h : groundY(x, z); };
+    const B = rockBatch(g, rockMat({ waterY: SEA, wet: 1.4, moss: 1, tint: '#f4f1ec' }), { name: 'EdgeRocks', instanced: true });
+    const tints = ['#ffffff', '#f2eee6', '#e8e6e2', '#f6efe2'];
     let n = 0;
-    samples.forEach((sm, i) => {
+    samples.forEach((sm) => {
       if (n >= 420) return;
-      const p0 = at(sm, 0);
-      const k = p0.cliff > 0.5 ? 3 : R() < 0.35 ? 1 : 0;
+      const p0 = at(sm, 0), cliff = p0.cliff > 0.5;
+      const k = cliff ? 3 : R() < 0.35 ? 1 : 0;
       for (let j = 0; j < k && n < 420; j++) {
-        const d = p0.cliff > 0.5 && R() < 0.6 ? 0.8 + R() * (p0.dS - 0.6) : p0.dS - 0.4 + R() * (p0.dB - p0.dS + 2.2);
-        const p = at(sm, d), sz = (p0.cliff > 0.5 ? 0.35 : 0.18) + Math.pow(R(), 2) * (p0.cliff > 0.5 ? 0.8 : 0.55);
+        // (the same random draws as the first version of the island, so everything placed after the rocks stays put)
+        const d = cliff && R() < 0.6 ? 0.8 + R() * (p0.dS - 0.6) : p0.dS - 0.4 + R() * (p0.dB - p0.dS + 2.2);
+        const p = at(sm, d), sz = (cliff ? 0.35 : 0.18) + Math.pow(R(), 2) * (cliff ? 0.8 : 0.55);
         const t = R() * 0.6 - 0.3, x = p.x + sm.nz * t * 2, z = p.z - sm.nx * t * 2;
-        m4.compose(new THREE.Vector3(x, p.h + sz * 0.15, z), q.setFromEuler(new THREE.Euler(R() * 3, R() * 3, R() * 3)), new THREE.Vector3(sz * (1 + R() * 0.6), sz * (0.55 + R() * 0.4), sz * (0.9 + R() * 0.5)));
-        im.setMatrixAt(n, m4); im.setColorAt(n, c.set(['#9a9284', '#8a8376', '#a8a090', '#7c766c'][(R() * 4) | 0])); n++;
+        const e0 = R(), e1 = R(), e2 = R(), s0 = R(), s1 = R(), s2 = R(), ci = R();
+        n++;
+        if (cliff && (j > 0 || e0 > 0.45)) continue; // under the cliff walls (below) only a few loose ones
+        const under = p.h < SEA - 0.05, onSlope = d < p0.dS;
+        const type = cliff ? (sz > 0.75 ? 'layered' : sz > 0.5 ? 'large' : 'medium') : under ? (sz > 0.3 ? 'shore' : 'pebble') : sz > 0.42 ? (s0 < 0.5 ? 'medium' : 'shore') : s0 < 0.55 ? 'shore' : 'pebble';
+        const r = sz * (1.05 + s0 * 0.4);
+        B.add(type, (e2 * 3) | 0, x, footY(edgeGround, x, z, r), z, r, { ry: e1 * 6.28, tilt: [(e0 - 0.5) * 0.3, (e2 - 0.5) * 0.3], sink: onSlope ? 0.3 : 0.2 + s1 * 0.15, sq: [1, 0.75 + s1 * 0.45, 0.85 + s2 * 0.3], tint: tints[(ci * 4) | 0] });
       }
     });
-    im.count = n; im.castShadow = im.receiveShadow = true; im.name = 'EdgeRocks'; g.add(im);
+    // the cliff walls: overlapping slabs of layered rock along every steep stretch, each standing from below the beach
+    // up to just under the grass lip, long side along the coast, leaning back into the slope
+    const Rc = rng(919);
+    let run = 0, next = 0;
+    samples.forEach((sm, i) => {
+      const p0 = at(sm, 0);
+      if (p0.cliff < 0.5) { run = 0; return; }
+      if (run++ < next) return;
+      run = 0; next = 3 + ((Rc() * 2) | 0); // ~1.6 .. 2.2 m apart (samples every ~0.5 m): the slabs overlap
+      const type = Rc() < 0.62 ? 'cliff' : 'layered', v = (Rc() * 3) | 0, geo = rockGeo(type, v);
+      const yb = SEA + 0.05, H = Math.max(0.6, p0.hTop - 0.12 - yb) * (0.8 + Rc() * 0.25);
+      const sy = 0.85 + Rc() * 0.3, r = Math.min(2.0, Math.max(0.6, H / (geo.userData.h * sy)));
+      const d = Math.min(p0.dS * 0.55, 0.45 + r * 0.45), x = sm.x + sm.nx * d, z = sm.z + sm.nz * d;
+      const tx = -sm.nz, tz = sm.nx, ry = Math.atan2(-tz, tx) + (Rc() - 0.5) * 0.35;
+      B.add(type, v, x, yb, z, r, { ry, tilt: [(Rc() - 0.5) * 0.12, (Rc() - 0.5) * 0.12], sink: 0.04, sq: [1, sy * (H / (geo.userData.h * r * sy)), 0.9 + Rc() * 0.2], tint: tints[(Rc() * 4) | 0] });
+      // a fallen block or two and some debris at its foot, on the beach
+      const nf = Rc() < 0.5 ? 1 : 0;
+      for (let f = 0; f < nf + 2; f++) {
+        const df = p0.dS + 0.15 + Rc() * 0.9, tf = (Rc() - 0.5) * 1.6, fx = sm.x + sm.nx * df + tx * tf, fz = sm.z + sm.nz * df + tz * tf;
+        const rf = f < nf ? 0.28 + Rc() * 0.25 : 0.07 + Rc() * 0.1;
+        if (!B.clear(fx, fz, rf, 0.8)) continue;
+        B.add(f < nf ? (Rc() < 0.5 ? 'large' : 'medium') : 'pebble', (Rc() * 3) | 0, fx, footY(edgeGround, fx, fz, rf), fz, rf, { ry: Rc() * 6.28, tilt: [(Rc() - 0.5) * 0.4, (Rc() - 0.5) * 0.4], sink: 0.2, tint: tints[(Rc() * 4) | 0] });
+      }
+    });
+    B.flush();
   }
   /* grass tufts + wild flowers on the verge and the upper slope (instanced) */
   {

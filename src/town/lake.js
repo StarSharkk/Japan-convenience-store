@@ -123,29 +123,17 @@ export function buildLake(parent, refl) {
     cyl2(J, wood, [-0.68, 0.72, 3.15], [0.68, 0.72, 3.15], 0.035, 5);
   }
 
-  /* ---------------------------------------------------------------- shore rocks + reeds (instanced) */
+  /* ---------------------------------------------------------------- reeds (instanced); the shore rocks: town/rockZones.js */
   {
-    let rg = new THREE.IcosahedronGeometry(1, 1);
-    const p = rg.attributes.position;
-    for (let i = 0; i < p.count; i++) { const k = 0.78 + 0.35 * Math.abs(Math.sin(p.getX(i) * 4.1 + p.getY(i) * 2.3 + p.getZ(i) * 3.7)); p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.62, p.getZ(i) * k); }
-    rg.computeVertexNormals();
-    const N = 46;
-    const rocks = new THREE.InstancedMesh(rg, toon('#5d6170'), N);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(), v = new THREE.Vector3();
-    let n = 0;
-    for (let i = 0; i < 400 && n < N; i++) {
+    // the random draws of the old shore rocks, kept so the reeds below stay exactly where they were
+    for (let i = 0, n = 0; i < 400 && n < 46; i++) {
       const a = R() * Math.PI * 2, t = (0.97 + R() * 0.12) * rr(a);
       const x = LAKE.cx + Math.cos(a) * LAKE.rx * t, z = LAKE.cz + Math.sin(a) * LAKE.rz * t;
       if (x > -20.5 || Math.abs(lakeF(x, z) - 1.02) > 0.07) continue;
-      // clusters: a big stone usually has a smaller one next to it
-      const k = R() < 0.3 ? 0.45 + R() * 0.35 : 0.16 + R() * 0.22;
-      e.set(R() * 0.4, R() * 6.28, R() * 0.4); q.setFromEuler(e);
-      m4.compose(v.set(x, lakeParkH(x, z) - 0.04, z), q, s.set(k * (0.9 + R() * 0.5), k, k * (0.8 + R() * 0.4)));
-      rocks.setMatrixAt(n++, m4);
+      R(); R(); R(); R(); R(); R(); R(); n++; // size, turn + tilt, proportions
     }
-    rocks.count = n;
-    rocks.castShadow = true; rocks.receiveShadow = true;
-    g.add(rocks);
+    let n = 0;
 
     const blade = new THREE.ConeGeometry(0.035, 1, 3, 1);
     blade.translate(0, 0.5, 0);
