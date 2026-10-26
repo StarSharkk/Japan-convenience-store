@@ -1089,26 +1089,24 @@ function postBox(parent, x, z, ry = 0) {
 }
 /** a heap of flowers + leaves on an ellipsoid cap (wheelbarrow / planter displays) */
 function flowerMound(parent, bins, cx, cy0, cz, rx, rz, h, seed) {
-  const R = rng(seed);
-  const leafM = leafMat(texes().pothos), small = leafMat(texes().small);
+  // greenery first, filling the tub (the town's own hosta / fern, fitted), then a low dome of flower heads over it:
+  // hydrangeas, roses and clusters of small mixed-colour flowers - no stems poking out anywhere (plants/wild.js)
+  const R = rng(seed), B = sharedPlants();
   const surf = (a, t) => V(cx + rx * Math.cos(a) * Math.sin(t), cy0 + h * Math.cos(t), cz + rz * Math.sin(a) * Math.sin(t));
-  // leaves over the whole cap (no solid core: it read as a green blob), then real flowers on them (plants/wild.js)
-  for (let i = 0; i < 230; i++) {
-    const a = R() * Math.PI * 2, t = 0.1 + R() * 1.4, p = surf(a, t);
-    const out = V(Math.cos(a), 0.6 + R() * 0.6, Math.sin(a)).normalize();
-    const l = 0.08 + R() * 0.07;
-    bins.add(parent, R() < 0.6 ? leafM : small, placeLeaf(bladeGeo({ L: l, W: l * 0.6, segL: 4, segW: 2, width: (v) => Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + v)), 0.7), droop: 0.25, cup: 0.12 }), p, out, upOf(out), 0.8 + R() * 0.3));
+  [[-0.55, -0.45], [0, -0.5], [0.55, -0.45], [-0.55, 0.45], [0, 0.5], [0.55, 0.45], [-0.25, 0], [0.25, 0]].forEach(([u, w], i) => {
+    const gp = (i % 3 === 1 ? makeFern : makeHosta)({ seed: seed + i, scale: 1 });
+    gp.children.filter((c) => c.isMesh && !c.geometry.attributes.color).forEach((c) => gp.remove(c));
+    const b = new THREE.Box3().setFromObject(gp); gp.scale.setScalar((rx * 0.95) / Math.max(0.01, b.max.x - b.min.x, b.max.z - b.min.z));
+    gp.position.set(cx + u * rx, cy0 - 0.03 + (i > 5 ? h * 0.35 : 0), cz + w * rz); gp.rotation.y = R() * 6.28; parent.add(gp);
+  });
+  for (let i = 0; i < 34; i++) {
+    const a = R() * Math.PI * 2, t = Math.acos(1 - R() * 0.85), p = surf(a, t);
+    const n = V((p.x - cx) / (rx * rx), (p.y - cy0) / (h * h), (p.z - cz) / (rz * rz)).normalize(), tilt = [Math.atan2(n.z, n.y) * 0.7, -Math.atan2(n.x, n.y) * 0.7];
+    const k = i % 5, y = p.y - h * 0.18;
+    if (k === 0) plantAt(B, parent, 'hydHead', i, p.x, y, p.z, 1.1, { ry: a, tilt });
+    else if (k === 1) plantAt(B, parent, 'roseHead', i, p.x, y + 0.01, p.z, 1.2, { ry: a, tilt });
+    else plantAt(B, parent, 'blooms', i, p.x, y - 0.02, p.z, 1.5, { ry: a, tilt });
   }
-  for (let i = 0; i < 46; i++) {
-    const a = R() * Math.PI * 2, t = Math.acos(1 - R() * 0.75), p = surf(a, t);
-    const n = V((p.x - cx) / (rx * rx), (p.y - cy0) / (h * h), (p.z - cz) / (rz * rz)).normalize(), tilt = [Math.atan2(n.z, n.y) * 0.8, -Math.atan2(n.x, n.y) * 0.8];
-    const k = i % 6;
-    if (k === 4) plantAt(sharedPlants(), parent, 'cutHydrangea', i, p.x, p.y - 0.36, p.z, 0.85, { ry: a, tilt: [0, 0] }); // only the head shows over the leaves
-    else if (k === 5) plantAt(sharedPlants(), parent, 'cutRose', i, p.x, p.y - 0.4, p.z, 0.95, { ry: a, tilt: [0, 0] });
-    else plantAt(sharedPlants(), parent, 'blooms', i, p.x, p.y - 0.02, p.z, 1.3, { ry: a, tilt });
-  }
-  // a few sprigs of greenery standing out of the heap
-  for (let i = 0; i < 6; i++) { const a = R() * 6.28, p = surf(a, 0.3 + R() * 0.4); cyl2(parent, toon('#5f8a4a'), [p.x, p.y - 0.05, p.z], [p.x + Math.cos(a) * 0.05, p.y + 0.16, p.z + Math.sin(a) * 0.05], 0.006, 3, { noLine: true }); }
 }
 /** a wooden wheelbarrow brimming with flowers: tapered plank tub, long handles with rope wraps, legs, spoked wheel */
 function wheelbarrow(parent, bins, x, z, ry, seed, sc = 1) {

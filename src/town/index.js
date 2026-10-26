@@ -19,6 +19,7 @@ import { buildPower } from './power.js';
 import { buildRocks } from './rockZones.js';
 import { buildPlants } from './plantZones.js';
 import { flushSharedPlants } from '../plants/wild.js';
+import { buildRoofTops } from './roofTops.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -74,7 +75,9 @@ export function buildTown(world, renderer, refl) {
     houses = buildHouses(world);
   }
   flushSharedPlants(world); // the pots / boxes planted inside the buildings' own groups (plants/wild.js)
+  // flat-roof life: slab, AC units, vents, hatch, laundry frame, dish; more petals / leaves on those roofs
+  const roofTops = buildRoofTops(world);
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, station, island, clouds, power, rocks, plants, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, station, island, clouds, power, rocks, plants, roofTops, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }

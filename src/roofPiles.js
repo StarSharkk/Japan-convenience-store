@@ -204,6 +204,13 @@ export function createRoofPiles(parent, root) {
     if (SURFACES.some((S) => S.id === r.id)) return;
     const S = pentS(r.id, r.a, r.b, r.n, r.D, r.y, r.drop, { w: r.w, snow: r.snow, ridge: r.ridge, ov: r.ov });
     if (r.patch) { S.patch = r.patch; S.ribs = r.ribs; }
+    if (r.walls) S.walls = r.walls; // (flat roofs behind parapets bank against more than one wall)
+    // rooftop fixtures (world rects [x0, x1, z0, z1]) -> the surface's (u, v) frame, so the piles bank against them
+    if (r.obst) S.obst = r.obst.map(([x0, x1, z0, z1]) => {
+      const us = [], vs = [];
+      [[x0, z0], [x1, z0], [x0, z1], [x1, z1]].forEach(([x, z]) => { const dx = x - S.o.x, dz = z - S.o.z; us.push(dx * S.U.x + dz * S.U.z); vs.push((dx * S.V.x + dz * S.V.z) / Math.max(1e-3, Math.hypot(S.V.x, S.V.z))); });
+      return [Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)];
+    });
     S.N = new THREE.Vector3().crossVectors(S.V, S.U).normalize();
     S.q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(S.U, S.N, S.V));
     SURFACES.push(S);
@@ -365,8 +372,8 @@ export function createRoofPiles(parent, root) {
     K.col.needsUpdate = true; K.th.needsUpdate = true; K.cc.needsUpdate = true;
     K.pp = K.pth = K.pc = K.pca = K.pidx = null;
   }
-  genFlakes(flakeKind('leaf', 0, 30000));
-  genFlakes(flakeKind('petal', 1, 46000));
+  genFlakes(flakeKind('leaf', 0, 70000)); // (room for every registered roof, the flat ones included)
+  genFlakes(flakeKind('petal', 1, 90000));
   console.log(`roof piles: ${kinds.leaf.i} leaves, ${kinds.petal.i} petals`);
 
   /* ================================================================ snow blanket */

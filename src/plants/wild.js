@@ -471,6 +471,23 @@ Object.assign(MODELS, {
     parts.push(...placeHead(flowerHead(R, { n: lite ? 16 : 22, rings: 2, L: 0.04, W: 0.011, open: 0.08, petalCol: col, disc: C('#7a5a2a'), discR: 0.012, discH: 0.5, notch: 0.1 }).map((g) => asKind([g], 4)[0]), top, V((R() - 0.5) * 0.6, 1, (R() - 0.5) * 0.6)));
     return build(parts, 0.4);
   },
+  // flower heads without stems (they sit on a display's greenery): a hydrangea dome, a rose
+  hydHead(R, lite, v) {
+    const parts = [], col = CUT.hydrangea[v % 4], r = 0.08;
+    for (let i = 0; i < (lite ? 16 : 24); i++) {
+      const u = R() * 6.28, e = Math.acos(1 - R() * 0.95), n = V(Math.sin(e) * Math.cos(u), Math.cos(e), Math.sin(e) * Math.sin(u)), p = n.clone().multiplyScalar(r * (0.82 + R() * 0.18));
+      const fl = [], rot = R() * 6.28;
+      for (let k = 0; k < 4; k++) { const c = rot + (k / 4) * Math.PI * 2; fl.push(part(orient(petal(0.028, 0.024, { cup: 0.2, n: 5 }), V(0, 0, 0), V(Math.cos(c), 0.2, Math.sin(c)), UP), jit(R, col, 0.06), 4)); }
+      parts.push(...placeHead(fl, p, n));
+    }
+    const core = new THREE.SphereGeometry(r * 0.8, 8, 5); parts.push(part(core, mix(col, PAL.grass, 0.45), 0));
+    return build(parts, 0.2);
+  },
+  roseHead(R, lite, v) {
+    const col = CUT.rose[v % 4], fl = [];
+    [[3, 0.02, 1.25], [5, 0.027, 0.95], [7, 0.034, 0.6]].forEach(([n, L, e], ri) => { for (let i = 0; i < n; i++) { const a = (i / n) * 6.28 + ri * 0.7, dir = V(Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e)); fl.push(part(orient(petal(L, L * 1.1, { cup: 0.9, droop: -0.2, n: 6 }), V(Math.cos(a) * 0.004 * ri, 0, Math.sin(a) * 0.004 * ri), dir, UP), mix(col, PAL.white, ri * 0.05), 4)); } });
+    return build(fl, 0.2);
+  },
   // a cluster of small mixed-colour flowers on short stalks (no leaves: it crowns a pot's greenery)
   blooms(R, lite, v) {
     const parts = [], n = lite ? 5 : 7;
@@ -500,7 +517,7 @@ Object.assign(MODELS, {
   },
 });
 
-export const PLANT_TYPES = { bushFlower: 4, bushLeaf: 3, daisy: 4, forget: 3, pinkWild: 3, clover: 4, tallGrass: 4, shortGrass: 4, ornGrass: 3, pampas: 3, patch: 4, cover: 3, cutHydrangea: 4, cutRose: 4, cutSunflower: 2, cutLavender: 2, cutGerbera: 4, pansy: 5, blooms: 5 };
+export const PLANT_TYPES = { bushFlower: 4, bushLeaf: 3, daisy: 4, forget: 3, pinkWild: 3, clover: 4, tallGrass: 4, shortGrass: 4, ornGrass: 3, pampas: 3, patch: 4, cover: 3, cutHydrangea: 4, cutRose: 4, cutSunflower: 2, cutLavender: 2, cutGerbera: 4, pansy: 5, blooms: 5, hydHead: 4, roseHead: 4 };
 const cache = new Map();
 export const PLANT_STATS = { models: 0, ms: 0, tris: 0 };
 /** one plant model (type, variant), its base at the origin; lite: the cheap version (fewer parts) */
