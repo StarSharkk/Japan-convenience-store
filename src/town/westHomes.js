@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, rng } from '../core.js';
 import { makeShrub, makeTree } from '../tree.js';
 import { makePot } from '../plants/pottedPlants.js';
-import { bicycle, wire } from '../street.js';
+import { bicycle } from '../street.js';
 import { rbx, win, acUnit, pipe } from './streetRow.js';
 import { wetPass } from './shopkit.js';
 import { WEST_HOMES, groundY } from './layout.js';
@@ -339,9 +339,7 @@ export function buildWestHomes(parent) {
   for (let z = -9.7; z < -6.2; z += 0.85) shrub(g, -40.4, z, YN, 760 + Math.round(z * 10), 0.65, 0.6, 'deep'); // behind the front walls only
   for (let z = -9.6; z < -5.2; z += 1.1) shrub(g, -46.6, z, YN, 770 + Math.round(z * 10), 0.7, 0.65, 'grey');
   for (let z = -1.6; z < 2.4; z += 1.0) shrub(g, -34.75, z, YS, 780 + Math.round(z * 10), 0.6, 0.55, 'teal');
-  /* ---- service drops from the Kaigan-dori poles (furniture.js) to houses 3 + 4 ---- */
-  wire(g, [-34, groundY(-34, 6.05) + 6.4, 6.05], [-35.75, YS + 3.75, 3.2], 0.4, 0.013);
-  wire(g, [-40, groundY(-40, 6.05) + 6.4, 6.05], [-42.2, YS + 3.75, 3.0], 0.4, 0.013);
+  /* (power: the service drops come from the network in town/power.js) */
 
   wetPass([M.slab, M.gravel, m.timber]);
   reg.westHomes = { g };

@@ -1,0 +1,314 @@
+import * as THREE from 'three';
+import { reg, toon, glow, bx, cy, cyl2, sph, grp, halo, rng, patchToon, RAMP } from '../core.js';
+import { OUTLINE, RAIL, groundY } from './layout.js';
+import { makeWater, BED_PLAIN } from '../waterSystem.js';
+import { makeShrub, makeTree } from '../tree.js';
+import { guardrail } from '../street.js';
+
+/* ====================================================================================================
+   The island: the town (its outline, layout.js OUTLINE) becomes a small island in a round sea, the whole thing a
+   display piece floating in the sky.
+
+     IslandBase      a ring of land round the town's edge, one profile everywhere: a grass verge at the town's own
+                     height, a slope (steep and rocky under the shrine terrace and here and there), a sand beach at the
+                     waterline, an underwater shelf down to the sea floor; vertex-coloured (grass / rock / sand / wet
+                     sand / sea floor) in the toon look, snow in winter like the rest
+     EdgeLandscape   rocks on the slopes, the beach and the shallows; shrubs, a few trees, grass tufts and wild flowers
+                     on the verge; guard rails where the roads reach the edge, buffer stops at the track ends, a small
+                     wooden jetty with a rowboat off the south-west beach
+     SurroundingSea  the town's shared water (waterSystem.js, 'sea' preset) on a round sea; its depth comes from the
+                     same profile (a depth map), so the shallows, the colours and the foam follow the beach
+     the tray        the sea's edge: a water cross-section band, then a rounded rock + earth underside tapering away
+                     below (the piece floats; town/clouds.js drifts round it)
+   ==================================================================================================== */
+
+export const SEA = -1.3, FLOOR = -4.6;
+export const ISLAND = { cx: -6, cz: -6, R: 82 }; // the round sea (the tray): the town stays the main thing
+
+/* ---------------------------------------------------------------- the edge: samples round the outline */
+const hsh = (x) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const vn = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hsh(i) * (1 - u) + hsh(i + 1) * u; };
+const fbm = (x) => vn(x) * 0.65 + vn(x * 2.3 + 7.1) * 0.35;
+const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+const N = OUTLINE.length;
+const area = OUTLINE.reduce((a, [x0, z0], i) => { const [x1, z1] = OUTLINE[(i + 1) % N]; return a + x0 * z1 - x1 * z0; }, 0) / 2;
+const EDGES = OUTLINE.map(([ax, az], i) => {
+  const [bx2, bz] = OUTLINE[(i + 1) % N], L = Math.hypot(bx2 - ax, bz - az), tx = (bx2 - ax) / L, tz = (bz - az) / L;
+  const sg = area > 0 ? 1 : -1; // outward normal of a convex ring
+  return { ax, az, bx: bx2, bz, L, tx, tz, nx: tz * sg, nz: -tx * sg };
+});
+// the s parameter (for the noise along the coast): edge lengths + the corner arcs at a nominal radius
+const ARC_R = 4;
+const turn = (i) => { const a = EDGES[i], b = EDGES[(i + 1) % N]; let d = Math.atan2(b.nz, b.nx) - Math.atan2(a.nz, a.nx); while (d < 0) d += Math.PI * 2; while (d > Math.PI * 2) d -= Math.PI * 2; return d > Math.PI ? d - Math.PI * 2 : d; };
+const S0 = []; { let s = 0; EDGES.forEach((e, i) => { S0.push(s); s += e.L + Math.abs(turn(i)) * ARC_R; }); }
+
+/** the land profile at coast parameter s, distance d out from the town's edge (whose height is hTop) */
+function profile(s, d, hTop) {
+  const a = fbm(s * 0.045), b = fbm(s * 0.09 + 11.3);
+  const cliff = Math.max(hTop > 1.0 ? 1 : 0, ss(0.64, 0.76, b));
+  const spit = 7 * ss(0.58, 0.86, fbm(s * 0.021 + 3.7)); // now and then a sand spit / a broad beach: an irregular, tidy outline
+  const lip = 0.6, dS = (2.4 + 4.2 * a) * (1 - cliff) + (1.0 + 0.9 * a) * cliff;
+  const dB = dS + 1.4 + 2.8 * b + spit, dU = dB + 5 + 3 * a;
+  if (d <= lip) return { h: hTop - 0.03 * (d / lip), dS, dB, dU, cliff };
+  if (d <= dS) { const t = (d - lip) / (dS - lip), e = cliff ? 1 - Math.pow(1 - t, 2.2) : t * t * (3 - 2 * t); return { h: hTop - 0.03 + (SEA + 0.28 - hTop + 0.03) * e, dS, dB, dU, cliff }; }
+  if (d <= dB) return { h: SEA + 0.28 - 0.42 * (d - dS) / (dB - dS), dS, dB, dU, cliff };
+  if (d <= dU) { const t = (d - dB) / (dU - dB); return { h: SEA - 0.14 + (FLOOR + 0.12 - SEA + 0.14) * t * t * (3 - 2 * t), dS, dB, dU, cliff }; }
+  return { h: FLOOR + 0.12 - 0.12 * ss(dU, dU + 3, d), dS, dB, dU, cliff };
+}
+/** the town's height just inside its edge at a base point */
+const topAt = (x, z, nx, nz) => groundY(x - nx * 0.08, z - nz * 0.08);
+
+/** samples along the coast: base point, outward normal, s (edges every ~0.5 m, corners as arcs) */
+function coastSamples() {
+  const out = [];
+  EDGES.forEach((e, i) => {
+    const n = Math.max(2, Math.round(e.L / 0.5));
+    for (let k = 0; k < n; k++) { const t = k / n; out.push({ x: e.ax + (e.bx - e.ax) * t, z: e.az + (e.bz - e.az) * t, nx: e.nx, nz: e.nz, s: S0[i] + e.L * t }); }
+    const tr = turn(i), m = Math.max(1, Math.round(Math.abs(tr) / 0.17)), a0 = Math.atan2(e.nz, e.nx);
+    for (let k = 0; k < m; k++) { const a = a0 + (tr * k) / m; out.push({ x: e.bx, z: e.bz, nx: Math.cos(a), nz: Math.sin(a), s: S0[i] + e.L + Math.abs(tr) * ARC_R * (k / m) }); }
+  });
+  return out;
+}
+/** for any point outside the town: (s, d, base point + normal) of its nearest coast point */
+function coastOf(x, z) {
+  let best = null;
+  EDGES.forEach((e, i) => {
+    const t = ((x - e.ax) * e.tx + (z - e.az) * e.tz);
+    if (t >= 0 && t <= e.L) { const d = (x - e.ax) * e.nx + (z - e.az) * e.nz; if (d > 0 && (!best || d < best.d)) best = { d, s: S0[i] + t, bx: e.ax + e.tx * t, bz: e.az + e.tz * t, nx: e.nx, nz: e.nz }; }
+    // the corner at the end of this edge
+    const dx = x - e.bx, dz = z - e.bz, d = Math.hypot(dx, dz), nx = dx / (d || 1), nz = dz / (d || 1);
+    const nxt = EDGES[(i + 1) % N];
+    if (nx * e.tx + nz * e.tz >= 0 && nx * nxt.tx + nz * nxt.tz <= 0 && (!best || d < best.d)) {
+      const a0 = Math.atan2(e.nz, e.nx); let da = Math.atan2(nz, nx) - a0; while (da < -Math.PI) da += Math.PI * 2; while (da > Math.PI) da -= Math.PI * 2;
+      best = { d, s: S0[i] + e.L + Math.abs(da) * ARC_R, bx: e.bx, bz: e.bz, nx, nz };
+    }
+  });
+  return best;
+}
+
+/* ---------------------------------------------------------------- IslandBase: the rim mesh */
+const C = { grass: new THREE.Color('#6a9a52'), grass2: new THREE.Color('#5a8a4a'), verge: new THREE.Color('#78a85c'), rock: new THREE.Color('#8f877b'), rock2: new THREE.Color('#77726a'), sand: new THREE.Color('#e9dab4'), wet: new THREE.Color('#cdb98f'), floor: new THREE.Color('#d2c197'), deep: new THREE.Color('#a9a07e') };
+function buildRim(g, samples) {
+  const pos = [], col = [], idx = [];
+  const rows = [];
+  samples.forEach((sm) => {
+    const hTop = topAt(sm.x, sm.z, sm.nx, sm.nz), p0 = profile(sm.s, 0, hTop);
+    const ds = [0, 0.3, 0.6];
+    for (let k = 1; k <= 7; k++) ds.push(0.6 + (p0.dS - 0.6) * (k / 7));
+    for (let k = 1; k <= 3; k++) ds.push(p0.dS + (p0.dB - p0.dS) * (k / 3));
+    for (let k = 1; k <= 4; k++) ds.push(p0.dB + (p0.dU - p0.dB) * (k / 4));
+    ds.push(p0.dU + 3.5);
+    const row = [];
+    let prevH = null, prevD = 0;
+    const gn = fbm(sm.s * 0.21 + 3.3);
+    ds.forEach((d, k) => {
+      const { h } = profile(sm.s, d, hTop);
+      let x = sm.x + sm.nx * d, z = sm.z + sm.nz * d;
+      { const dx = x - ISLAND.cx, dz = z - ISLAND.cz, r = Math.hypot(dx, dz), rm = ISLAND.R - 0.6; if (r > rm) { x = ISLAND.cx + (dx * rm) / r; z = ISLAND.cz + (dz * rm) / r; } } // stay inside the tray
+      row.push(pos.length / 3); pos.push(x, h, z);
+      const slope = prevH === null ? 0 : Math.abs(h - prevH) / Math.max(0.05, d - prevD);
+      prevH = h; prevD = d;
+      // colour: verge -> grass -> rock on the steep parts -> sand -> wet sand -> sea floor
+      const c = new THREE.Color();
+      if (h > SEA + 0.5) { c.copy(d < 0.65 ? C.verge : C.grass).lerp(C.grass2, gn * 0.6); c.lerp(C.rock, ss(0.9, 1.6, slope) * (0.85 + 0.15 * gn)); c.lerp(C.rock2, ss(1.6, 2.6, slope) * 0.6); c.lerp(C.sand, ss(SEA + 0.9, SEA + 0.5, h)); }
+      else if (h > SEA - 0.05) c.copy(C.sand).lerp(C.wet, ss(SEA + 0.12, SEA - 0.05, h)).lerp(C.rock, ss(1.2, 2, slope) * 0.7);
+      else c.copy(C.floor).lerp(C.deep, ss(SEA - 0.3, FLOOR, h));
+      col.push(c.r, c.g, c.b);
+    });
+    rows.push(row);
+  });
+  for (let i = 0; i < rows.length; i++) {
+    const A = rows[i], B = rows[(i + 1) % rows.length];
+    for (let k = 0; k < A.length - 1; k++) idx.push(A[k], B[k], A[k + 1], B[k], B[k + 1], A[k + 1]);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  // keep faces pointing up (the winding depends on the outline's direction)
+  const nrm = geo.attributes.normal; let up = 0; for (let i = 0; i < nrm.count; i++) up += nrm.getY(i);
+  if (up < 0) { for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]; geo.setIndex(idx); geo.computeVertexNormals(); }
+  const m = patchToon(new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: RAMP }), 0, true);
+  // at night the rim dims with the town's ground (whose paint is darker after dark), so the beach does not glow
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh) => {
+    prev(sh);
+    sh.uniforms.uDayK = reg.waterU.uDay;
+    sh.fragmentShader = sh.fragmentShader.replace('uniform vec3 diffuse;', 'uniform vec3 diffuse;\nuniform float uDayK;').replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= mix(0.5, 1.0, uDayK);');
+  };
+  m.customProgramCacheKey = () => 'islandRim';
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.receiveShadow = true; mesh.name = 'IslandRim';
+  g.add(mesh);
+  return mesh;
+}
+
+/* ---------------------------------------------------------------- the sea + the tray */
+function buildSea(g) {
+  // depth map from the same profile: depth = SEA - land height (0 inside the town: the shader drops it)
+  const { cx, cz, R } = ISLAND, S = 256, size = 2 * R, x0 = cx - R, z0 = cz - R;
+  const data = new Uint8Array(S * S * 4), pIn = (x, z) => EDGES.every((e) => (x - e.ax) * e.nx + (z - e.az) * e.nz <= 0);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+    const x = x0 + ((i + 0.5) / S) * size, z = z0 + ((j + 0.5) / S) * size, o = (j * S + i) * 4;
+    let depth = -0.25;
+    if (!pIn(x, z)) { const c = coastOf(x, z); depth = c ? SEA - profile(c.s, c.d, topAt(c.bx, c.bz, c.nx, c.nz)).h : 3.3; }
+    data[o] = Math.round(255 * Math.min(1, Math.max(0, (depth + 0.25) / 4))); data[o + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat); tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  const mat = makeWater('sea', {
+    bed: BED_PLAIN,
+    depth: /* glsl */ `uniform sampler2D tDepth; uniform vec3 uBox;
+      float wDepth(vec2 p){ vec2 uv = (p - uBox.xy) / uBox.z; if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 3.3; return texture2D(tDepth, uv).r * 4.0 - 0.25; }`,
+    uniforms: { tDepth: { value: tex }, uBox: { value: new THREE.Vector3(x0, z0, size) } },
+  });
+  const sea = new THREE.Mesh(new THREE.CircleGeometry(R, 160).rotateX(-Math.PI / 2), mat);
+  sea.position.set(cx, SEA, cz); sea.renderOrder = 2; sea.userData.noLine = true; sea.name = 'SurroundingSea';
+  reg.noRefl.push(sea); g.add(sea);
+  // the sea floor beyond the island's shelf
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 96).rotateX(-Math.PI / 2), toon('#cdbd92', { nosnow: true }));
+  floor.position.set(cx, FLOOR - 0.03, cz); floor.receiveShadow = true; g.add(floor);
+  // the tray's edge: the water's cross-section (clear at the top, deeper blue below, a pale lip), then the underside
+  {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(R, R, SEA - FLOOR, 160, 1, true), new THREE.ShaderMaterial({
+      uniforms: { uDay: reg.waterU.uDay, uTime: reg.waterU.uTime },
+      vertexShader: /* glsl */ `varying float vY; varying vec2 vA; void main(){ vY = uv.y; vA = vec2(atan(position.z, position.x), position.y); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `uniform float uDay, uTime; varying float vY; varying vec2 vA;
+        void main(){
+          float wave = 0.012 * sin(vA.x * 140.0 + uTime * 0.8) + 0.008 * sin(vA.x * 310.0 - uTime * 1.1);
+          vec3 c = mix(vec3(0.16, 0.42, 0.62), vec3(0.42, 0.8, 0.84), smoothstep(0.0, 1.0, vY));
+          c = mix(c, vec3(0.92, 0.97, 1.0), smoothstep(0.955, 0.985, vY + wave)); // the pale lip at the surface
+          c *= mix(0.32, 1.0, uDay);
+          gl_FragColor = vec4(c, mix(0.86, 0.72, vY));
+        }`,
+      transparent: true, depthWrite: false,
+    }));
+    band.position.set(cx, (SEA + FLOOR) / 2, cz); band.userData.noLine = true; band.renderOrder = 3; g.add(band);
+    // the underside: sand -> earth strata -> rock, tapering away (a lathe, its radius gently irregular round the edge)
+    const prof = [[1.0, 0], [0.995, -0.5], [0.975, -1.6], [0.93, -3.2], [0.85, -5.0], [0.74, -6.8], [0.6, -8.4], [0.42, -9.8], [0.22, -10.9], [0.0, -11.5]];
+    const pts = prof.map(([r, y]) => new THREE.Vector2(r * R, FLOOR + y));
+    const geo = new THREE.LatheGeometry(pts, 128);
+    const P = geo.attributes.position, cols = [], Rn = rng(17);
+    const bumps = Array.from({ length: 6 }, () => [Rn() * 6.28, 2 + ((Rn() * 7) | 0), 0.02 + Rn() * 0.03]);
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i), y = P.getY(i), z = P.getZ(i), r = Math.hypot(x, z), a = Math.atan2(z, x), dy = FLOOR - y;
+      const k = 1 + bumps.reduce((s, [ph, f, amp]) => s + amp * Math.sin(a * f + ph), 0) * ss(0.3, 2.5, dy);
+      if (r > 1e-3) { P.setX(i, x * k); P.setZ(i, z * k); }
+      const band2 = Math.sin(dy * 2.2 + Math.sin(a * 5) * 0.6);
+      const c = dy < 0.55 ? new THREE.Color('#e3d2a6') : dy < 3.5 ? new THREE.Color('#9a7b5c').lerp(new THREE.Color('#b48d68'), 0.5 + 0.5 * band2) : new THREE.Color('#857c70').lerp(new THREE.Color('#6d665d'), ss(3.5, 9, dy) * 0.8 + 0.1 * band2);
+      cols.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    geo.computeVertexNormals();
+    const under = new THREE.Mesh(geo, patchToon(new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: RAMP, side: THREE.DoubleSide }), 0.06, false));
+    under.position.set(cx, 0, cz); under.userData.noRefl = true; g.add(under);
+  }
+  return sea;
+}
+
+/* ---------------------------------------------------------------- EdgeLandscape */
+function buildEdge(g, samples) {
+  const R = rng(909);
+  const at = (sm, d) => { const hTop = topAt(sm.x, sm.z, sm.nx, sm.nz); return { x: sm.x + sm.nx * d, z: sm.z + sm.nz * d, ...profile(sm.s, d, hTop), hTop }; };
+  const road = (sm) => topAt(sm.x, sm.z, sm.nx, sm.nz) < 0.08; // a road meets the edge here
+
+  /* rocks: on the slope foot, the beach, the shallows; clusters on the steep bits */
+  {
+    const geo = new THREE.IcosahedronGeometry(1, 1), mat = toon('#ffffff', { nocache: true });
+    const im = new THREE.InstancedMesh(geo, mat, 420), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    let n = 0;
+    samples.forEach((sm, i) => {
+      if (n >= 420) return;
+      const p0 = at(sm, 0);
+      const k = p0.cliff > 0.5 ? 3 : R() < 0.35 ? 1 : 0;
+      for (let j = 0; j < k && n < 420; j++) {
+        const d = p0.cliff > 0.5 && R() < 0.6 ? 0.8 + R() * (p0.dS - 0.6) : p0.dS - 0.4 + R() * (p0.dB - p0.dS + 2.2);
+        const p = at(sm, d), sz = (p0.cliff > 0.5 ? 0.35 : 0.18) + Math.pow(R(), 2) * (p0.cliff > 0.5 ? 0.8 : 0.55);
+        const t = R() * 0.6 - 0.3, x = p.x + sm.nz * t * 2, z = p.z - sm.nx * t * 2;
+        m4.compose(new THREE.Vector3(x, p.h + sz * 0.15, z), q.setFromEuler(new THREE.Euler(R() * 3, R() * 3, R() * 3)), new THREE.Vector3(sz * (1 + R() * 0.6), sz * (0.55 + R() * 0.4), sz * (0.9 + R() * 0.5)));
+        im.setMatrixAt(n, m4); im.setColorAt(n, c.set(['#9a9284', '#8a8376', '#a8a090', '#7c766c'][(R() * 4) | 0])); n++;
+      }
+    });
+    im.count = n; im.castShadow = im.receiveShadow = true; im.name = 'EdgeRocks'; g.add(im);
+  }
+  /* grass tufts + wild flowers on the verge and the upper slope (instanced) */
+  {
+    const tuft = new THREE.ConeGeometry(0.05, 0.28, 4).translate(0, 0.14, 0), fl = new THREE.IcosahedronGeometry(0.045, 0);
+    const T = new THREE.InstancedMesh(tuft, toon('#ffffff', { nocache: true }), 1600), F = new THREE.InstancedMesh(fl, toon('#ffffff', { nocache: true }), 900);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    let nt = 0, nf = 0;
+    samples.forEach((sm) => {
+      if (road(sm)) return;
+      for (let j = 0; j < 4; j++) {
+        const p0 = at(sm, 0); const d = 0.15 + R() * Math.max(0.3, p0.dS * 0.75), p = at(sm, d);
+        if (p.h < SEA + 0.6) continue;
+        const t = (R() - 0.5) * 0.9, x = p.x + sm.nz * t, z = p.z - sm.nx * t;
+        if (nt < 1600) { const s = 0.6 + R() * 0.9; m4.compose(new THREE.Vector3(x, p.h - 0.02, z), q.setFromEuler(new THREE.Euler((R() - 0.5) * 0.4, R() * 3, (R() - 0.5) * 0.4)), new THREE.Vector3(s, s, s)); T.setMatrixAt(nt, m4); T.setColorAt(nt, c.set(['#5e8f4a', '#6f9e52', '#4f7f44', '#7aa85a'][(R() * 4) | 0])); nt++; }
+        if (R() < 0.45 && nf < 900) { m4.compose(new THREE.Vector3(x + 0.1, p.h + 0.08 + R() * 0.1, z), q, new THREE.Vector3(1, 0.7, 1)); F.setMatrixAt(nf, m4); F.setColorAt(nf, c.set(['#fbf6ee', '#f6d24e', '#f3a8be', '#b8a0e0', '#ffffff', '#f4b26a'][(R() * 6) | 0])); nf++; }
+      }
+    });
+    T.count = nt; F.count = nf; T.userData.noLine = F.userData.noLine = true; g.add(T, F);
+  }
+  /* shrubs + a few trees on the verge (never in front of a road end) */
+  samples.forEach((sm, i) => {
+    if (road(sm) || i % 9) return;
+    const p0 = at(sm, 0); if (p0.hTop > 1.2) return; // the terrace's own wood stands above
+    if (R() < 0.55) { const d = 0.9 + R() * Math.max(0.2, p0.dS * 0.5), p = at(sm, d); const sb = makeShrub({ seed: 500 + i, width: 0.9 + R() * 0.8, height: 0.6 + R() * 0.5, palette: R() < 0.5 ? 'deep' : 'grey' }); sb.position.set(p.x, p.h - 0.05, p.z); g.add(sb); }
+    if (R() < 0.12) { const d = 1.3 + R() * Math.max(0.2, p0.dS * 0.4), p = at(sm, d); const t = makeTree({ seed: 700 + i, height: 3.2 + R() * 1.6, spread: 0.9, palette: R() < 0.3 ? 'maple' : 'deep', dens: 0.8, lean: (R() - 0.5) * 0.2 }); t.position.set(p.x, p.h - 0.05, p.z); t.rotation.y = R() * 6; g.add(t); }
+  });
+  /* guard rails across the road ends at the edge, a reflector post at each end */
+  {
+    let run = [];
+    const flush = () => {
+      if (run.length > 3) {
+        const a = run[0], b = run[run.length - 1], o = 0.35;
+        guardrail(grp(g, 0, -0.15 + Math.min(topAt(a.x, a.z, a.nx, a.nz), topAt(b.x, b.z, b.nx, b.nz)), 0), a.x + a.nx * o, a.z + a.nz * o, b.x + b.nx * o, b.z + b.nz * o);
+        [a, b].forEach((p) => { const y = topAt(p.x, p.z, p.nx, p.nz); cy(g, toon('#f2f0ea'), p.x + p.nx * o, y, p.z + p.nz * o, 0.04, 0.9, 8); bx(g, glow('#ff8a3c', 1.2, { cat: 'lamp', off: '#e06a2a' }), p.x + p.nx * o - 0.03, p.x + p.nx * o + 0.03, y + 0.7, y + 0.85, p.z + p.nz * o - 0.03, p.z + p.nz * o + 0.03, { cast: false }); });
+      }
+      run = [];
+    };
+    samples.forEach((sm) => { if (road(sm) && sm.nx * sm.nx + sm.nz * sm.nz > 0.99 && (run.length === 0 || (Math.abs(run[run.length - 1].nx - sm.nx) < 0.01 && Math.abs(run[run.length - 1].nz - sm.nz) < 0.01))) run.push(sm); else flush(); });
+    flush();
+  }
+  /* buffer stops (車止め) at the two ends of the track */
+  [[RAIL.x0 + 0.7, RAIL.z, 0], [RAIL.xNorth, RAIL.zEnd + 0.6, Math.PI / 2]].forEach(([x, z, ry]) => {
+    const b = grp(g, x, groundY(x, z), z, ry); const yel = toon('#f2c230'), blk = toon('#2f2e38');
+    [-0.55, 0.55].forEach((o) => { cyl2(b, blk, [0, 0.3, o], [0.45, 0, o], 0.05, 6); cyl2(b, blk, [0, 0.3, o], [-0.1, 0, o], 0.05, 6); });
+    bx(b, yel, -0.12, 0.06, 0.25, 0.75, -0.8, 0.8); for (let k = 0; k < 4; k++) bx(b, blk, -0.125, 0.065, 0.3, 0.7, -0.75 + k * 0.42, -0.6 + k * 0.42, { cast: false });
+    bx(b, glow('#ff4a3a', 1.6, { cat: 'lamp', off: '#c03a2a' }), -0.14, -0.12, 0.6, 0.7, -0.05, 0.05, { cast: false });
+  });
+  /* a small wooden jetty off the south-west beach, a rowboat tied to it, a lamp at its end */
+  {
+    const base = samples.reduce((b, sm) => (Math.abs(sm.nz - 1) < 1e-3 && Math.abs(sm.x + 27) < Math.abs(b.x + 27) ? sm : b), samples[0]);
+    const p0 = at(base, 0), d0 = p0.dS - 0.6, d1 = p0.dB + 9, y = SEA + 0.62, wood = toon('#9a7350', { lit: 0.05 }), woodD = toon('#6b4a32');
+    const J = grp(g, base.x, 0, base.z, 0);
+    for (let d = d0; d < d1; d += 0.42) bx(J, wood, -0.75, 0.75, y - 0.06, y, d, d + 0.36, { cast: true });
+    for (let d = d0 + 0.6; d < d1; d += 1.6) [-0.72, 0.72].forEach((x) => cy(J, woodD, x, FLOOR + 0.1, d, 0.08, y - FLOOR - 0.12, 8));
+    cyl2(J, woodD, [-0.72, y + 0.9, d0 + 0.6], [-0.72, y + 0.9, d1 - 0.2], 0.03, 6); for (let d = d0 + 0.6; d < d1; d += 1.6) cy(J, woodD, -0.72, y, d, 0.03, 0.9, 6);
+    [0.72].forEach((x) => [d1 - 0.5, d1 - 3.2].forEach((d) => cy(J, toon('#3f3a36'), x, y, d, 0.07, 0.28, 10)));
+    { const x = -0.72, d = d1 - 0.25; cy(J, woodD, x, y, d, 0.05, 2.4, 8); bx(J, glow('#ffe2b0', 2.2, { cat: 'lamp', off: '#d8cfbf' }), x - 0.1, x + 0.1, y + 2.4, y + 2.62, d - 0.1, d + 0.1, { cast: false }); halo(J, x, y + 2.5, d, '#ffd9a0', 2.0, 0.4, 'lamp'); }
+    // the rowboat (moored alongside, bobbing a little)
+    const boat = grp(J, 1.7, SEA + 0.08, d1 - 2.4, 0.08);
+    const hull = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), toon('#f1ece2', { nocache: true, side: THREE.DoubleSide }));
+    hull.scale.set(0.62, 0.42, 1.7); hull.position.y = 0.3; hull.castShadow = true; boat.add(hull);
+    bx(boat, toon('#2f6f9a'), -0.6, 0.6, 0.26, 0.32, -1.6, 1.6, { cast: false }); bx(boat, wood, -0.55, 0.55, 0.12, 0.16, -0.2, 0.15); bx(boat, wood, -0.55, 0.55, 0.12, 0.16, 0.8, 1.1);
+    reg.updaters.push((t) => { boat.position.y = SEA + 0.08 + Math.sin(t * 0.9) * 0.04; boat.rotation.z = Math.sin(t * 0.7) * 0.04; });
+    cyl2(J, toon('#d8cfb8'), [0.72, y + 0.2, d1 - 2.4], [1.4, SEA + 0.5, d1 - 2.0], 0.012, 4); // the mooring line
+  }
+}
+
+/* ---------------------------------------------------------------- build */
+export function buildIsland(parent) {
+  const root = grp(parent);
+  root.name = 'TownIslandRoot';
+  const base = grp(root); base.name = 'IslandBase';
+  const edge = grp(root); edge.name = 'EdgeLandscape';
+  const sea = grp(root); sea.name = 'SeaAndTray';
+  const samples = coastSamples();
+  buildRim(base, samples);
+  buildSea(sea);
+  buildEdge(edge, samples);
+  reg.island = { root, SEA, ISLAND };
+  return root;
+}

@@ -73,6 +73,9 @@ export const WATER_PRESETS = {
   // a clear, quiet garden pool: pale green-cyan, more see-through, smaller and calmer waves
   pond: { shallow: '#bfe4d8', mid: '#93cdbf', deep: '#62a99c', bed: '#a8a088', horizon: '#6f9669', normalScale: 0.09, waveSpeed: 0.6, waveScale: 1.7, reflStr: 0.8, fresnel: 0.95, r0: 0.12, alphaShallow: 0.2, alphaDeep: 0.6, absorb: 0.3, rippleStr: 0.7, spec: 0.8, rainK: 1.0, edge: 0.035, rough: 0.3 },
   // the fountain: the clearest, livelier small ripples, pale stone under it
+  // the sea round the island (town/island.js): pale turquoise shallows, a clear blue-green, a soft deep blue; slow broad
+  // swell, a little foam lapping the beach
+  sea: { shallow: '#a8e4d8', mid: '#5bbccb', deep: '#3384b4', bed: '#e4d5ae', horizon: '#a9c9dc', normalScale: 0.13, waveSpeed: 0.7, waveScale: 0.42, reflStr: 1.0, fresnel: 1.0, r0: 0.12, alphaShallow: 0.32, alphaDeep: 0.96, absorb: 2.4, rippleStr: 0.8, spec: 0.8, rainK: 1.0, edge: 0.07, rough: 0.3, foam: 1.0 },
   fountain: { shallow: '#c6ece7', mid: '#9cd8d4', deep: '#6dbcc0', bed: '#d9d3c4', horizon: '#d6cfc0', normalScale: 0.12, waveSpeed: 1.25, waveScale: 2.2, reflStr: 0.85, fresnel: 1.0, r0: 0.1, alphaShallow: 0.45, alphaDeep: 0.68, absorb: 0.45, rippleStr: 1.0, spec: 0.45, rainK: 1.0, edge: 0, rough: 0.25 },
 };
 
@@ -94,7 +97,7 @@ const FS = (depthGLSL, bedGLSL) => /* glsl */ `
   uniform sampler2D tNrm;
   uniform vec3 uShallow, uMid, uDeep, uBed, uHorizon, uGlowCol;
   uniform vec4 uGlow; // x, z, radius, strength (an underwater light at night)
-  uniform float uNormalScale, uWaveSpeed, uWaveScale, uReflStr, uFresnel, uAlphaShallow, uAlphaDeep, uAbsorb, uRippleStr, uSpec, uRainK, uEdge, uRough, uSrcOn, uNSrc, uR0;
+  uniform float uNormalScale, uWaveSpeed, uWaveScale, uReflStr, uFresnel, uAlphaShallow, uAlphaDeep, uAbsorb, uRippleStr, uSpec, uRainK, uEdge, uRough, uSrcOn, uNSrc, uR0, uFoam;
   uniform vec4 uSrc[10]; // x, z, strength, ring radius (0: a point)
   #ifdef PLANAR
   uniform sampler2D tRefl; uniform mat4 uTexMat; uniform float uReflK, uReflY;
@@ -217,6 +220,14 @@ const FS = (depthGLSL, bedGLSL) => /* glsl */ `
     float a = mix(uAlphaShallow, uAlphaDeep, smoothstep(0.0, uAbsorb * 0.6, depth));
     a = max(a, F * 0.95);
     if (uEdge > 0.0) a *= smoothstep(0.0, uEdge, depth);
+    // foam lapping the shore (the sea): broken soft bands that breathe in and out over the shallows
+    if (uFoam > 0.0) {
+      float nz = texture2D(tNrm, p * 0.31 + vec2(t * 0.011, -t * 0.013)).z;
+      float band = 1.0 - smoothstep(0.02, 0.3, depth + 0.07 * sin(t * 0.7 + p.x * 0.6 + p.y * 0.45));
+      float f = band * smoothstep(0.62, 0.9, nz + 0.3 * band) * uFoam;
+      col = mix(col, vec3(0.95, 0.98, 1.0) * mix(amb, vec3(1.0), 0.6), f * 0.75);
+      a = max(a, f * 0.85 * smoothstep(0.0, 0.03, depth));
+    }
     if (isnan(a) || isnan(col.x + col.y + col.z)) discard; // never hand the bloom a NaN (it would spread over the frame)
     gl_FragColor = vec4(clamp(col, 0.0, 8.0), clamp(a, 0.0, 1.0));
     #include <fog_fragment>
@@ -252,7 +263,7 @@ export function makeWater(kind, o = {}) {
     uBed: { value: new THREE.Color(P.bed) }, uHorizon: { value: new THREE.Color(P.horizon) },
     uNormalScale: { value: P.normalScale }, uWaveSpeed: { value: P.waveSpeed }, uWaveScale: { value: P.waveScale }, uReflStr: { value: P.reflStr },
     uFresnel: { value: P.fresnel }, uAlphaShallow: { value: P.alphaShallow }, uAlphaDeep: { value: P.alphaDeep }, uAbsorb: { value: P.absorb },
-    uRippleStr: { value: P.rippleStr }, uR0: { value: P.r0 }, uSpec: { value: P.spec }, uRainK: { value: P.rainK }, uEdge: { value: P.edge }, uRough: { value: P.rough },
+    uRippleStr: { value: P.rippleStr }, uR0: { value: P.r0 }, uFoam: { value: P.foam || 0 }, uSpec: { value: P.spec }, uRainK: { value: P.rainK }, uEdge: { value: P.edge }, uRough: { value: P.rough },
     uSrc: { value: src }, uNSrc: { value: (o.sources || []).length }, uSrcOn: o.srcOn || { value: 1 },
     uGlow: { value: new THREE.Vector4(o.glow?.x ?? 0, o.glow?.z ?? 0, o.glow?.r ?? 1, o.glow?.k ?? 0) }, uGlowCol: { value: new THREE.Color(o.glow?.col || '#fff1d6') },
   };

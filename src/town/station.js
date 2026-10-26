@@ -4,7 +4,7 @@ import { makeGlass } from '../fx.js';
 import { makeShrub, makeTree } from '../tree.js';
 import { makePot } from '../plants/pottedPlants.js';
 import { posterTex } from '../tex.js';
-import { vendingMachine, bicycle, trashBins, streetLamp, utilityPole, wire } from '../street.js';
+import { vendingMachine, bicycle, trashBins, streetLamp } from '../street.js';
 import { rbx } from './streetRow.js';
 import { txt, SERIF, wetPass } from './shopkit.js';
 import { STATION, PLATFORM, RAIL, groundY } from './layout.js';
@@ -338,11 +338,9 @@ function forecourt(g, piles, U) {
   { const x = 12.6, z = -30.1, y = gy(x, z); cy(g, m.ink, x, y, z, 0.05, 2.5, 8); [['星空神社 →', 0.2, 2.25, 0], ['← 海岸通り', -0.2, 1.95, 1], ['星空湖 →', 1.4, 1.65, 0]].forEach(([s, ry, h, f]) => { const sg = grp(g, x, y + h, z, ry - Math.PI / 2); const mt = basic(fingerTex(s, !!f)); mt.transparent = true; plane(sg, mt, 0.8, 0.15, 0.4 * (f ? -1 : 1), 0, 0.03); plane(sg, mt, 0.8, 0.15, 0.4 * (f ? -1 : 1), 0, -0.03, Math.PI); }); }
   { const x = 12.55, z = -32.2, y = gy(x, z); const b = grp(g, x, y, z, -Math.PI / 2); [-0.7, 0.7].forEach((a) => cy(b, m.post, a, 0, 0, 0.05, 1.9, 8)); rbx(b, m.post, -0.78, 0.78, 0.85, 1.85, -0.04, 0.04, { r: 0.01 }); plane(b, basic(notice()), 1.45, 0.92, 0, 1.35, 0.045); rbx(b, m.roofMetal, -0.85, 0.85, 1.85, 1.9, -0.14, 0.14, { r: 0.01 }); }
   { const x = X0 - 0.07, z = -23.95; [0, 1].forEach((k) => { rbx(g, m.white, x - 0.03, x, F + 1.05, F + 2.0, z - 0.32 - k * 0.0, z + 0.32, { r: 0.006 }); }); plane(g, basic(posterTex(0)), 0.55, 0.85, x - 0.035, F + 1.52, z, -Math.PI / 2); } // the poster frame on the west wall
-  // street lamps, the utility pole with the station's drop + a line to the platform canopy
+  // street lamps (the station's power: a pole + drop in town/power.js)
   streetLamp(st(12.7, -27.6), 12.7, -27.6, 1, 0, 4.4, 1.2, '#ffe0a8', 0, null);
   streetLamp(st(21.6, -32.3), 21.6, -32.3, -1, 0, 4.4, 1.2, '#dfeaff', 0, null);
-  utilityPole(st(12.55, -35.6), 12.55, -35.6, 7.4, 'z');
-  wire(g, [12.55, gy(12.55, -35.6) + 6.4, -35.6], [X0 + 0.3, TOP + 0.9, Z0 - 0.3], 0.5, 0.013);
 }
 
 /* ---------------------------------------------------------------- build */

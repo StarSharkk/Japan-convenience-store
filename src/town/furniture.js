@@ -1,7 +1,6 @@
 import * as THREE from 'three';
-import { POLE_W } from '../site.js';
 import { reg, toon, glow, cy, cyl2, bx, grp, halo, rng } from '../core.js';
-import { utilityPole, wire, streetLamp, roadSign, signalHead, guardrail } from '../street.js';
+import { streetLamp, roadSign, signalHead, guardrail } from '../street.js';
 import { snowCapBox } from '../roofPiles.js';
 import { groundY, PAV, BLOCKS, LANES, CROSSINGS, RAIL, lakeParkH } from './layout.js';
 
@@ -52,29 +51,7 @@ export function buildFurniture(parent, lake) {
     });
   }
 
-  /* ---------------------------------------------------------------- utility poles + wires */
-  const pole = (x, z, axis) => { utilityPole(lift(x, z), x, z, 7.4, axis); return [x, groundY(x, z) + 7.4, z]; };
-  const off = { x: [[0, -0.15, -0.8], [0, -0.15, 0], [0, -0.15, 0.8], [0, -0.95, -0.6], [0, -0.95, 0.6]], z: [[-0.8, -0.15, 0], [0, -0.15, 0], [0.8, -0.15, 0], [-0.6, -0.95, 0], [0.6, -0.95, 0]] };
-  const chain = (pts, axis, sag = 0.85) => {
-    const tops = pts.map(([x, z]) => pole(x, z, axis));
-    for (let i = 0; i < tops.length - 1; i++) off[axis].forEach((o) => wire(g, [tops[i][0] + o[0], tops[i][1] + o[1], tops[i][2] + o[2]], [tops[i + 1][0] + o[0], tops[i + 1][1] + o[1], tops[i + 1][2] + o[2]], sag));
-    return tops;
-  };
-  // Kaigan-dori north side, joining the board's pole at (-11, 6.05)
-  // (no pole at x -18.5 any more: it stood right in front of the corner store's sign; the span runs on to the board)
-  const kw = chain([[-47, 6.05], [-40, 6.05], [-34, 6.05], [-26, 6.05]], 'x');
-  off.x.forEach((o) => wire(g, [kw[kw.length - 1][0] + o[0], kw[kw.length - 1][1] + o[1], kw[kw.length - 1][2] + o[2]], [POLE_W + o[0], 7.2 + PAV + o[1], 6.05 + o[2]], 0.8));
-  // east of Hoshizora-dori: poles at the corner and on the florist's green strip, clear of the shop front
-  chain([[13.0, 6.05], [23.2, 6.05], [29.2, 6.05]], 'x');
-  // Kita-dori south side
-  chain([[-46, -11.7], [-38, -11.7], [-27, -11.7], [-19, -11.7]], 'x');
-  chain([[14.5, -11.7], [22, -11.7], [29, -11.7]], 'x');
-  // lanes
-  chain([[-13.1, 14], [-13.1, 22], [-13.1, 30]], 'z');
-  chain([[33.4, -9], [33.4, -1], [33.4, 15], [33.4, 23]], 'z', 0.9);
-  chain([[-20, 26.4], [-28, 27.0], [-36, 25.6], [-44, 25.2]], 'x');
-  // service drops (the west houses take theirs in town/westHomes.js)
-  wire(g, [23.2, 7.25 + 0.3, 6.05], [24.75, 5.1, 1.06], 0.4, 0.013); // service drop to the florist's house
+  /* ---- utility poles + wires: planned as one network in town/power.js ---- */
 
   /* ---------------------------------------------------------------- signals: Hoshizora-dori × Kita-dori */
   {

@@ -38,13 +38,13 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x1a2144, 0, 0.0038); // near / far = start / density (see the fog chunks in core.js)
 
-const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.5, 400);
+const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.5, 900); // (the floating island + its clouds)
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.minDistance = 6;
-controls.maxDistance = 240; // far enough to see the whole diorama, base included
+controls.maxDistance = 320; // far enough to see the whole floating island, its tray and the clouds round it
 controls.minPolarAngle = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.015;
 controls.rotateSpeed = 0.8;
@@ -60,10 +60,14 @@ const clampPan = () => {
 };
 controls.addEventListener('change', clampPan);
 
-// start pose (SE, elevated) with a slow intro dolly
+// start pose: the whole floating island (town/island.js), with a slow intro dolly in from further out;
+// 'back to LAWSON' keeps the close pose round the store (home)
 const BASE_R = 36;
-const sph = new THREE.Spherical(BASE_R, THREE.MathUtils.degToRad(61), THREE.MathUtils.degToRad(36));
-const from = new THREE.Spherical(78, THREE.MathUtils.degToRad(46), THREE.MathUtils.degToRad(70));
+const home = new THREE.Spherical(BASE_R, THREE.MathUtils.degToRad(61), THREE.MathUtils.degToRad(36));
+const ISLAND_TARGET = new THREE.Vector3(-6, -1.5, -6);
+const ISLAND_R = 175;
+const sph = new THREE.Spherical(ISLAND_R, THREE.MathUtils.degToRad(51), THREE.MathUtils.degToRad(32));
+const from = new THREE.Spherical(310, THREE.MathUtils.degToRad(40), THREE.MathUtils.degToRad(64));
 let intro = true;
 let introT = 0;
 const setCam = (s) => {
@@ -72,6 +76,7 @@ const setCam = (s) => {
 };
 const QS = new URLSearchParams(location.search);
 const VIEW = QS.get('view');
+if (!VIEW) controls.target.copy(ISLAND_TARGET);
 if (VIEW === 'tree') {
   // review stage: the tree alone on a dark pavement disc, real scene lighting + rain
   controls.target.set(0, 2.7, 0);
@@ -95,7 +100,7 @@ function flyTo(target, s, dur = 1.6) {
   fly = { t: 0, dur, t0: controls.target.clone(), t1: target.clone(), s0: cur, s1: new THREE.Spherical(s.radius, s.phi, cur.theta + dTheta) };
 }
 const TOWN_TARGET = new THREE.Vector3(-5, -1, -5);
-const camHome = () => flyTo(TARGET, sph);
+const camHome = () => flyTo(TARGET, home);
 // the whole diorama, base included, fits the frame at any aspect
 // しずく花店: first to the doors (they open as the camera nears), pressed again from there: inside down the aisle
 const camFlorist = () => {
@@ -204,7 +209,7 @@ function onResize() {
   renderer.setSize(w, h);
   reg.pxPerUnit = (2 * Math.tan((30 * Math.PI) / 360)) / (h * PR);
   camera.aspect = w / h;
-  if (VIEW !== 'tree') sph.radius = BASE_R * Math.max(1, 1.5 / camera.aspect); // keep the whole diorama in frame on narrow windows
+  if (VIEW !== 'tree') { sph.radius = ISLAND_R * Math.max(1, 1.55 / camera.aspect); home.radius = BASE_R * Math.max(1, 1.5 / camera.aspect); } // keep the whole island (the store) in frame on narrow windows
   camera.updateProjectionMatrix();
   pipe.resize(w, h, PR);
 }

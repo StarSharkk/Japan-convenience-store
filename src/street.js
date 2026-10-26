@@ -305,7 +305,7 @@ function umbrellaStand(parent, x, z) {
 const poleMat = toon('#6f778a');
 const armMat = toon('#4d5568');
 const insMat = toon('#c8d0e0');
-export function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
+export function utilityPole(parent, x, z, h = 7.4, armAxis = 'x', o = {}) {
   const p = grp(parent, x, Y0, z);
   cy(p, poleMat, 0, 0, 0, 0.11, h, 10, { rt: 0.62 });
   cy(p, toon('#d4b82a'), 0, 1.0, 0, 0.113, 0.28, 10, { cast: false });
@@ -320,9 +320,11 @@ export function utilityPole(parent, x, z, h = 7.4, armAxis = 'x') {
       else cy(p, insMat, 0, y + 0.09, o, 0.035, 0.11, 8, { cast: false });
     }
   });
-  // transformer
-  const tf = cy(p, toon('#8c95a8'), 0.28, h - 2.0, 0, 0.2, 0.62, 12);
-  cy(p, toon('#6a7388'), 0.28, h - 1.4, 0, 0.21, 0.06, 12, { cast: false });
+  // transformer (only on the poles that feed buildings: o.tf)
+  if (o.tf !== false) {
+    cy(p, toon('#8c95a8'), 0.28, h - 2.0, 0, 0.2, 0.62, 12);
+    cy(p, toon('#6a7388'), 0.28, h - 1.4, 0, 0.21, 0.06, 12, { cast: false });
+  }
   bx(p, toon('#f0c030'), -0.12, 0.12, 2.5, 2.8, 0.1, 0.12, { cast: false });
   return p;
 }
@@ -716,30 +718,7 @@ export function buildStreet(parent, drips) {
   const L3 = streetLamp(g, 7.2, -8.5, 1, 0, 5.0, 1.9, '#ffe0a8', 0.01, 'lamp3');
   reg.lampHalos = [L1.halo, L2.halo];
 
-  /* ---- utility poles & wires ---- */
-  const U = [
-    [7.0, 4.3, 7.4, 'z'],
-    [7.0, -1.0, 7.4, 'z'],
-    [7.0, -9.2, 7.4, 'z'],
-    [-1.8, 6.05, 7.2, 'x'],
-    [POLE_W, 6.05, 7.2, 'x'], // in front of the izakaya; with the bakery it stands clear of the shop front
-  ];
-  U.forEach((u) => utilityPole(g, u[0], u[1], u[2], u[3]));
-  const wl = (a, b, sag, offs) => offs.forEach((o) => wire(g, [a[0] + o[0], a[1] + o[1], a[2] + o[2]], [b[0] + o[0], b[1] + o[1], b[2] + o[2]], sag));
-  const top = (u) => u[2] + Y0;
-  const zoff = [[-0.8, -0.15, 0], [0, -0.15, 0], [0.8, -0.15, 0], [-0.6, -0.95, 0], [0.6, -0.95, 0]];
-  wl([7.0, top(U[0]), U[0][1]], [7.0, top(U[1]), U[1][1]], 0.6, zoff);
-  wl([7.0, top(U[1]), U[1][1]], [7.0, top(U[2]), U[2][1]], 0.7, zoff);
-  const xoff = [[0, -0.15, -0.8], [0, -0.15, 0], [0, -0.15, 0.8], [0, -0.95, -0.6], [0, -0.95, 0.6]];
-  wl([-1.8, top(U[3]), U[3][1]], [-11.0, top(U[4]), U[4][1]], 0.9, xoff);
-  wire(g, [7.0, top(U[0]) - 0.15, 4.3], [-1.8, top(U[3]) - 0.15, 6.05], 1.1);
-  // service drop to the store roof
-  wire(g, [7.0, top(U[1]) - 0.95, -1.0], [4.55, 3.7, -1.0], 0.5, 0.015);
-  wire(g, [7.0, top(U[1]) - 0.95, -0.8], [4.55, 3.85, -1.2], 0.5, 0.015);
-  // drop to the neighbour house
-  if (SITE.izakaya) wire(g, [-11.0, top(U[4]) - 0.95, 6.05], [-10.0, 6.6, 4.3], 0.5, 0.015);
-  else wire(g, [POLE_W, top(U[4]) - 0.95, 6.05], [-12.1, 4.15, 0.95], 0.4, 0.015); // service drop to the bakery's parapet
-  // stray crossing wire at the alley
+  /* ---- utility poles & wires: the whole town's network is planned in one place (town/power.js) ---- */
 
   /* ---- traffic signals ---- */
   const near = mastSignals(g, 7.2, 6.0, 3.6, 4.7, [1.0, 2.5, 3.5], 'near');

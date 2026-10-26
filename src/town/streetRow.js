@@ -4,7 +4,7 @@ import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, r
 import { makeGlass } from '../fx.js';
 import { makeShrub } from '../tree.js';
 import { makePot } from '../plants/pottedPlants.js';
-import { utilityPole, wire, bicycle, vendingMachine, trashBins } from '../street.js';
+import { bicycle, vendingMachine, trashBins } from '../street.js';
 import { txt, SERIF, HAND } from './shopkit.js';
 import { groundY } from './layout.js';
 import { P } from '../palette.js';
@@ -377,7 +377,7 @@ export function buildStreetRow(parent) {
   const st = (y = Y) => grp(g, 0, y - 0.15, 0); // street.js props stand at y 0.15
   const gy = (x, z) => groundY(x, z);
 
-  /* ---- Kaigan-dori side (the backs): the kerb-side railing, poles + wires with drops to the roofs, grates ---- */
+  /* ---- Kaigan-dori side (the backs): the kerb-side railing, grates (power: drops across the road, town/power.js) ---- */
   {
     const zr = 12.32;
     [[-47.4, -43.2], [-41.4, -36.1], [-35.3, -29.2], [-26.4, -20.2], [-19.2, -17.0]].forEach(([a, b]) => {
@@ -386,10 +386,6 @@ export function buildStreetRow(parent) {
       cyl2(g, m.rail, [a, Y + 0.8, zr], [b, Y + 0.8, zr], 0.02, 6); cyl2(g, m.rail, [a, Y + 0.45, zr], [b, Y + 0.45, zr], 0.014, 5, { noLine: true });
       for (let k = 0; k < n; k++) { const xa = a + ((b - a) * k) / n, xb = a + ((b - a) * (k + 1)) / n, xm = (xa + xb) / 2; cyl2(g, m.rail, [xa + 0.1, Y + 0.45, zr], [xm, Y + 0.72, zr], 0.01, 4, { noLine: true }); cyl2(g, m.rail, [xm, Y + 0.72, zr], [xb - 0.1, Y + 0.45, zr], 0.01, 4, { noLine: true }); }
     });
-    const poles = [-45.2, -34.8, -22.9].map((x) => { utilityPole(st(), x, 12.62, 7.4, 'x'); return [x, Y + 7.4, 12.62]; });
-    const off = [[0, -0.15, -0.8], [0, -0.15, 0], [0, -0.15, 0.8], [0, -0.95, -0.6], [0, -0.95, 0.6]];
-    for (let i = 0; i < poles.length - 1; i++) off.forEach((o) => wire(g, [poles[i][0] + o[0], poles[i][1] + o[1], poles[i][2] + o[2]], [poles[i + 1][0] + o[0], poles[i + 1][1] + o[1], poles[i + 1][2] + o[2]], 0.75));
-    [[poles[2], [-21.0, TOP + 0.2, ZB]], [poles[2], [-27.0, TOP + 0.3, ZB]], [poles[1], [-33.0, TOP + 0.2, ZB]], [poles[0], [-39.5, TOP - 0.1, ZB]]].forEach(([p, b]) => wire(g, [p[0], p[1] - 0.95, p[2] + 0.6], b, 0.3, 0.012));
     [-44.0, -37.6, -31.0, -24.8, -18.4].forEach((x) => { bx(g, toon('#2a2d31'), x - 0.3, x + 0.3, Y + 0.002, Y + 0.012, 12.08, 12.3, { cast: false }); for (let k = 0; k < 7; k++) bx(g, toon('#5a5d61'), x - 0.27 + k * 0.09, x - 0.25 + k * 0.09, Y + 0.012, Y + 0.016, 12.1, 12.28, { cast: false }); });
     bx(g, toon('#cfcac0'), -19.95, -19.7, Y + 1.0, Y + 1.4, ZB - 0.12, ZB, { cast: false }); // a meter box
   }
