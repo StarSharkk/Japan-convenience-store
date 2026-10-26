@@ -131,6 +131,16 @@ function drawTown(g) {
   // 西の住宅地 (town/westHomes.js): lawn over the four gardens (the plots' earth above still paints: same random stream)
   { const [x0, x1, z0, z1] = WEST_HOMES.area; g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'west1').poly); g.clip(); g.fillStyle = COL.grass; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); g.restore(); }
 
+  // 星空町駅 (town/station.js): the tactile path from the road edge to the entrance steps (linear blocks along the walk,
+  // warning dots where it turns and at the steps), drain grates along the front, a manhole in the forecourt
+  {
+    const lin = (x0, x1, z0, z1, along) => { rect(x0, x1, z0, z1, '#9b8227'); if (along === 'x') for (let x = x0; x < x1 - 0.02; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, z0 + 0.04 + k * 0.065, z0 + 0.065 + k * 0.065, '#d3b53a'); else for (let z = z0; z < z1 - 0.02; z += 0.3) for (let k = 0; k < 4; k++) rect(x0 + 0.04 + k * 0.065, x0 + 0.065 + k * 0.065, z + 0.03, z + 0.27, '#d3b53a'); };
+    const dot = (x0, x1, z0, z1) => { rect(x0, x1, z0, z1, '#9b8227'); g.fillStyle = '#d3b53a'; for (let x = x0 + 0.06; x < x1 - 0.03; x += 0.12) for (let z = z0 + 0.06; z < z1 - 0.03; z += 0.12) { g.beginPath(); g.arc(X(x), Z(z), 0.03 * K, 0, 7); g.fill(); } };
+    lin(12.05, 14.55, -28.75, -28.45, 'x'); dot(14.55, 15.15, -28.75, -28.15); lin(14.7, 15.0, -28.15, -27.95, 'z'); dot(14.5, 15.2, -27.95, -27.85);
+    [[16.6, -28.05], [18.4, -28.05], [20.2, -27.9]].forEach(([cx, cz]) => { rect(cx - 0.45, cx + 0.45, cz - 0.12, cz + 0.12, '#1c2030'); g.strokeStyle = '#4a5572'; g.lineWidth = 2; g.strokeRect(X(cx - 0.45), Z(cz - 0.12), 0.9 * K, 0.24 * K); for (let k = 0; k < 8; k++) rect(cx - 0.4 + k * 0.105, cx - 0.37 + k * 0.105, cz - 0.09, cz + 0.09, '#3a4258'); });
+    g.fillStyle = '#20263a'; g.beginPath(); g.arc(X(19.6), Z(-33.2), 0.32 * K, 0, 7); g.fill(); g.strokeStyle = '#59627e'; g.lineWidth = 3; g.stroke(); g.beginPath(); g.arc(X(19.6), Z(-33.2), 0.2 * K, 0, 7); g.stroke();
+  }
+
   /* しずく花店 corner (town/florist.js): sidewalk pavers along both kerbs with a guide strip, the shop's tiled
      forecourt, the planting strip between the shop and the house, the house's gravel yard (own rng: the rest
      of the town paints exactly as before) */

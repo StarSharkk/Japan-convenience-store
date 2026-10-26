@@ -12,6 +12,7 @@ import { buildSouthStreet } from './southstreet.js';
 import { buildPlaza } from './plaza.js';
 import { buildStreetRow } from './streetRow.js';
 import { buildWestHomes } from './westHomes.js';
+import { buildStation } from './station.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -46,6 +47,8 @@ export function buildTown(world, renderer, refl) {
   const streetRow = buildStreetRow(world);
   // 西の住宅地: four south-facing houses on two terraces in block west1 (between Kita-dori and Kaigan-dori)
   const westHomes = buildWestHomes(world);
+  // 星空町駅: the local station on the station block, its platform by the track, the forecourt
+  const station = buildStation(world);
   setCat('street');
   // 桜広場: the sakura plaza in front of the two shops (after greenery: its trees join the petal / leaf piles)
   const plaza = buildPlaza(world);
@@ -56,6 +59,6 @@ export function buildTown(world, renderer, refl) {
     houses = buildHouses(world);
   }
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, station, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }

@@ -239,7 +239,7 @@ export function buildRail(parent) {
       }
     };
     roadCross.concat([foot]).forEach((c) => {
-      [-3.0, 3.0].forEach((o) => { fence(c.x0 - 7, c.x0 - 0.8, RAIL.z + o); fence(c.x1 + 0.8, c.x1 + 7, RAIL.z + o); });
+      [-3.0, 3.0].forEach((o) => { fence(c.x0 - 7, c.x0 - 0.8, RAIL.z + o); if (!(c.id === 'main' && o < 0)) fence(c.x1 + 0.8, c.x1 + 7, RAIL.z + o); }); // (the station's platform stands east of the main crossing, north side)
     });
   }
 

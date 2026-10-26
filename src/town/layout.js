@@ -140,7 +140,7 @@ const swRowPad = (x, z) => {
 export const BLOCKS = [
   { id: 'lakePark', zone: 'D', poly: [[-48, -44], [-19, -44], [-19, -36], [-18, -29], [-16.6, -24.5], [-16.5, -23], [-48, -23]], h: lakeParkH, surf: 'park' },
   { id: 'terrace', zone: 'shrine', poly: [[-16, -44], [7.5, -44], [7.5, -23], [-13.5, -23], [-13.6, -24.5], [-15, -29], [-16, -36]], h: () => 2.2, surf: 'forest', wall: 'stone' },
-  { id: 'station', zone: 'F', poly: [[12, -44], [29, -44], [29, -30], [27, -25.5], [23, -23], [12, -23]], h: () => 0.45, surf: 'plaza', wall: 'stone' },
+  { id: 'station', zone: 'F', poly: [[12, -44], [29, -44], [29, -30], [27, -25.5], [23, -23], [12, -23]], h: (x) => PAV + 0.3 * smooth(17, 24, x), surf: 'plaza', wall: 'stone' }, // the forecourt meets Hoshizora-dori at pavement level
   { id: 'corrW', zone: 'E', poly: [[-48, -23], [-16.5, -23], [-16.5, -15], [-48, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrM', zone: 'E', poly: [[-13.5, -23], [7.5, -23], [7.5, -15], [-13.5, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrE', zone: 'E', poly: [[12, -23], [23, -23], [27, -25.5], [29, -30], [29, -44], [36, -44], [36, -15], [12, -15]], h: () => PAV, surf: 'verge' },
@@ -164,7 +164,10 @@ export const CROSSINGS = [
   { id: 'sando', x: -10.1, x0: -10.8, x1: -9.4, kind: 'foot' },
   { id: 'main', x: 9.75, road: 'hoshizora', x0: 7.5, x1: 12, kind: 'road' },
 ];
-export const PLATFORM = { x0: 12.6, x1: 21.5, z0: -21.7, z1: -20.5 };
+export const PLATFORM = { x0: 13.0, x1: 21.6, z0: -22.65, z1: -20.45 };
+// 星空町駅 (town/station.js): the level of the track past the platform, the platform deck (the tram's floor: rail + 0.95),
+// the station building (one storey, its floor a little above the forecourt) on the block's south edge
+export const STATION = { rail: 0.36, deck: 1.31, floor: 0.6, bx0: 13.4, bx1: 21.0, bz0: -27.0, bz1: -23.3 };
 /** sampled track centreline: [{x,z,dx,dz,s}] every `step` units, from west to the north-east */
 export function railSamples(step = 0.5) {
   const out = [];
@@ -186,7 +189,10 @@ export function railTop(x, z) {
   const d = crossingDist(x, z);
   const e = 0.38 * smooth(4, 10, d);
   const w = smooth(2.2, 5.5, d);
-  return 0.21 + (0.24 + e) * w;
+  const top = 0.21 + (0.24 + e) * w;
+  // the station (town/station.js): the track runs level past the platform and climbs back onto its bank round the curve
+  const k = x > 11 && z > RAIL.z - RAIL.R - 0.5 && z < RAIL.z + 0.5 ? 1 - smooth(21.6, 26, x) : 0;
+  return top + (Math.min(top, STATION.rail) - top) * k;
 }
 
 /* ---------------------------------------------------------------- road height (y of the road layer) */
