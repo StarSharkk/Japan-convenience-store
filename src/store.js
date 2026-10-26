@@ -3,6 +3,7 @@ import { reg, toon, glow, bx, bc, cy, cyl2, sph, pl, grp, canvasTex, halo, pligh
 import { makeGlass } from './fx.js';
 import { signTex, BRAND, posterTex, T, floorTex } from './tex.js';
 import { buildInterior } from './interior.js';
+import { P } from './palette.js';
 
 export const ST = { x0: -5.5, x1: 4.5, z0: -4.5, z1: 1.5, Y0: 0.15, F: 0.2, CEIL: 3.3, ROOF: 3.5, GT: 2.85, GB: 0.6 };
 
@@ -13,8 +14,8 @@ export function buildStore(parent, drips) {
   const wall = toon('#e4e9f1');
   const tileDark = toon('#35568a');
   const frame = toon('#2a3140');
-  const roofM = toon('#4a5268');
-  const roofTop = toon('#5c6580');
+  const roofM = toon(P.roofMetal); // roof slab edge (palette: flat roofs are warm grey)
+  const roofTop = toon(P.roofFlat); // the roof deck
   const inner = toon('#efe3c6', { lit: 0.6 });
   const teal = toon(BRAND.teal, { e: '#0a2a5c', ei: 0.6 });
   const orange = toon(BRAND.orange, { e: '#5a1228', ei: 0.6 });

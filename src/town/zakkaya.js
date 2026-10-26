@@ -4,6 +4,7 @@ import { T } from '../tex.js';
 import { cat as makeCat } from '../street.js';
 import { makeFicusPot } from '../plants/pottedPlants.js';
 import { groundY } from './layout.js';
+import { P } from '../palette.js';
 
 /* ====================================================================================================
    青空雑貨店 - the old corner general store (雑貨・日用品・食品) at Kita-dori x 裏路地, the north-east corner of the
@@ -240,7 +241,7 @@ export function buildZakkaya(parent) {
   bx(g, m.concrete, X0 - 0.02, X1 + 0.02, YF, 0.55, Z0 - 0.02, Z0 + 0.15); // splash band along the side
   bx(g, m.trim, X0 - 0.04, X1 + 0.04, Y1 - 0.06, Y1 + 0.04, Z0 - 0.04, Z1 + 0.04, { bevel: 0.01 }); // floor line
   bx(g, m.trim, X0 - 0.04, X1 + 0.04, YP, YP + 0.06, Z0 - 0.04, Z1 + 0.04, { bevel: 0.01 }); // coping
-  bx(g, toon('#8e939a'), X0 + 0.15, X1 - 0.15, Y2 - 0.02, Y2 + 0.03, Z0 + 0.15, Z1 - 0.15, { cast: false }); // roof membrane
+  bx(g, toon(P.roofFlat), X0 + 0.15, X1 - 0.15, Y2 - 0.02, Y2 + 0.03, Z0 + 0.15, Z1 - 0.15, { cast: false }); // roof membrane
   // a dark interior box behind the store front so the shop reads as a room, with its own floor
   bx(g, toon('#efe9dc', { lit: 0.25 }), X1 - 2.6, X1 - 0.15, YF, YF + 0.01, OP.z1, OP.z0 + 0.0, { cast: false });
   bx(g, toon('#e9e2d2', { lit: 0.25 }), X1 - 2.62, X1 - 2.6, YF, Y1 - 0.1, OP.z1, OP.z0);

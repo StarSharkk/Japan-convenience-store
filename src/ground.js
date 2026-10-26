@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { reg, toon, canvasTex, rng, bx, pl, FONT, RAMP, roundRect } from './core.js';
+import { P, groundPaint, shade, rgb } from './palette.js';
 
 /* world (x,z in [-12,12]) -> canvas */
 const S = 3072;
@@ -38,8 +39,11 @@ function drawGround(g) {
     g.fillRect(X(x) - rr, Z(z) - rr, rr * 2, rr * 2);
   }
 
-  /* ---- plot (raised pavement) ---- */
-  g.fillStyle = '#323a52';
+  /* ---- plot (raised pavement): the shared pavings (palette.js) - walk tiles, the shop apron, concrete yards ---- */
+  const walkA = groundPaint(P.paveWalk), walkB = groundPaint(P.paveWalk2);
+  const shopA = groundPaint(P.paveShop), shopB = groundPaint(P.paveShop2);
+  const conc = groundPaint(P.concrete), joint = (a) => `rgba(${P.joint},${a})`;
+  g.fillStyle = walkB;
   g.beginPath();
   const { x0, x1, z0, z1, r } = PLOT;
   g.moveTo(X(x0), Z(z0));
@@ -50,13 +54,13 @@ function drawGround(g) {
   g.closePath();
   g.fill();
 
-  const tiles = (xa, xb, za, zb, a, b, step = 0.75) => {
+  const tiles = (xa, xb, za, zb, a, b, step = 0.6) => {
     for (let x = xa; x < xb; x += step)
       for (let z = za; z < zb; z += step) {
         g.fillStyle = (Math.floor((x - xa) / step) + Math.floor((z - za) / step)) % 2 ? a : b;
         g.fillRect(X(x), Z(z), step * K, step * K);
       }
-    g.strokeStyle = 'rgba(8,10,24,0.55)';
+    g.strokeStyle = joint(0.35);
     g.lineWidth = 2.2;
     g.beginPath();
     for (let x = xa; x <= xb + 0.001; x += step) { g.moveTo(X(x), Z(za)); g.lineTo(X(x), Z(zb)); }
@@ -65,17 +69,17 @@ function drawGround(g) {
   };
 
   // east sidewalk, front sidewalk
-  tiles(4.5, 7.5, -12, 6.5, '#3d4661', '#394259');
-  tiles(-12, 4.5, 5.75, 6.5, '#3d4661', '#394259');
+  tiles(4.5, 7.5, -12, 6.5, walkA, walkB);
+  tiles(-12, 4.5, 5.75, 6.5, walkA, walkB);
   // store apron
-  tiles(-5.75, 4.5, 1.5, 2.75, '#4a5470', '#465069', 0.625);
+  tiles(-5.75, 4.5, 1.5, 2.75, shopA, shopB, 0.3125);
   // neighbour front yard
-  tiles(-12, -8.5, 3.0, 5.75, '#363e57', '#333b52');
+  tiles(-12, -8.5, 3.0, 5.75, walkB, walkA);
   // alley + back yard concrete
-  rect(-8.5, -5.5, -7.3, 5.75, '#2a3146');
-  rect(-5.5, 4.5, -7.3, -4.5, '#2b3247');
-  line(-7, -7.3, -7, 5.75, 'rgba(10,14,28,0.7)', 0.06);
-  for (let i = 0; i < 26; i++) line(-8.5, -7.3 + i * 0.5, -5.5, -7.3 + i * 0.5 + (R() - 0.5) * 0.1, 'rgba(10,14,28,0.35)', 0.012);
+  rect(-8.5, -5.5, -7.3, 5.75, conc);
+  rect(-5.5, 4.5, -7.3, -4.5, conc);
+  line(-7, -7.3, -7, 5.75, joint(0.55), 0.06);
+  for (let i = 0; i < 26; i++) line(-8.5, -7.3 + i * 0.5, -5.5, -7.3 + i * 0.5 + (R() - 0.5) * 0.1, joint(0.3), 0.012);
   // soft lawn behind the wall (quiet dark teal-green, painted as flat vector shapes)
   rect(-12, 4.5, -12, -7.3, '#1f3a34');
   for (let i = 0; i < 46; i++) {
@@ -87,9 +91,9 @@ function drawGround(g) {
     g.fillStyle = gr; g.fillRect(X(x) - rr, Z(z) - rr, rr * 2, rr * 2);
   }
   // stepping stones from the gate
-  for (let i = 0; i < 6; i++) { g.fillStyle = '#4b546c'; g.beginPath(); g.ellipse(X(-7 + Math.sin(i) * 0.25), Z(-7.9 - i * 0.62), 0.3 * K, 0.22 * K, 0, 0, 7); g.fill(); }
+  for (let i = 0; i < 6; i++) { g.fillStyle = walkA; g.beginPath(); g.ellipse(X(-7 + Math.sin(i) * 0.25), Z(-7.9 - i * 0.62), 0.3 * K, 0.22 * K, 0, 0, 7); g.fill(); }
   // east pavement continues behind the store
-  tiles(4.5, 7.5, -12, -4.5, '#3d4661', '#394259');
+  tiles(4.5, 7.5, -12, -4.5, walkA, walkB);
 
   // parking lot
   rect(-5.75, 0.55, 2.75, 5.75, '#242b3e');
@@ -129,7 +133,7 @@ function drawGround(g) {
   dots(6.5, 7.5, 4.5, 6.1);
 
   // door mat zone (lighter) + guide
-  rect(1.1, 3.3, 1.5, 2.7, '#505b78');
+  rect(1.1, 3.3, 1.5, 2.7, groundPaint(P.cream));
 
   /* ---- road markings ---- */
   const dash = (x0_, z0_, x1_, z1_, len, gap, c, w) => {
@@ -239,7 +243,7 @@ function drawGround(g) {
   }
 
   // curb highlight line along plot edge (painted)
-  g.strokeStyle = 'rgba(160,175,215,0.35)';
+  g.strokeStyle = `rgba(${rgb(P.cream)},0.3)`;
   g.lineWidth = 3;
   g.beginPath();
   g.moveTo(X(x0), Z(z1) - 1);
@@ -431,8 +435,8 @@ export function createGround(renderer, refl) {
   const maskTex = canvasTex(1536, 1536, drawMask, { aniso: 4, linear: true, scale: 4/3 });
   const mat = makeGroundMaterial(refl, groundTex, maskTex);
 
-  const curb = toon('#5d6683');
-  const curbTop = toon('#7a84a3');
+  const curb = toon(P.kerb);
+  const curbTop = toon(shade(P.kerb, 0.2));
 
   // road plane
   const road = new THREE.Mesh(new THREE.PlaneGeometry(24, 24).rotateX(-Math.PI / 2), mat);

@@ -7,6 +7,7 @@ import { makePot } from '../plants/pottedPlants.js';
 import { utilityPole, wire, bicycle, vendingMachine, trashBins } from '../street.js';
 import { txt, SERIF, HAND } from './shopkit.js';
 import { groundY } from './layout.js';
+import { P } from '../palette.js';
 
 /* ====================================================================================================
    街屋の並び - a row of four narrow two-storey Japanese street buildings in block sw1 (south of Kaigan-dori). Like the
@@ -39,11 +40,11 @@ const GH = 3.0, FH = 2.7; // the ground floor, the upper floor
 /* ---------------------------------------------------------------- textures */
 const T = {};
 const ct = (k, w, h, draw, o) => (T[k] ||= canvasTex(w, h, draw, o));
-const panelTex = () => ct('srPanel', 256, 256, (g, w, h) => { const R = rng(3); for (let x = 0; x < w; x += 32) { const v = 70 + ((R() * 10) | 0); g.fillStyle = `rgb(${v},${v + 3},${v + 8})`; g.fillRect(x, 0, 32, h); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x + 2, 0, 2, h); } }, { repeat: true });
-const brickTex = () => ct('srBrick', 256, 256, (g, w, h) => { const R = rng(5); g.fillStyle = '#5a3a34'; g.fillRect(0, 0, w, h); const bh = 16, bw = 48; for (let r = 0; r < h / bh; r++) for (let x = (r % 2) * -24; x < w; x += bw) { const v = (R() * 26) | 0; g.fillStyle = `rgb(${118 + v},${48 + (v >> 1)},${40 + (v >> 1)})`; g.fillRect(x + 2, r * bh + 2, bw - 3, bh - 3); } }, { repeat: true });
+const panelTex = () => ct('srPanel', 256, 256, (g, w, h) => { const R = rng(3); for (let x = 0; x < w; x += 32) { const v = 90 + ((R() * 10) | 0); g.fillStyle = `rgb(${v + 2},${v - 2},${v + 10})`; /* warm charcoal around palette inkSoft */ g.fillRect(x, 0, 32, h); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x + 2, 0, 2, h); } }, { repeat: true });
+const brickTex = () => ct('srBrick', 256, 256, (g, w, h) => { const R = rng(5); g.fillStyle = P.creamD; g.fillRect(0, 0, w, h); const bh = 16, bw = 48; for (let r = 0; r < h / bh; r++) for (let x = (r % 2) * -24; x < w; x += bw) { const v = (R() * 26) | 0; g.fillStyle = `rgb(${176 + v},${88 + (v >> 1)},${68 + (v >> 1)})`; /* coral brick (palette brick), light mortar */ g.fillRect(x + 2, r * bh + 2, bw - 3, bh - 3); } }, { repeat: true });
 const mustardTex = () => ct('srMustard', 256, 256, (g, w, h) => { g.fillStyle = '#b5913f'; g.fillRect(0, 0, w, h); const R = rng(7); for (let i = 0; i < 2200; i++) { g.fillStyle = R() < 0.5 ? `rgba(230,200,120,${0.1 + R() * 0.1})` : `rgba(90,70,30,${0.05 + R() * 0.08})`; const s = 1 + R() * 3; g.fillRect(R() * w, R() * h, s, s); } g.fillStyle = 'rgba(70,55,30,0.12)'; for (let y = 0; y < h; y += 64) g.fillRect(0, y, w, 1); }, { repeat: true });
 const greyTileTex = () => ct('srGreyTile', 256, 256, (g, w, h) => { const R = rng(9); g.fillStyle = '#6a6e74'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) for (let x = 0; x < w; x += 16) { const v = 128 + ((R() * 16) | 0); g.fillStyle = `rgb(${v},${v + 3},${v + 7})`; g.fillRect(x + 1, y + 1, 14, 14); } }, { repeat: true });
-const kawaraTex = () => ct('srKawara', 128, 128, (g, w, h) => { g.fillStyle = '#3c4048'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 16) { g.fillStyle = '#4c515a'; g.fillRect(x + 2, 0, 9, h); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x + 3, 0, 2, h); } for (let y = 0; y < h; y += 32) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, y, w, 2); } }, { repeat: true });
+const kawaraTex = () => ct('srKawara', 128, 128, (g, w, h) => { g.fillStyle = '#4c5470'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 16) { g.fillStyle = P.slate; /* slate tiles, like the izakaya */ g.fillRect(x + 2, 0, 9, h); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x + 3, 0, 2, h); } for (let y = 0; y < h; y += 32) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, y, w, 2); } }, { repeat: true });
 const shutterTex = () => ct('srShutter', 64, 128, (g, w, h) => { g.fillStyle = '#9aa0a6'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 6) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(0, y, w, 1); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, y + 1, w, 1); } }, { repeat: true });
 const blindTex = (k) => ct(`srBlind${k}`, 64, 64, (g, w, h) => { g.fillStyle = k ? '#cdbf9e' : '#d9dbd6'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 6) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, y, w, 1); } });
 const signTex = () => ct('srSign', 512, 96, (g, w, h) => { g.fillStyle = '#efe6d2'; g.fillRect(0, 0, w, h); g.strokeStyle = '#7a2e2a'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12); txt(g, '— まんぷく食堂 —', w / 2, h / 2 + 3, 56, '#a8302a', { font: SERIF, weight: 800 }); });
@@ -63,7 +64,7 @@ function mats() {
   M.greyTile = toon('#ffffff', { map: greyTileTex(), nocache: true, lit: 0.04 });
   M.kawara = toon('#ffffff', { map: kawaraTex(), nocache: true });
   M.shutter = toon('#ffffff', { map: shutterTex(), nocache: true });
-  M.frame = toon('#34373b');
+  M.frame = toon(P.ink);
   M.frameW = toon('#e8e2d4');
   M.concrete = toon('#9c9a94');
   M.concreteL = toon('#c4c0b6');
@@ -155,13 +156,13 @@ function band(p, mat, x0, x1, y0, y1, d = 0.06) { rbx(p, mat, x0, x1, y0, y1, ZF
 function parapet(p, mat, x0, x1, z0, z1, top, h = 0.32) {
   rbx(p, mat, x0, x1, top, top + h, z1 - 0.18, z1, { r: 0.015 }); rbx(p, mat, x0, x1, top, top + h, z0, z0 + 0.18, { r: 0.015 });
   rbx(p, mat, x0, x0 + 0.18, top, top + h, z0, z1, { r: 0.015 }); rbx(p, mat, x1 - 0.18, x1, top, top + h, z0, z1, { r: 0.015 });
-  rbx(p, toon('#8e8c86'), x0 + 0.18, x1 - 0.18, top, top + 0.03, z0 + 0.18, z1 - 0.18, { r: 0.004, cast: false });
+  rbx(p, toon(P.roofFlat), x0 + 0.18, x1 - 0.18, top, top + 0.03, z0 + 0.18, z1 - 0.18, { r: 0.004, cast: false });
   rbx(p, mats().concreteL, x0 - 0.04, x1 + 0.04, top + h, top + h + 0.05, z1 - 0.22, z1 + 0.04, { r: 0.01 }); // the front coping
 }
 /** a rooftop stair hut / plant room with its door on the front */
 function hut(p, mat, x0, x1, z0, z1, y, h, door = true) {
   rbx(p, mat, x0, x1, y, y + h, z0, z1, { r: 0.02, tile: 1.6 });
-  rbx(p, mats().frame, x0 - 0.06, x1 + 0.06, y + h, y + h + 0.08, z0 - 0.06, z1 + 0.12, { r: 0.012 });
+  rbx(p, toon(P.roofMetal), x0 - 0.06, x1 + 0.06, y + h, y + h + 0.08, z0 - 0.06, z1 + 0.12, { r: 0.012 }); // the hut's roof (warm grey metal)
   if (door) { const dx = (x0 + x1) / 2; rbx(p, mats().metal, dx - 0.36, dx + 0.36, y, y + 1.95, z1, z1 + 0.04, { r: 0.006 }); bx(p, toon('#c9c4b8'), dx + 0.2, dx + 0.26, y + 0.95, y + 1.0, z1 + 0.04, z1 + 0.07, { cast: false }); bx(p, glow('#ffe2b8', 1.6, { cat: 'iza', off: '#cfc8b8' }), dx - 0.08, dx + 0.08, y + 2.1, y + 2.2, z1, z1 + 0.06, { cast: false }); }
 }
 /** a planter box (on a sill or the ground) with a few flowers */
@@ -179,7 +180,7 @@ function bldA(g, piles) {
   // the body: upper floor whole; the ground floor round the entrance recess
   rbx(g, m.panel, x0, x1, Y + GH, top, ZB, ZF, { tile: 2, r: 0.02 });
   rbx(g, m.panel, x0, ent[0], Y, Y + GH, ZB, ZF, { tile: 2 }); rbx(g, m.panel, ent[1], x1, Y, Y + GH, ZB, ZF, { tile: 2 }); rbx(g, m.panel, ent[0], ent[1], Y, Y + GH, ZB, ZF - DEP, { tile: 2 });
-  rbx(g, toon('#3a3d42'), x0 - 0.02, x1 + 0.02, Y - 0.02, Y + 0.35, ZF - 0.05, ZF + 0.03, { r: 0.01 }); // the dark plinth
+  rbx(g, toon(P.ink), x0 - 0.02, x1 + 0.02, Y - 0.02, Y + 0.35, ZF - 0.05, ZF + 0.03, { r: 0.01 }); // the dark plinth
   band(g, m.concreteL, x0, x1, Y + GH - 0.08, Y + GH + 0.04, 0.05); // the floor line
   // the entrance recess: oak walls + soffit, an oak door, a wall lamp, the number, the intercom
   rbx(g, m.woodL, ent[0], ent[0] + 0.04, Y, Y + 2.5, ZF - DEP, ZF, { r: 0.004 }); rbx(g, m.woodL, ent[1] - 0.04, ent[1], Y, Y + 2.5, ZF - DEP, ZF, { r: 0.004 }); rbx(g, m.woodL, ent[0], ent[1], Y + 2.5, Y + 2.54, ZF - DEP, ZF, { r: 0.004 });
@@ -216,7 +217,7 @@ function bldB(g, piles) {
   rbx(g, m.brick, x0, x0 + 0.3, Y, Y + GH, KZ, ZF, { tile: 1.6 }); rbx(g, m.brick, x1 - 0.6, x1, Y, Y + GH, KZ, ZF, { tile: 1.6 });
   band(g, toon('#d8d0c0'), x0, x1, Y + GH - 0.06, Y + GH + 0.08, 0.06); // the stone floor band
   band(g, toon('#d8d0c0'), x0, x1, top - 0.1, top, 0.07); // the cornice band
-  rbx(g, toon('#5a2a24'), x0 + 0.08, x1 - 0.08, Y + GH + 1.95, Y + GH + 2.08, ZF - 0.01, ZF + 0.03, { r: 0.006 }); // soldier course over the windows
+  rbx(g, toon(P.brickD), x0 + 0.08, x1 - 0.08, Y + GH + 1.95, Y + GH + 2.08, ZF - 0.01, ZF + 0.03, { r: 0.006 }); // soldier course over the windows
   // the timber shopfront: a head beam over the whole opening, posts, a lit lattice window (east), glass doors with the noren (west)
   const o0 = x0 + 0.3, o1 = x1 - 0.6, fz = ZF - 0.12;
   rbx(g, m.wood, o0 - 0.05, o1 + 0.05, sh, Y + GH, fz - 0.06, ZF + 0.08, { r: 0.012 });
@@ -263,7 +264,7 @@ function bldB(g, piles) {
   // upstairs: three windows with stone sills, a flower box under the middle one
   [[-30.0, -28.75], [-28.15, -26.9], [-26.3, -25.05]].forEach(([a, b], i) => { win(g, ZF, 1, a, b, Y + GH + 0.75, Y + GH + 1.9, { mull: 1 }); if (i === 1) flowerBox(g, a + 0.05, b - 0.05, Y + GH + 0.52, ZF + 0.02, 71); });
   // the roof: parapet + coping, a railing, the brick stair hut with its door
-  parapet(g, toon('#7a3a30'), x0, x1, ZB, ZF, top, 0.3);
+  parapet(g, toon(P.brickD), x0, x1, ZB, ZF, top, 0.3);
   railing(g, [[x0 + 0.25, ZF - 0.32], [x1 - 0.25, ZF - 0.32]], top + 0.3, 0.8);
   hut(g, m.brick, -30.2, -28.3, 14.0, 15.9, top + 0.03, 2.0);
   // the back (Kaigan-dori): windows, the kitchen door, propane, the exhaust duct, AC
@@ -332,7 +333,7 @@ function bldD(g, piles) {
     const r = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.5, 0.1, L + 0.05), M.kawara); r.position.set((x0 + x1) / 2, (top + ridge) / 2 + 0.05, zc + s * half / 2); r.rotation.x = s * pitch; r.castShadow = true; r.receiveShadow = true;
     const uv = r.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (x1 - x0 + 0.5) / 0.9, uv.getY(i) * L / 0.9); g.add(r);
   });
-  cyl2(g, toon('#2f3238'), [x0 - 0.25, ridge + 0.1, zc], [x1 + 0.25, ridge + 0.1, zc], 0.07, 8);
+  cyl2(g, toon('#4a5068'), [x0 - 0.25, ridge + 0.1, zc], [x1 + 0.25, ridge + 0.1, zc], 0.07, 8); // slate ridge, like the izakaya
   [x0, x1].forEach((x) => { const sh = new THREE.Shape(); sh.moveTo(zf - zc, 0); sh.lineTo(0, ridge - top); sh.lineTo(ZB - zc, 0); sh.closePath(); const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.12, bevelEnabled: false }); geo.rotateY(Math.PI / 2); const gm = new THREE.Mesh(geo, plaster); gm.position.set(x - 0.06, top, zc); gm.castShadow = true; g.add(gm); });
   // the tiled pent eave over the ground floor (front)
   { const d = 0.72, y0 = Y + GH + 0.12, y1 = Y + GH - 0.15, r = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.1, 0.07, Math.hypot(d, y0 - y1)), M.kawara); r.position.set((x0 + x1) / 2, (y0 + y1) / 2, zf + d / 2); r.rotation.x = Math.atan2(y0 - y1, d); r.castShadow = true; g.add(r); piles.push({ id: 'srDeave', a: [x1, zf], b: [x0, zf], n: [0, 1], D: d, y: y0 + 0.04, drop: y0 - y1, w: { leaf: 0.4 }, snow: 0.1 }); }

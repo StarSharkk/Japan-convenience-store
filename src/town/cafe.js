@@ -4,6 +4,7 @@ import { makeGlass } from '../fx.js';
 import { makeRhapisPot, makeFicusPot } from '../plants/pottedPlants.js';
 import { swingDoors, doorHit } from '../doors.js';
 import { YS, ct, wbx, txt, SERIF, HAND, wetPass } from './shopkit.js';
+import { P } from '../palette.js';
 
 /* ====================================================================================================
    海辺の珈琲店 (seaside café, "COFFEE & BAKERY") - the west lot of the south block (plot C-cafe-1), one storey,
@@ -30,7 +31,7 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 /* ---------------------------------------------------------------- textures */
 const boardsTex = () => ct('cafeBoards', 256, 256, (g, w, h) => {
   const R = rng(5), n = 8, s = w / n;
-  for (let i = 0; i < n; i++) { g.fillStyle = ['#5a3c28', '#61422c', '#553826', '#5e3f2a'][(R() * 4) | 0]; g.fillRect(i * s, 0, s, h); g.fillStyle = 'rgba(20,10,4,0.55)'; g.fillRect(i * s, 0, 2, h); for (let k = 0; k < 3; k++) { g.strokeStyle = 'rgba(30,18,8,0.25)'; g.beginPath(); const x = i * s + 5 + R() * (s - 10); g.moveTo(x, 0); g.bezierCurveTo(x + 3, h * 0.3, x - 3, h * 0.6, x + 1, h); g.stroke(); } }
+  for (let i = 0; i < n; i++) { g.fillStyle = ['#9a7550', '#a27c56', '#93704b', '#9e7853'][(R() * 4) | 0]; g.fillRect(i * s, 0, s, h); g.fillStyle = 'rgba(60,38,20,0.4)'; /* mid timber (palette woodM), not walnut */ g.fillRect(i * s, 0, 2, h); for (let k = 0; k < 3; k++) { g.strokeStyle = 'rgba(30,18,8,0.25)'; g.beginPath(); const x = i * s + 5 + R() * (s - 10); g.moveTo(x, 0); g.bezierCurveTo(x + 3, h * 0.3, x - 3, h * 0.6, x + 1, h); g.stroke(); } }
 }, { repeat: true });
 const floorTex = () => ct('cafeFloor', 256, 256, (g, w, h) => {
   const n = 8, s = w / n, R = rng(8);
@@ -38,8 +39,8 @@ const floorTex = () => ct('cafeFloor', 256, 256, (g, w, h) => {
   g.strokeStyle = 'rgba(90,80,60,0.25)'; for (let i = 0; i <= n; i++) { g.beginPath(); g.moveTo(i * s, 0); g.lineTo(i * s, h); g.moveTo(0, i * s); g.lineTo(w, i * s); g.stroke(); }
 }, { repeat: true });
 const shingleTex = () => ct('cafeShingle', 128, 128, (g, w, h) => {
-  const R = rng(12); g.fillStyle = '#3d2a1e'; g.fillRect(0, 0, w, h);
-  for (let r = 0; r < 6; r++) for (let x = (r % 2) * -10; x < w; x += 20) { g.fillStyle = ['#6b4a34', '#5f412d', '#74523a'][(R() * 3) | 0]; g.fillRect(x + 1, r * (h / 6) + 1, 18, h / 6 - 3); }
+  const R = rng(12); g.fillStyle = '#6e5a4a'; g.fillRect(0, 0, w, h);
+  for (let r = 0; r < 6; r++) for (let x = (r % 2) * -10; x < w; x += 20) { g.fillStyle = ['#a8876a', '#9c7c60', '#b09074'][(R() * 3) | 0]; g.fillRect(x + 1, r * (h / 6) + 1, 18, h / 6 - 3); }
 }, { repeat: true });
 const signTex = () => ct('cafeSign', 1024, 128, (g, w, h) => {
   g.fillStyle = '#3a271b'; g.fillRect(0, 0, w, h);
@@ -83,20 +84,20 @@ const M = {};
 function mats() {
   if (M.clad) return M;
   M.clad = toon('#ffffff', { map: boardsTex(), nocache: true, lit: 0.04 });
-  M.walnut = toon('#4a3020');
+  M.walnut = toon(P.woodD); // (was a near-black walnut)
   M.wood = toon('#7a5236', { lit: 0.1 });
   M.woodL = toon('#b0814f', { lit: 0.12 });
-  M.green = toon('#2f4436');
+  M.green = toon(P.green); // the florist's deep green
   M.olive = toon('#58603d', { lit: 0.18 });
   M.cream = toon('#efe6d2', { lit: 0.15 });
   M.stone = toon('#d9d2c2', { lit: 0.12 });
   M.steel = toon('#b9bcc0');
-  M.black = toon('#262626');
+  M.black = toon(P.ink);
   M.blue = toon('#3f5c86');
   M.white = toon('#f6f3ec', { lit: 0.2 });
   M.floor = toon('#ffffff', { map: floorTex(), nocache: true, lit: 0.18 });
   M.shingle = toon('#ffffff', { map: shingleTex(), nocache: true });
-  M.roof = toon('#45403c');
+  M.roof = toon(P.roofMetal); // warm grey metal, not a dark slab
   M.crust = toon('#b8743a'); M.crustD = toon('#8f5428'); M.crustL = toon('#d9a05c'); M.dough = toon('#e8c88e');
   return M;
 }

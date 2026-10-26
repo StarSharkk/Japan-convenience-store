@@ -4,6 +4,7 @@ import { makeGlass } from '../fx.js';
 import { makeRhapisPot, makePot } from '../plants/pottedPlants.js';
 import { swingDoors, doorHit } from '../doors.js';
 import { YS, ct, wbx, txt, SERIF, HAND, spineTex, wetPass } from './shopkit.js';
+import { P } from '../palette.js';
 
 /* ====================================================================================================
    海辺の本屋 (bookstore) - the east lot of the south block (plot C-shop-1), one storey, its front facing south onto
@@ -174,7 +175,7 @@ export function buildBookstore(parent) {
   wbx(g, toon('#efe7d6', { lit: 0.3 }), IX0, IX1, Y + H - 0.03, Y + H - 0.01, IZ0, IZ1, 1, { cast: false });
   // cream cornice + the flat roof
   wbx(g, m.cream, X0 - 0.08, X1 + 0.08, Y + H - 0.16, Y + H + 0.04, Z0 - 0.08, Z1 + 0.1, 1);
-  wbx(g, toon('#b9b6ae'), X0 - 0.02, X1 + 0.02, Y + H + 0.04, Y + H + 0.06, Z0 - 0.02, Z1 + 0.04, 1, { cast: false });
+  wbx(g, toon(P.roofFlat), X0 - 0.02, X1 + 0.02, Y + H + 0.04, Y + H + 0.06, Z0 - 0.02, Z1 + 0.04, 1, { cast: false });
   wbx(g, m.cream, X0 - 0.04, X1 + 0.04, F - 0.02, F + 0.06, Z1, Z1 + 0.04, 1, { cast: false }); // base trim
   // back (Kaigan-dori): two small windows and a downpipe
   [[-0.6, 0.4], [2.2, 3.2]].forEach(([a, b]) => { bx(g, m.cream, a - 0.06, b + 0.06, Y + 1.7, Y + 2.5, Z0 - 0.04, Z0, { cast: false }); pl(g, glow('#ffe3b8', 0.7, { off: '#7b8794' }), b - a, 0.68, (a + b) / 2, Y + 2.1, Z0 - 0.045, Math.PI, 0); });

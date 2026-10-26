@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { reg, canvasTex, rng } from '../core.js';
 import { mergeInto } from '../plants/kit.js';
+import { P, shade } from '../palette.js';
 
 /* ====================================================================================================
    Small shared kit for the south-block shops (town/cafe.js, town/bookstore.js): boxes with metre UVs,
@@ -69,15 +70,15 @@ export function spineTex(seed, { pale = false } = {}) {
   }, { repeat: true });
 }
 
-/** warm grey pavers (the shop frontage) */
+/** cream pavers (the shop frontage: palette.js paveShop) */
 export function paverTex() {
   return ct('pavers', 256, 256, (g, w, h) => {
     const R = rng(31);
-    g.fillStyle = '#8c8478'; g.fillRect(0, 0, w, h);
+    g.fillStyle = shade(P.paveShop2, -0.3); g.fillRect(0, 0, w, h);
     const rows = 8, rh = h / rows;
     for (let r = 0; r < rows; r++) {
       const off = r % 2 ? 32 : 0;
-      for (let x = -off; x < w; x += 64) { const v = 176 + ((R() * 26) | 0); g.fillStyle = `rgb(${v},${v - 8},${v - 20})`; g.fillRect(x + 2, r * rh + 2, 60, rh - 4); }
+      for (let x = -off; x < w; x += 64) { const k = R(); g.fillStyle = shade(k < 0.5 ? P.paveShop2 : P.paveShop, (R() - 0.6) * 0.06); g.fillRect(x + 2, r * rh + 2, 60, rh - 4); }
     }
   }, { repeat: true });
 }

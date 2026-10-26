@@ -4,6 +4,7 @@ import { makeGlass } from './fx.js';
 import { T, posterTex } from './tex.js';
 import { bicycle, vendingMachine, planter, nobori } from './street.js';
 import { snowCapLine } from './roofPiles.js';
+import { P } from './palette.js';
 
 /* ====================================================================================================
    Izakaya next to the convenience store (3.5 m wide, 2 storeys, tiled gable roof)
@@ -69,13 +70,13 @@ let _tile;
 function tileMat(rx, ry) {
   if (!_tile) {
     _tile = canvasTex(128, 128, (g, w, h) => {
-      g.fillStyle = '#343b5c'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#4c5470'; g.fillRect(0, 0, w, h); // soft slate tiles (palette slate), lighter than the old navy
       for (let y = 0; y < h; y += 16) {
         for (let x = 0; x < w; x += 16) {
-          g.fillStyle = '#434b72'; g.beginPath(); g.arc(x + 8, y + 2, 9, 0, Math.PI); g.fill();
-          g.strokeStyle = '#6a739c'; g.lineWidth = 1.5; g.beginPath(); g.arc(x + 8, y + 2, 9, 0.15, Math.PI - 0.15); g.stroke();
+          g.fillStyle = P.slate; g.beginPath(); g.arc(x + 8, y + 2, 9, 0, Math.PI); g.fill();
+          g.strokeStyle = P.slateL; g.lineWidth = 1.5; g.beginPath(); g.arc(x + 8, y + 2, 9, 0.15, Math.PI - 0.15); g.stroke();
         }
-        g.fillStyle = 'rgba(0,0,10,0.35)'; g.fillRect(0, y + 13, w, 3);
+        g.fillStyle = 'rgba(10,12,30,0.28)'; g.fillRect(0, y + 13, w, 3);
       }
     }, { repeat: true });
   }
@@ -211,12 +212,12 @@ function ribTileMat() {
   if (!_rib) {
     _rib = canvasTex(64, 64, (g, w, h) => {
       const gr = g.createLinearGradient(0, 0, w, 0);
-      gr.addColorStop(0, '#2c303d'); gr.addColorStop(0.2, '#3c4252'); gr.addColorStop(0.5, '#4f5668'); gr.addColorStop(0.8, '#3c4252'); gr.addColorStop(1, '#2a2e3a');
+      gr.addColorStop(0, '#454c62'); gr.addColorStop(0.2, '#58607a'); gr.addColorStop(0.5, '#6e7792'); gr.addColorStop(0.8, '#58607a'); gr.addColorStop(1, '#434a60');
       g.fillStyle = gr; g.fillRect(0, 0, w, h);
       const sh = g.createLinearGradient(0, h - 14, 0, h);
       sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.42)');
       g.fillStyle = sh; g.fillRect(0, h - 14, w, 14);
-      g.fillStyle = '#5d6578'; g.fillRect(0, 0, w, 3);
+      g.fillStyle = '#8089a4'; g.fillRect(0, 0, w, 3);
     }, { repeat: true });
   }
   return toon('#ffffff', { map: _rib, lit: 0.12, nocache: true });
@@ -323,8 +324,8 @@ export function buildIzakaya(parent, drips) {
   const woodD = toon('#3b2415', { lit: 0.3 });
   const woodM = toon('#6a4328', { lit: 0.35 });
   const plaster = toon('#c8bcaa', { lit: 0.2 });
-  const roofTile = toon('#272c46');
-  const tileDark = toon('#262a36');
+  const roofTile = toon('#4a5068'); // ridge / verge pieces: slate, a step darker than the tiles
+  const tileDark = toon('#434a5e');
   const iron = toon('#6f788c');
   const stone = toon('#6d665f');
   const stoneL = toon('#a59d92');

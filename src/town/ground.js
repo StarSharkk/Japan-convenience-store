@@ -4,6 +4,7 @@ import { makeGroundMaterial } from '../ground.js';
 import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD, SAKURA_PLAZA, PLAZA_CENTRE, PLAZA_TREES, PLAZA_BENCHES, PLAZA_SWING, PLAZA_DRAINS, SW_ROW_PAD } from './layout.js';
 import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
 import { IZA_AWAY } from '../site.js';
+import { P, groundPaint, shade } from '../palette.js';
 
 /* ====================================================================================================
    Town ground: one painted canvas for the whole expanded map (roads, sidewalks, lawns, lots, verges),
@@ -16,11 +17,14 @@ const W = MAP.x1 - MAP.x0, H = MAP.z1 - MAP.z0;
 const X = (x) => (x - MAP.x0) * K;
 const Z = (z) => (z - MAP.z0) * K;
 
+// pavings come from the palette (palette.js: walk / shop / plaza + concrete), painted through groundPaint()
 const COL = {
   asphalt: '#1b2133',
-  tileA: '#3d4661', tileB: '#394259',
+  walkA: groundPaint(P.paveWalk), walkB: groundPaint(P.paveWalk2),
+  shopA: groundPaint(P.paveShop), shopB: groundPaint(P.paveShop2),
+  plazaA: groundPaint(P.pavePlaza), plazaB: groundPaint(P.pavePlaza2), concrete: groundPaint(P.concrete),
   grass: '#22403a', grass2: '#1c3730', forest: '#1a3029', earth: '#3a3633', earth2: '#332f2c',
-  gravel: '#3d3c46', paving: '#353d55', paving2: '#313951', sand: '#4a4636', lakebed: '#14282b',
+  gravel: '#3d3c46', sand: '#4a4636', lakebed: '#14282b',
   white: '#cfd5e2', gutter: '#10151f', yellow: '#c7a933',
 };
 
@@ -30,14 +34,27 @@ function polyPath(g, poly) {
   g.closePath();
 }
 
-function tilePattern(g, a, b, step = 0.75) {
+const WALK = 0.6; // sidewalk tile module (m)
+const joint = (a) => `rgba(${P.joint},${a})`;
+
+function tilePattern(g, a, b, step = WALK) {
   const s = Math.round(step * K);
   const c = document.createElement('canvas');
   c.width = c.height = s * 2;
   const t = c.getContext('2d');
   [[0, 0, a], [s, 0, b], [0, s, b], [s, s, a]].forEach(([x, y, col]) => { t.fillStyle = col; t.fillRect(x, y, s, s); });
-  t.strokeStyle = 'rgba(8,10,24,0.55)'; t.lineWidth = 2;
+  t.strokeStyle = joint(0.35); t.lineWidth = 2;
   t.strokeRect(1, 1, s - 1, s - 1); t.strokeRect(s + 1, 1, s - 1, s - 1); t.strokeRect(1, s + 1, s - 1, s - 1); t.strokeRect(s + 1, s + 1, s - 1, s - 1);
+  return g.createPattern(c, 'repeat');
+}
+
+/** the plaza paving: light stone slabs, 0.6 x 0.3 m in running bond, soft joints (`vertical`: long side along z) */
+function slabPattern(g, vertical) {
+  const a = Math.round(0.6 * K), b = Math.round(0.3 * K), w = vertical ? b : a, h = vertical ? a : b;
+  const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
+  const t = c.getContext('2d'), cols = [P.pavePlaza, P.pavePlaza2, shade(P.pavePlaza, 0.03), shade(P.pavePlaza2, -0.02)].map(groundPaint);
+  const cells = vertical ? [[0, 0, 0], [0, h, 1], [w, -h / 2, 2], [w, h / 2, 3], [w, h * 1.5, 0]] : [[0, 0, 0], [w, 0, 1], [-w / 2, h, 2], [w / 2, h, 3], [w * 1.5, h, 0]];
+  cells.forEach(([x, y, k]) => { t.fillStyle = cols[k]; t.fillRect(x, y, w, h); t.strokeStyle = joint(0.3); t.lineWidth = 1; t.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); });
   return g.createPattern(c, 'repeat');
 }
 
@@ -65,8 +82,7 @@ function drawTown(g) {
   for (let i = 0; i < 160; i++) blob(MAP.x0 + R() * W, MAP.z0 + R() * H, 1.5 + R() * 4, R() < 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,14,0.05)');
 
   /* blocks */
-  const tiles = tilePattern(g, COL.tileA, COL.tileB);
-  const pave = tilePattern(g, COL.paving, COL.paving2, 0.6);
+  const tiles = tilePattern(g, COL.walkA, COL.walkB);
   BLOCKS.forEach((b) => {
     g.save();
     polyPath(g, b.poly);
@@ -84,7 +100,7 @@ function drawTown(g) {
       g.fillStyle = '#45444e'; g.fillRect(X(-2.6), Z(p[3] + 1), 1.4 * K, (-23 - p[3] - 1) * K);
       for (let i = 0; i < 9; i++) { g.fillStyle = '#55545e'; g.fillRect(X(-2.5), Z(p[3] + 1.4 + i * 0.85), 1.2 * K, 0.5 * K); }
     } else if (b.surf === 'plaza') {
-      g.fillStyle = pave; g.fill();
+      g.fillStyle = slabPattern(g, false); g.fill();
     } else if (b.surf === 'verge') {
       g.fillStyle = COL.grass; g.fill();
       scatter(Math.round((bx1 - bx0) * 3), 'rgba(70,140,110,0.16)', 0.6, 2.0);
@@ -101,12 +117,12 @@ function drawTown(g) {
       });
       scatter(40, 'rgba(70,140,110,0.14)', 0.6, 1.8);
     } else {
-      // shops / walk: paving with darker concrete lots
-      g.fillStyle = pave; g.fill();
+      // shops / walk: sidewalk tiles with plain concrete lots
+      g.fillStyle = tiles; g.fill();
       PLOTS.filter((q) => q.block === b.id).forEach((q) => {
         const [x0, x1, z0, z1] = q.rect;
-        g.fillStyle = q.id === 'C-plaza' ? pave : q.type === 'public' ? COL.grass : '#2f3548'; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
-        for (let i = 0; i < 6; i++) blob(x0 + R() * (x1 - x0), z0 + R() * (z1 - z0), 0.4 + R() * 1.0, 'rgba(0,0,10,0.18)');
+        g.fillStyle = q.id === 'C-plaza' ? tiles : q.type === 'public' ? COL.grass : COL.concrete; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
+        for (let i = 0; i < 6; i++) blob(x0 + R() * (x1 - x0), z0 + R() * (z1 - z0), 0.4 + R() * 1.0, `rgba(${P.joint},0.12)`);
       });
     }
     g.restore();
@@ -117,12 +133,12 @@ function drawTown(g) {
      of the town paints exactly as before) */
   {
     const Rf = rng(4321);
-    g.fillStyle = tilePattern(g, '#424b66', '#3c445d', 0.45);
+    g.fillStyle = tiles;
     g.fillRect(X(12), Z(4.0), 18 * K, 2.5 * K); // Kaigan-dori sidewalk
     g.fillRect(X(12), Z(-7.2), 2.2 * K, 11.2 * K); // Hoshizora-dori side
     rect(12.7, 29.8, 5.0, 5.3, '#9b8227'); // linear guide blocks (bars run with the walk)
     for (let x = 12.7; x < 29.75; x += 0.3) for (let k = 0; k < 4; k++) rect(x + 0.03, x + 0.27, 5.04 + k * 0.065, 5.065 + k * 0.065, '#d3b53a');
-    line(12, 4.0, 30, 4.0, 'rgba(10,12,26,0.55)', 0.05);
+    line(12, 4.0, 30, 4.0, joint(0.45), 0.05);
     g.fillStyle = tilePattern(g, '#5a4a52', '#52434b', 0.4);
     g.fillRect(X(14.2), Z(2.6), 10.4 * K, 1.4 * K); // forecourt (terracotta tiles)
     g.fillRect(X(12.2), Z(2.0), 2.4 * K, 2.0 * K);
@@ -130,13 +146,13 @@ function drawTown(g) {
     for (let i = 0; i < 26; i++) blob(21.9 + Rf() * 2.6, -7 + Rf() * 9.7, 0.3 + Rf() * 0.6, 'rgba(60,110,80,0.3)');
     rect(24.55, 29.45, 1.0, 3.85, COL.gravel); // house yard
     for (let i = 0; i < 40; i++) blob(24.6 + Rf() * 4.8, 1.0 + Rf() * 2.8, 0.1 + Rf() * 0.25, Rf() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,10,0.12)');
-    rect(24.55, 29.45, -4.6, 1.0, COL.paving2); // round the house
+    rect(24.55, 29.45, -4.6, 1.0, COL.concrete); // round the house
   }
   // 青空雑貨店 at Kaigan-dori x 裏路地 (town/zakkaya.js): grey pavers round the corner, guide blocks along the 裏路地
   // walk past the machines and along Kaigan-dori, warning dots at the corner, a manhole, kerb grates (own rng)
   {
     const [x0, x1, z0, z1] = ZAK_PAD;
-    g.fillStyle = tilePattern(g, '#4a5168', '#454c62', 0.3);
+    g.fillStyle = tiles;
     g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
     rect(-17.35, -17.05, -1.5, 5.3, '#9b8227'); // along 裏路地 (bars run with the walk)
     for (let z = -1.5; z < 5.25; z += 0.3) for (let k = 0; k < 4; k++) rect(-17.32 + k * 0.065, -17.3 + k * 0.065, z + 0.03, z + 0.27, '#d3b53a');
@@ -151,7 +167,7 @@ function drawTown(g) {
   // the izakaya's lot in the west block (site.js IZA_AWAY): paving under it, its street side and its frontage
   if (IZA_AWAY) {
     const [x0, x1, z0] = IZA_AWAY.rect;
-    g.fillStyle = tilePattern(g, COL.paving, COL.paving2, 0.6);
+    g.fillStyle = tiles;
     g.fillRect(X(x0 - 1.3), Z(z0 - 0.5), (x1 - x0 + 2.1) * K, (6.5 - z0 + 0.5) * K);
   }
 
@@ -195,12 +211,11 @@ function drawTown(g) {
   {
     const [x0, x1, z0, z1] = SW_ROW_PAD;
     g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'sw1').poly); g.clip();
-    g.fillStyle = '#3f4554'; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); // concrete
-    const pv = tilePattern(g, '#4a5164', '#454c5f', 0.4);
-    g.fillStyle = pv; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, 1.7 * K); // Kaigan-dori's pavement
+    g.fillStyle = COL.concrete; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); // concrete
+    g.fillStyle = tiles; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, 1.7 * K); // Kaigan-dori's pavement
     g.fillRect(X(x0), Z(z1 - 0.2), (x1 - x0) * K, 4.5 * K); // the front pavement down to the lane
     g.fillStyle = '#2f3442'; g.fillRect(X(x0), Z(15.4), 5.6 * K, (z1 - 0.2 - 15.4) * K); // the parking corner
-    g.strokeStyle = 'rgba(20,22,30,0.5)'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(-41.8), Z(19.45)); g.lineTo(X(-19.4), Z(19.45)); g.stroke(); // the building line
+    g.strokeStyle = joint(0.5); g.lineWidth = 2; g.beginPath(); g.moveTo(X(-41.8), Z(19.45)); g.lineTo(X(-19.4), Z(19.45)); g.stroke(); // the building line
     g.restore();
   }
 
@@ -211,20 +226,12 @@ function drawTown(g) {
   {
     const [x0, x1, z0, z1] = SAKURA_PLAZA, [cx, cz] = PLAZA_CENTRE;
     g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'south').poly); g.clip();
-    const slabs = (vertical) => { // light stone slabs, 0.6 x 0.3 m in running bond, soft joints
-      const a = Math.round(0.6 * K), b = Math.round(0.3 * K), w = vertical ? b : a, h = vertical ? a : b;
-      const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
-      const t = c.getContext('2d'), cols = ['#8a8279', '#857d74', '#8e867c', '#827a71'];
-      const cells = vertical ? [[0, 0, 0], [0, h, 1], [w, -h / 2, 2], [w, h / 2, 3], [w, h * 1.5, 0]] : [[0, 0, 0], [w, 0, 1], [-w / 2, h, 2], [w / 2, h, 3], [w * 1.5, h, 0]];
-      cells.forEach(([x, y, k]) => { t.fillStyle = cols[k]; t.fillRect(x, y, w, h); t.strokeStyle = 'rgba(40,32,26,0.3)'; t.lineWidth = 1; t.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); });
-      return g.createPattern(c, 'repeat');
-    };
-    g.fillStyle = slabs(false); g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
-    g.fillStyle = slabs(true); [[x0, -8.6], [4.25, x1]].forEach(([a, b]) => g.fillRect(X(a), Z(z0), (b - a) * K, (z1 - z0) * K));
+    g.fillStyle = slabPattern(g, false); g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K);
+    g.fillStyle = slabPattern(g, true); [[x0, -8.6], [4.25, x1]].forEach(([a, b]) => g.fillRect(X(a), Z(z0), (b - a) * K, (z1 - z0) * K));
     g.strokeStyle = 'rgba(40,32,26,0.35)'; g.lineWidth = 2; [-8.6, 4.25].forEach((x) => { g.beginPath(); g.moveTo(X(x), Z(z0)); g.lineTo(X(x), Z(z1)); g.stroke(); });
     // the fountain surround: radial slabs out to r 2.8, a ring drain, the contact shadow
     const circ = (r, fill, stroke, lw = 3) => { g.beginPath(); g.arc(X(cx), Z(cz), r * K, 0, Math.PI * 2); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); } };
-    circ(2.8, '#857c72', 'rgba(40,32,26,0.45)');
+    circ(2.8, groundPaint(shade(P.pavePlaza2, -0.03)), 'rgba(40,32,26,0.45)');
     for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; g.beginPath(); g.moveTo(X(cx + Math.cos(a) * 1.62), Z(cz + Math.sin(a) * 1.62)); g.lineTo(X(cx + Math.cos(a) * 2.8), Z(cz + Math.sin(a) * 2.8)); g.strokeStyle = 'rgba(40,32,26,0.26)'; g.lineWidth = 2; g.stroke(); }
     circ(2.2, null, 'rgba(40,32,26,0.32)', 2);
     circ(2.62, null, '#3d3832', 6); // the slotted ring drain
@@ -340,6 +347,18 @@ function drawTownMask(g, w, h) {
   const fillPoly = (poly, col) => { g.fillStyle = col; g.beginPath(); poly.forEach(([x, z], i) => (i ? g.lineTo((x - MAP.x0) * k, (z - MAP.z0) * k) : g.moveTo((x - MAP.x0) * k, (z - MAP.z0) * k))); g.closePath(); g.fill(); };
   // lawn
   BLOCKS.forEach((b) => { if (['verge', 'park', 'forest'].includes(b.surf)) fillPoly(b.poly, 'rgb(0,255,0)'); else if (b.surf === 'lots') fillPoly(b.poly, 'rgb(0,120,0)'); });
+  // ...but not the paved pads inside the lots blocks (the seasonal grass tint would turn their stone green)
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000';
+  const pads = [[SW_ROW_PAD[0], SW_ROW_PAD[1], SW_ROW_PAD[2], SW_ROW_PAD[3] + 4.3], ZAK_PAD]; // the row's front pavement runs on to the lane
+  if (IZA_AWAY) { const [x0, x1, z0] = IZA_AWAY.rect; pads.push([x0 - 1.3, x1 + 0.8, z0 - 0.5, 6.5]); }
+  pads.forEach(([x0, x1, z0, z1]) => g.fillRect((x0 - MAP.x0) * k, (z0 - MAP.z0) * k, (x1 - x0) * k, (z1 - z0) * k));
+  BLOCKS.forEach((b) => { // and the sidewalk bands round the lots / the park (drawTown)
+    const band = { lots: 1.1, park: 0.9 }[b.surf];
+    if (!band) return;
+    const path = () => { g.beginPath(); b.poly.forEach(([x, z], i) => (i ? g.lineTo((x - MAP.x0) * k, (z - MAP.z0) * k) : g.moveTo((x - MAP.x0) * k, (z - MAP.z0) * k))); g.closePath(); };
+    g.save(); path(); g.clip(); g.strokeStyle = '#000'; g.lineWidth = band * 2 * k; path(); g.stroke(); g.restore();
+  });
+  g.globalCompositeOperation = 'lighter';
   // gutters
   g.fillStyle = 'rgb(0,0,255)';
   const r = (x0, x1, z0, z1) => g.fillRect((x0 - MAP.x0) * k, (z0 - MAP.z0) * k, (x1 - x0) * k, (z1 - z0) * k);
@@ -412,7 +431,7 @@ export function buildTownGround(parent, renderer, refl) {
   reg.ground.push(road);
 
   /* blocks: top surfaces + kerbs / retaining walls */
-  const kerb = toon('#5d6683');
+  const kerb = toon(P.kerb);
   const stone = patchToon(new THREE.MeshToonMaterial({ color: 0xffffff, map: stoneTex(), gradientMap: RAMP }));
   const onOutline = (x, z) => {
     for (let i = 0; i < OUTLINE.length; i++) {

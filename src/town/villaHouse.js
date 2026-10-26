@@ -5,6 +5,7 @@ import { makeGlass } from '../fx.js';
 import { makeShrub, SEASON_U } from '../tree.js';
 import { makeFicusPot } from '../plants/pottedPlants.js';
 import { spineTex } from './shopkit.js';
+import { P } from '../palette.js';
 
 /* ====================================================================================================
    星野邸 - the house of the large residence (town/villa.js): a low one-storey Japanese modern courtyard house.
@@ -46,7 +47,7 @@ const oakTex = () => ct('vOak', 256, 256, (g, w, h) => {
   for (let i = 0; i < n; i++) { g.fillStyle = ['#d6b68a', '#d0ae80', '#dcbd92', '#cba779'][(R() * 4) | 0]; g.fillRect(0, i * s, w, s); g.fillStyle = 'rgba(120,85,50,0.3)'; g.fillRect(0, i * s, w, 1); g.fillRect((R() * w) | 0, i * s, 1, s); for (let k = 0; k < 3; k++) { g.fillStyle = 'rgba(150,110,70,0.12)'; g.fillRect(0, i * s + 2 + R() * (s - 4), w, 1); } }
 }, { repeat: true });
 // standing-seam dark grey metal: seams every 0.25 m (vertical stripes = seams along z; the X variant: along x)
-const seamDraw = (vertical) => (g, w, h) => { g.fillStyle = '#5c5f63'; g.fillRect(0, 0, w, h); for (let k = 0; k < w; k += 32) { const a = (c, o, wd) => { g.fillStyle = c; if (vertical) g.fillRect(k + o, 0, wd, h); else g.fillRect(0, k + o, w, wd); }; a('rgba(255,255,255,0.16)', 0, 2); a('rgba(0,0,0,0.22)', 2, 2); a('rgba(255,255,255,0.04)', 4, 26); } };
+const seamDraw = (vertical) => (g, w, h) => { g.fillStyle = P.roofMetal; /* warm grey metal (palette) */ g.fillRect(0, 0, w, h); for (let k = 0; k < w; k += 32) { const a = (c, o, wd) => { g.fillStyle = c; if (vertical) g.fillRect(k + o, 0, wd, h); else g.fillRect(0, k + o, w, wd); }; a('rgba(255,255,255,0.16)', 0, 2); a('rgba(0,0,0,0.22)', 2, 2); a('rgba(255,255,255,0.04)', 4, 26); } };
 const seamTex = () => ct('vSeam', 128, 128, seamDraw(true), { repeat: true });
 const seamTexX = () => ct('vSeamX', 128, 128, seamDraw(false), { repeat: true });
 const stoneTex = () => ct('vStone', 256, 128, (g, w, h) => { const R = rng(9); g.fillStyle = '#9d978d'; g.fillRect(0, 0, w, h); for (let r = 0; r < 2; r++) for (let x = (r % 2) * -40; x < w; x += 80) { const v = 196 + ((R() * 18) | 0); g.fillStyle = `rgb(${v},${v - 4},${v - 12})`; g.fillRect(x + 2, r * 64 + 2, 76, 60); } }, { repeat: true });
@@ -230,7 +231,7 @@ export function buildVillaHouse(g, root, { YL, MZ }) {
   [[XA - 0.05, ZB + 0.45, bB(0, ZB + 0.45)], [X1 + 0.42, ZD - 0.42, bC(X1 + 0.42)], [X1 + 0.42, ZB + 0.32, bC(X1 + 0.42)], [X0 - 0.44, ZB + 0.32, bA(X0 - 0.44)]].forEach(([x, z, y]) => { cy(g, m.edge, x, YL, z, 0.028, y - YL - 0.02, 8); bx(g, m.edge, x - 0.035, x + 0.035, YL, YL + 0.04, z - 0.06, z + 0.06, { cast: false }); });
   // the porch canopy (a thin flat plate over the steps, under the entrance roof's eave)
   const canopy = (x0, x1, z0, z1, y, lights) => {
-    rbx(g, m.edge, x0, x1, y, y + 0.06, z0, z1, { r: 0.012 });
+    rbx(g, toon(P.roofMetal), x0, x1, y, y + 0.06, z0, z1, { r: 0.012 }); // warm grey metal, like the roofs
     rbx(g, m.oak, x0 + 0.03, x1 - 0.03, y - 0.012, y, z0 + 0.03, z1, { r: 0.003, cast: false, tile: 1.2 });
     lights.forEach(([x, z]) => { cy(g, glow('#ffe6c4', 2.0, { off: '#d8d0c0' }), x, y - 0.024, z, 0.04, 0.012, 12); halo(g, x, y - 0.25, z, '#ffdcae', 0.9, 0.22); });
   };

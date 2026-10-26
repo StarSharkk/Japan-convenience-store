@@ -5,6 +5,7 @@ import { T } from './tex.js';
 import { makeShrub } from './tree.js';
 import { bladeGeo, placeLeaf, mergeInto, leafTex, leafMat } from './plants/kit.js';
 import { swingDoors, doorHit } from './doors.js';
+import { P } from './palette.js';
 
 /* ====================================================================================================
    BREAD - the one-storey neighbourhood bakery on the lot left of the LAWSON (replaces the izakaya, which is
@@ -532,7 +533,7 @@ export function buildBakery(parent, drips) {
   bx(g, m.creamD, X0 - 0.05, X1 + 0.05, YP, YP + 0.06, Z1 - 0.15, Z1 + 0.08, { bevel: 0.01 });
   [[X0 - 0.03, X0 + 0.12], [X1 - 0.12, X1 + 0.03]].forEach(([a, b]) => bx(g, m.creamD, a, b, YW, YW + 0.12, Z0 - 0.03, Z1 - 0.12));
   bx(g, m.creamD, X0, X1, YW, YW + 0.12, Z0 - 0.03, Z0 + 0.1);
-  bx(g, toon('#8e939a'), X0 + 0.12, X1 - 0.12, YW - 0.04, YW + 0.02, Z0 + 0.12, Z1 - 0.12, { cast: false }); // roof membrane
+  bx(g, toon(P.roofFlat), X0 + 0.12, X1 - 0.12, YW - 0.04, YW + 0.02, Z0 + 0.12, Z1 - 0.12, { cast: false }); // roof membrane
   bx(g, m.plasterIn, IN.x0, IN.x1, 3.48, 3.52, Z0 + 0.12, IN.z1, { cast: false }); // shop ceiling
   // things on the roof: an AC unit and the oven flue
   bx(g, toon('#e8ebee'), -9.4, -8.6, YW + 0.02, YW + 0.6, -4.5, -3.9, { bevel: 0.03 });
