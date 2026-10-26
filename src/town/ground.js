@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, canvasTex, rng, FONT, RAMP, patchToon } from '../core.js';
 import { makeGroundMaterial } from '../ground.js';
-import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD, SAKURA_PLAZA, PLAZA_CENTRE, PLAZA_TREES, PLAZA_BENCHES, PLAZA_SWING, PLAZA_DRAINS, SW_ROW_PAD } from './layout.js';
+import { MAP, OLD, BLOCKS, OUTLINE, ROADS, LANES, LAKE, lakeF, roadH, inPoly, PAV, RAIL, CROSSINGS, PLOTS, inOld, groundY, ZAK_PAD, SAKURA_PLAZA, PLAZA_CENTRE, PLAZA_TREES, PLAZA_BENCHES, PLAZA_SWING, PLAZA_DRAINS, SW_ROW_PAD, WEST_HOMES } from './layout.js';
 import { surface, walls, offsetConvex, clipConvex, area } from './geom.js';
 import { IZA_AWAY } from '../site.js';
 import { P, groundPaint, shade } from '../palette.js';
@@ -127,6 +127,9 @@ function drawTown(g) {
     }
     g.restore();
   });
+
+  // 西の住宅地 (town/westHomes.js): lawn over the four gardens (the plots' earth above still paints: same random stream)
+  { const [x0, x1, z0, z1] = WEST_HOMES.area; g.save(); polyPath(g, BLOCKS.find((q) => q.id === 'west1').poly); g.clip(); g.fillStyle = COL.grass; g.fillRect(X(x0), Z(z0), (x1 - x0) * K, (z1 - z0) * K); g.restore(); }
 
   /* しずく花店 corner (town/florist.js): sidewalk pavers along both kerbs with a guide strip, the shop's tiled
      forecourt, the planting strip between the shop and the house, the house's gravel yard (own rng: the rest
@@ -445,7 +448,7 @@ export function buildTownGround(parent, renderer, refl) {
   BLOCKS.forEach((b) => {
     const poly = clipConvex(b.poly, OUTLINE);
     if (poly.length < 3) return;
-    const top = new THREE.Mesh(surface(poly, b.h, b.id === 'lakePark' ? 0.5 : 1.0, null), mat);
+    const top = new THREE.Mesh(surface(poly, b.h, b.res || (b.id === 'lakePark' ? 0.5 : 1.0), null), mat);
     top.receiveShadow = true;
     top.userData.keep = true;
     top.userData.block = b.id;

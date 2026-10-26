@@ -45,6 +45,7 @@ export const P = {
   roofFlat: '#A39C90', // flat roof decks / membranes
   roofMetal: '#878074', // metal roofs
   coping: '#E6DDCB', // light copings on parapets (= creamD)
+  roofTimber: '#8C7F70', // the one brown-grey low hipped roof (西の住宅地 house 1): the warm-grey family, a touch browner
 
   // ground: three pavings, all from warm stone / cream (two tones each: tile A, tile B)
   //   walk   sidewalks everywhere - warm stone squares

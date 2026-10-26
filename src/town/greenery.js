@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { reg, toon, rng } from '../core.js';
 import { makeTree, makeShrub, FOLIAGE, SEASON_U } from '../tree.js';
-import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD, SOUTH_SHOPS_PAD, SAKURA_PLAZA, SW_ROW_PAD } from './layout.js';
+import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD, SOUTH_SHOPS_PAD, SAKURA_PLAZA, SW_ROW_PAD, WEST_HOMES } from './layout.js';
 import { IZA_AWAY } from '../site.js';
 
 /* ====================================================================================================
@@ -230,7 +230,8 @@ export function buildGreenery(parent, lake) {
   const inVilla = (p) => (p.x > VILLA_PAD[0] - 0.3 && p.x < VILLA_PAD[1] + 0.3 && p.z > VILLA_PAD[2] - 0.3 && p.z < VILLA_PAD[3] + 0.3)
     || (p.x > SOUTH_SHOPS_PAD[0] && p.x < SOUTH_SHOPS_PAD[1] - 0.1 && p.z > SOUTH_SHOPS_PAD[2] && p.z < SOUTH_SHOPS_PAD[3])
     || (p.x > SAKURA_PLAZA[0] && p.x < SAKURA_PLAZA[1] && p.z > SAKURA_PLAZA[2] - 0.2 && p.z < SAKURA_PLAZA[3] + 0.5) // town/plaza.js plants its own
-    || (p.x > SW_ROW_PAD[0] && p.x < SW_ROW_PAD[1] && p.z > SW_ROW_PAD[2] - 0.2 && p.z < SW_ROW_PAD[3] + 3.8); // the street-house row + its front pavement (town/streetRow.js)
+    || (p.x > SW_ROW_PAD[0] && p.x < SW_ROW_PAD[1] && p.z > SW_ROW_PAD[2] - 0.2 && p.z < SW_ROW_PAD[3] + 3.8) // the street-house row + its front pavement (town/streetRow.js)
+    || (p.x > WEST_HOMES.area[0] && p.x < WEST_HOMES.area[1] && p.z > WEST_HOMES.area[2] && p.z < WEST_HOMES.area[3]); // 西の住宅地 (town/westHomes.js; the Kita-dori street trees stay)
   trees.splice(0, trees.length, ...trees.filter((p) => !inVilla(p)));
   shrubs.splice(0, shrubs.length, ...shrubs.filter((p) => !inVilla(p)));
   Object.entries(bySp(trees)).forEach(([sp, list]) => instance(extract(makeTree(SPECIES[sp])), list));

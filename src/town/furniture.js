@@ -73,8 +73,7 @@ export function buildFurniture(parent, lake) {
   chain([[-13.1, 14], [-13.1, 22], [-13.1, 30]], 'z');
   chain([[33.4, -9], [33.4, -1], [33.4, 15], [33.4, 23]], 'z', 0.9);
   chain([[-20, 26.4], [-28, 27.0], [-36, 25.6], [-44, 25.2]], 'x');
-  // service drops to future houses (they end at the lot edge, like a cut lead waiting for the house)
-  wire(g, [-34, 6.4 + 0.15, 6.05], [-37, 2.6, 4.6], 0.4, 0.013);
+  // service drops (the west houses take theirs in town/westHomes.js)
   wire(g, [23.2, 7.25 + 0.3, 6.05], [24.75, 5.1, 1.06], 0.4, 0.013); // service drop to the florist's house
 
   /* ---------------------------------------------------------------- signals: Hoshizora-dori × Kita-dori */

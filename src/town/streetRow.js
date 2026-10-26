@@ -79,7 +79,7 @@ function mats() {
 }
 
 /* ---------------------------------------------------------------- helpers */
-function rbx(p, mat, x0, x1, y0, y1, z0, z1, { r = 0.012, tile = 1, cast = true } = {}) {
+export function rbx(p, mat, x0, x1, y0, y1, z0, z1, { r = 0.012, tile = 1, cast = true } = {}) {
   if (x1 < x0) [x0, x1] = [x1, x0];
   if (y1 < y0) [y0, y1] = [y1, y0];
   if (z1 < z0) [z0, z1] = [z1, z0];
@@ -96,7 +96,7 @@ function rbx(p, mat, x0, x1, y0, y1, z0, z1, { r = 0.012, tile = 1, cast = true 
  * a dark reveal, a slim frame with mullions, glass, and a room behind it (blinds / curtain / dark, lit in the evening)
  */
 let wSeed = 400;
-function win(p, z, s, x0, x1, y0, y1, { mull = 0, frame, inner = 'blind', sill = true, lit = true, tint = 0xe8f0f4 } = {}) {
+export function win(p, z, s, x0, x1, y0, y1, { mull = 0, frame, inner = 'blind', sill = true, lit = true, tint = 0xe8f0f4 } = {}) {
   // layers out from the wall: the dark reveal, the room behind (a plane), the frame, the glass
   const m = mats(), fr = frame || m.frame, k = 0.04, zr = z + s * 0.008, zbk = z + s * 0.012, zfr = z + s * 0.03, zgl = z + s * 0.036;
   bx(p, toon('#24272b'), x0 - 0.02, x1 + 0.02, y0 - 0.02, y1 + 0.02, Math.min(z, zr), Math.max(z, zr), { cast: false }); // the reveal
@@ -112,14 +112,14 @@ function win(p, z, s, x0, x1, y0, y1, { mull = 0, frame, inner = 'blind', sill =
   if (sill) bx(p, m.concreteL, x0 - 0.05, x1 + 0.05, y0 - 0.06, y0 - 0.01, z + s * 0.08, z, { cast: false });
 }
 /** an AC outdoor unit (on the ground or on a wall bracket) facing s */
-function acUnit(p, x, y, z, s) {
+export function acUnit(p, x, y, z, s) {
   const m = mats();
   bx(p, toon('#dcdcd6'), x - 0.38, x + 0.38, y, y + 0.55, Math.min(z, z + s * 0.28), Math.max(z, z + s * 0.28), { bevel: 0.015 });
   const f = cy(p, toon('#8e9298'), x - 0.08, y + 0.27, z + s * 0.285, 0.19, 0.01, 18); f.rotation.x = Math.PI / 2;
   if (y > Y + 0.3) [[-0.3], [0.3]].forEach(([d]) => bx(p, m.metal, x + d - 0.02, x + d + 0.02, y - 0.04, y, Math.min(z, z + s * 0.32), Math.max(z, z + s * 0.32), { cast: false }));
 }
-function pipe(p, x, z, y0, y1, r = 0.04) { cy(p, toon('#b9b5ab'), x, y0, z, r, y1 - y0, 8); }
-function railing(p, pts, y, h = 1.0) {
+export function pipe(p, x, z, y0, y1, r = 0.04) { cy(p, toon('#b9b5ab'), x, y0, z, r, y1 - y0, 8); }
+export function railing(p, pts, y, h = 1.0) {
   const m = mats();
   for (let i = 0; i < pts.length - 1; i++) {
     const [ax, az] = pts[i], [bx2, bz] = pts[i + 1], L = Math.hypot(bx2 - ax, bz - az), n = Math.max(1, Math.round(L / 0.14));
@@ -163,10 +163,14 @@ function parapet(p, mat, x0, x1, z0, z1, top, h = 0.32) {
 function hut(p, mat, x0, x1, z0, z1, y, h, door = true) {
   rbx(p, mat, x0, x1, y, y + h, z0, z1, { r: 0.02, tile: 1.6 });
   rbx(p, toon(P.roofMetal), x0 - 0.06, x1 + 0.06, y + h, y + h + 0.08, z0 - 0.06, z1 + 0.12, { r: 0.012 }); // the hut's roof (warm grey metal)
-  if (door) { const dx = (x0 + x1) / 2; rbx(p, mats().metal, dx - 0.36, dx + 0.36, y, y + 1.95, z1, z1 + 0.04, { r: 0.006 }); bx(p, toon('#c9c4b8'), dx + 0.2, dx + 0.26, y + 0.95, y + 1.0, z1 + 0.04, z1 + 0.07, { cast: false }); bx(p, glow('#ffe2b8', 1.6, { cat: 'iza', off: '#cfc8b8' }), dx - 0.08, dx + 0.08, y + 2.1, y + 2.2, z1, z1 + 0.06, { cast: false }); }
+  if (door) { // the door and its lamp follow the hut's size
+    const dx = (x0 + x1) / 2, dw = Math.min(0.36, (x1 - x0) * 0.22), dh = h * 0.78;
+    rbx(p, mats().metal, dx - dw, dx + dw, y, y + dh, z1, z1 + 0.04, { r: 0.006 }); bx(p, toon('#c9c4b8'), dx + dw - 0.16, dx + dw - 0.1, y + dh * 0.49, y + dh * 0.49 + 0.05, z1 + 0.04, z1 + 0.07, { cast: false });
+    bx(p, glow('#ffe2b8', 1.6, { cat: 'iza', off: '#cfc8b8' }), dx - 0.07, dx + 0.07, y + dh + 0.06, y + dh + 0.14, z1, z1 + 0.06, { cast: false });
+  }
 }
 /** a planter box (on a sill or the ground) with a few flowers */
-function flowerBox(p, x0, x1, y, z, seed) {
+export function flowerBox(p, x0, x1, y, z, seed) {
   const R = rng(seed), m = mats();
   rbx(p, m.wood, x0, x1, y, y + 0.18, z, z + 0.22, { r: 0.01 });
   for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.16) { sph(p, toon('#4f7f46'), 0.08, x, y + 0.22, z + 0.11, 1, 0.8, 1); if (R() < 0.6) sph(p, toon(['#e86a8a', '#ffffff', '#f2d23a', '#c96ad8'][(R() * 4) | 0]), 0.035, x + (R() - 0.5) * 0.06, y + 0.3, z + 0.11 + (R() - 0.5) * 0.06); }
@@ -200,7 +204,7 @@ function bldA(g, piles) {
   win(g, ZF, 1, -21.0, -20.55, Y + GH + 0.35, top - 0.4, { sill: false, inner: 'curtain' });
   // the roof: parapet, a set-back stair hut with its door, a short railing, a condenser
   parapet(g, m.frame, x0, x1, ZB, ZF, top, 0.28);
-  hut(g, m.concreteL, -21.7, -19.85, 14.1, 16.0, top + 0.03, 2.1);
+  hut(g, m.concreteL, -21.5, -20.05, 14.1, 15.5, top + 0.03, 1.4);
   railing(g, [[x0 + 0.25, ZF - 0.3], [-21.9, ZF - 0.3]], top + 0.28, 0.85);
   acUnit(g, -23.2, top + 0.03, 15.2, 1);
   // the back (Kaigan-dori): two small windows per floor, a door, an AC unit, a downpipe
@@ -266,7 +270,7 @@ function bldB(g, piles) {
   // the roof: parapet + coping, a railing, the brick stair hut with its door
   parapet(g, toon(P.brickD), x0, x1, ZB, ZF, top, 0.3);
   railing(g, [[x0 + 0.25, ZF - 0.32], [x1 - 0.25, ZF - 0.32]], top + 0.3, 0.8);
-  hut(g, m.brick, -30.2, -28.3, 14.0, 15.9, top + 0.03, 2.0);
+  hut(g, m.brick, -30.0, -28.5, 14.0, 15.4, top + 0.03, 1.4);
   // the back (Kaigan-dori): windows, the kitchen door, propane, the exhaust duct, AC
   [Y + GH + 0.75].forEach((y) => win(g, ZB, -1, -29.5, -27.9, y, y + 1.1, { inner: 'curtain' }));
   win(g, ZB, -1, -26.6, -25.4, Y + 1.3, Y + 2.2, { inner: 'dark', lit: false });
@@ -314,7 +318,7 @@ function bldC(g, piles) {
   // the roof: parapet, railing, the small plant room
   parapet(g, white, x0, x1, ZB, zf, top, 0.24);
   railing(g, [[x0 + 0.25, zf - 0.3], [x1 - 0.25, zf - 0.3]], top + 0.24, 0.85);
-  hut(g, m.mustard, -35.6, -33.6, 14.0, 15.6, top + 0.03, 1.7);
+  hut(g, m.mustard, -35.4, -33.8, 14.0, 15.2, top + 0.03, 1.2);
   // the back (Kaigan-dori): windows, a door, AC
   win(g, ZB, -1, -35.8, -34.2, Y + GH + 0.7, Y + GH + 1.9, { mull: 1, inner: 'curtain' });
   rbx(g, m.metal, -32.4, -31.6, Y, Y + 2.05, ZB - 0.04, ZB, { r: 0.006 }); acUnit(g, -33.6, Y, ZB, -1);

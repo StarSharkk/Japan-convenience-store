@@ -116,6 +116,18 @@ export const PLAZA_SWING = { x: -10.95, z0: 28.95, z1: 30.95, pad: [-11.9, -10.0
 export const PLAZA_DRAINS = [[-8.4, 26.5], [2.0, 26.5], [-12.4, 26.5], [6.4, 26.5]];
 const plazaRamp = (z) => smooth(21.2, 22.75, z) * (1 - 0.7 * Math.min(1, Math.max(0, (z - 22.75) / 9.25)));
 
+// 西の住宅地 - four south-facing houses in block west1 (town/westHomes.js), two pairs on two terraces: the north pair at
+// yN (a shared walk along their fronts), a low retaining wall at z -2.5 .. -2.0, the south pair at yS facing Kaigan-dori;
+// a stepped path between the south pair joins the two (a 旗竿地 path). The step sits on a ground-grid line (the block
+// is meshed at 0.5 m) so the wall box covers it; each terrace eases into the natural slope within ~0.4 .. 0.8 m
+export const WEST_HOMES = { yN: PAV + 0.6, yS: PAV + 0.15, zWall: [-2.5, -2.0], path: [-41.0, -39.8], area: [-47.0, -34.3, -10.4, 5.25] };
+const westHomesH = (x, z, base) => {
+  const { yN, yS, zWall } = WEST_HOMES, dx = Math.max(-47.5 - x, 0, x - (-33.0));
+  if (z <= zWall[0]) { const k = 1 - smooth(0, 0.8, Math.hypot(dx, Math.max(-11.3 - z, 0))); return base + (yN - base) * k; }
+  const k = 1 - smooth(0, 0.4, Math.hypot(dx, Math.max(z - 5.2, 0)));
+  return base + (yS - base) * k;
+};
+
 // the street-house row in block sw1 (town/streetRow.js): the Kaigan-dori pavement and the buildings stand on one pad at
 // the height of the block's north edge; their front pavement (south) falls gently to the lane over ~2.4 m
 export const SW_ROW_PAD = [-48, -16.5, 12.0, 19.6];
@@ -132,7 +144,7 @@ export const BLOCKS = [
   { id: 'corrW', zone: 'E', poly: [[-48, -23], [-16.5, -23], [-16.5, -15], [-48, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrM', zone: 'E', poly: [[-13.5, -23], [7.5, -23], [7.5, -15], [-13.5, -15]], h: () => PAV, surf: 'verge' },
   { id: 'corrE', zone: 'E', poly: [[12, -23], [23, -23], [27, -25.5], [29, -30], [29, -44], [36, -44], [36, -15], [12, -15]], h: () => PAV, surf: 'verge' },
-  { id: 'west1', zone: 'B', poly: [[-48, -12], [-32, -12], [-33.5, -3], [-32.5, 6.5], [-48, 6.5]], h: (x, z) => PAV + 0.85 * smooth(4, -10, z), surf: 'lots', wall: 'stone' },
+  { id: 'west1', zone: 'B', poly: [[-48, -12], [-32, -12], [-33.5, -3], [-32.5, 6.5], [-48, 6.5]], h: (x, z) => westHomesH(x, z, PAV + 0.85 * smooth(4, -10, z)), surf: 'lots', wall: 'stone', res: 0.5 },
   { id: 'west2', zone: 'B', poly: [[-29, -12], [-16.5, -12], [-16.5, 6.5], [-29.5, 6.5], [-30.5, -3]], h: (x, z) => PAV + 0.7 * smooth(4, -10, z) * (1 - Math.max(izaPad(x, z), zakPad(x, z))), surf: 'lots', wall: 'stone' },
   { id: 'west3', zone: 'A', poly: [[-13.5, -12], [-12, -12], [-12, 6.5], [-13.5, 6.5]], h: () => PAV, surf: 'walk' },
   { id: 'eastShops', zone: 'A', poly: [[12, -12], [30, -12], [30, 6.5], [12, 6.5]], h: (x, z) => PAV + 0.22 * smooth(3, -11, z), surf: 'shops' },
@@ -232,10 +244,12 @@ export const PLOTS = [
   { id: 'A-shop-4', type: 'shop', block: 'southEast', rect: [13, 20, 13.5, 20], front: 'kaigan' },
   { id: 'A-cafe-2', type: 'cafe', block: 'southEast', rect: [21.5, 29, 13.5, 20], front: 'kaigan' },
   { id: 'A-house-1', type: 'house', block: 'southEast', rect: [13, 29, 23, 30], front: 'hoshizora' },
-  { id: 'B-house-1', type: 'house', block: 'west1', rect: [-46, -40, -10.5, -4.5], front: 'kita' },
-  { id: 'B-house-2', type: 'house', block: 'west1', rect: [-39, -34.5, -10.5, -4.5], front: 'westLane' },
-  { id: 'B-house-3', type: 'house', block: 'west1', rect: [-46, -40, -2, 4.5], front: 'kaigan' },
-  { id: 'B-house-4', type: 'house', block: 'west1', rect: [-39, -34.5, -2, 4.5], front: 'westLane' },
+  // built: 西の住宅地 (town/westHomes.js, its own plot layout in WEST_HOMES); these four rects stay as they were so the
+  // town's random streams (lot paint, trees, hedges) run exactly as before - whatever lands in the gardens is dropped
+  { id: 'B-house-1', type: 'house', block: 'west1', rect: [-46, -40, -10.5, -4.5], front: 'kita', built: true },
+  { id: 'B-house-2', type: 'house', block: 'west1', rect: [-39, -34.5, -10.5, -4.5], front: 'westLane', built: true },
+  { id: 'B-house-3', type: 'house', block: 'west1', rect: [-46, -40, -2, 4.5], front: 'kaigan', built: true },
+  { id: 'B-house-4', type: 'house', block: 'west1', rect: [-39, -34.5, -2, 4.5], front: 'westLane', built: true },
   { id: 'B-house-5', type: 'house', block: 'west2', rect: [-28, -23, -10.5, -4.5], front: 'kita' },
   { id: 'B-house-6', type: 'house', block: 'west2', rect: [-22, -18, -10.5, -4.5], front: 'uraroji' },
   { id: 'B-house-7', type: 'house', block: 'west2', rect: [-28.5, -23, -2, 4.5], front: 'westLane' },
