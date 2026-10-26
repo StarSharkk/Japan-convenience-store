@@ -49,7 +49,7 @@ export function buildPlaza(parent) {
     const y = gy(x, z), Rt = rng(900 + i * 31);
     cy(g, stone, x, y - 0.05, z, r + 0.1, 0.17, 30);
     cy(g, soil, x, y - 0.05, z, r - 0.02, 0.15, 28);
-    const t = makeTree({ seed: 401 + i * 13, height: h, spread: 0.95 + Rt() * 0.3, palette: 'deep', dens: 0.92, fill: 1.1, leafScale: 0.86 + Rt() * 0.1, lean: (Rt() - 0.5) * 0.14, blossom: 1, pink: TONES[tone] });
+    const t = makeTree({ seed: 401 + i * 13, height: h, spread: (h > 5.5 ? 1.2 : 0.95) + Rt() * 0.3, palette: 'deep', dens: 0.92, fill: 1.1, leafScale: 0.86 + Rt() * 0.1, lean: (Rt() - 0.5) * 0.14, blossom: 1, pink: TONES[tone] });
     t.position.set(x, y + 0.08, z); t.rotation.y = Rt() * 6.28; g.add(t);
     const n = r > 0.75 ? 5 : 4;
     for (let k = 0; k < n; k++) {

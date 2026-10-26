@@ -263,7 +263,7 @@ export function createGroundPiles(parent) {
   /* ---------------------------------------------------------------- collector sampling */
   const treeSpots = () => (reg.trees || []).map((t) => ({ x: t.center.x, z: t.center.z, rx: Math.max(0.8, t.half.x * 0.8), rz: Math.max(0.6, t.half.z * 0.7) }))
     .concat(((reg.townGreenery && reg.townGreenery.trees) || []).map((t) => ({ x: t.x, z: t.z, rx: 1.8 * t.s, rz: 1.8 * t.s, town: true, cherry: t.sp === 'cherry' })))
-    .concat(PLAZA_TREES.map(([x, z, , , pit]) => ({ x, z, rx: 2.1, rz: 2.1, rin: pit + 0.2, town: true, cherry: true }))); // the sakura plaza's own cherries (town/plaza.js), round their raised pits
+    .concat(PLAZA_TREES.map(([x, z, h, , pit]) => ({ x, z, rx: 1.4 + 0.2 * h, rz: 1.4 + 0.2 * h, rin: pit + 0.2, town: true, cherry: true }))); // the sakura plaza's own cherries (town/plaza.js), round their raised pits
 
   /** pick one collector for a pile; returns { x, z, y, t:[tx,tz], n:[nx,nz], hug } */
   function pickSite(kind, R) {
