@@ -10,7 +10,7 @@ import { P } from './palette.js';
    Izakaya next to the convenience store (3.5 m wide, 2 storeys, tiled gable roof)
 
    south = FRONT on the main road (reference 1): tiled lean-to eave, lantern row, white noren, lit photo menus,
-           営業中 plate, ranma lattice band; upstairs a silver daruma, the big wooden sign under goose-neck lamps,
+           営業中 plate, ranma lattice band; upstairs a lattice window, the big wooden sign under goose-neck lamps,
            vertical menu plaques and a lamp beam
    west  = STREET SIDE on the back lane (reference 2): the front eave turns the corner on a hip and runs the
            whole length; shop bays (food-sample case, side entrance with indigo noren, counter lattice window,
@@ -33,12 +33,12 @@ let _wood;
 function woodBase() {
   if (_wood) return _wood;
   _wood = canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#8b5a34'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#b98b5f'; g.fillRect(0, 0, w, h); // light honey timber
     const R = rng(7);
     for (let x = 0; x < w; x += 32) {
       g.fillStyle = `rgba(${R() < 0.5 ? '255,200,140' : '40,20,8'},${0.06 + R() * 0.08})`;
       g.fillRect(x, 0, 32, h);
-      g.fillStyle = 'rgba(30,14,6,0.55)'; g.fillRect(x, 0, 2.5, h);
+      g.fillStyle = 'rgba(70,44,24,0.45)'; g.fillRect(x, 0, 2.5, h);
       for (let k = 0; k < 6; k++) { g.strokeStyle = `rgba(50,24,10,${0.1 + R() * 0.12})`; g.lineWidth = 1; g.beginPath(); const gx = x + 4 + R() * 24; g.moveTo(gx, 0); g.bezierCurveTo(gx + R() * 6 - 3, h * 0.3, gx + R() * 6 - 3, h * 0.7, gx + R() * 4 - 2, h); g.stroke(); }
     }
   }, { repeat: true });
@@ -70,13 +70,13 @@ let _tile;
 function tileMat(rx, ry) {
   if (!_tile) {
     _tile = canvasTex(128, 128, (g, w, h) => {
-      g.fillStyle = '#4c5470'; g.fillRect(0, 0, w, h); // soft slate tiles (palette slate), lighter than the old navy
+      g.fillStyle = '#626b86'; g.fillRect(0, 0, w, h); // soft slate tiles (palette slate), a step lighter again
       for (let y = 0; y < h; y += 16) {
         for (let x = 0; x < w; x += 16) {
-          g.fillStyle = P.slate; g.beginPath(); g.arc(x + 8, y + 2, 9, 0, Math.PI); g.fill();
-          g.strokeStyle = P.slateL; g.lineWidth = 1.5; g.beginPath(); g.arc(x + 8, y + 2, 9, 0.15, Math.PI - 0.15); g.stroke();
+          g.fillStyle = P.slateL; g.beginPath(); g.arc(x + 8, y + 2, 9, 0, Math.PI); g.fill();
+          g.strokeStyle = '#b4bccf'; g.lineWidth = 1.5; g.beginPath(); g.arc(x + 8, y + 2, 9, 0.15, Math.PI - 0.15); g.stroke();
         }
-        g.fillStyle = 'rgba(10,12,30,0.28)'; g.fillRect(0, y + 13, w, 3);
+        g.fillStyle = 'rgba(10,12,30,0.2)'; g.fillRect(0, y + 13, w, 3);
       }
     }, { repeat: true });
   }
@@ -152,37 +152,6 @@ function chalkTex() {
     });
   });
 }
-function darumaTex() {
-  return canvasTex(512, 660, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    const k = '#14100e';
-    // brows
-    g.fillStyle = k;
-    [[-1, 1], [1, 1]].forEach(([s]) => {
-      g.beginPath(); g.moveTo(w / 2 + s * 40, 168); g.bezierCurveTo(w / 2 + s * 100, 120, w / 2 + s * 170, 120, w / 2 + s * 210, 160);
-      g.bezierCurveTo(w / 2 + s * 160, 150, w / 2 + s * 100, 160, w / 2 + s * 46, 204); g.closePath(); g.fill();
-    });
-    // eyes
-    [[-1], [1]].forEach(([s]) => {
-      g.fillStyle = '#fff'; g.beginPath(); g.ellipse(w / 2 + s * 92, 232, 44, 38, 0, 0, 7); g.fill();
-      g.lineWidth = 6; g.strokeStyle = k; g.stroke();
-      g.fillStyle = k; g.beginPath(); g.arc(w / 2 + s * 92 - s * 6, 236, 21, 0, 7); g.fill();
-      g.fillStyle = '#fff'; g.beginPath(); g.arc(w / 2 + s * 92 - s * 12, 228, 7, 0, 7); g.fill();
-    });
-    // nose + cheeks (whisker swirls)
-    g.fillStyle = 'rgba(235,190,170,0.8)'; g.beginPath(); g.ellipse(w / 2, 296, 34, 28, 0, 0, 7); g.fill();
-    g.strokeStyle = k; g.lineWidth = 7;
-    [[-1], [1]].forEach(([s]) => {
-      for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(w / 2 + s * (70 + i * 6), 316 + i * 16); g.bezierCurveTo(w / 2 + s * (130 + i * 18), 300 + i * 20, w / 2 + s * (190 + i * 8), 330 + i * 18, w / 2 + s * (210 + i * 6), 370 + i * 12); g.stroke(); }
-    });
-    // smile
-    g.strokeStyle = '#b4221b'; g.lineWidth = 9; g.beginPath(); g.moveTo(w / 2 - 80, 352); g.quadraticCurveTo(w / 2, 410, w / 2 + 80, 352); g.stroke();
-    // belly character + stripes
-    brush(g, '福', w / 2, 505, 190);
-    g.fillStyle = k;
-    [[-1], [1]].forEach(([s]) => { for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(w / 2 + s * (150 + i * 36), 450 + i * 10); g.quadraticCurveTo(w / 2 + s * (200 + i * 30), 560, w / 2 + s * (150 + i * 40), 640 - i * 14); g.quadraticCurveTo(w / 2 + s * (150 + i * 30), 560, w / 2 + s * (150 + i * 36), 450 + i * 10); g.fill(); } });
-  }, { aniso: 8 });
-}
 function lanternTex(text) {
   return canvasTex(128, 128, (g) => {
     g.clearRect(0, 0, 128, 128);
@@ -212,12 +181,12 @@ function ribTileMat() {
   if (!_rib) {
     _rib = canvasTex(64, 64, (g, w, h) => {
       const gr = g.createLinearGradient(0, 0, w, 0);
-      gr.addColorStop(0, '#454c62'); gr.addColorStop(0.2, '#58607a'); gr.addColorStop(0.5, '#6e7792'); gr.addColorStop(0.8, '#58607a'); gr.addColorStop(1, '#434a60');
+      gr.addColorStop(0, '#5d657e'); gr.addColorStop(0.2, '#737c97'); gr.addColorStop(0.5, '#8d96b0'); gr.addColorStop(0.8, '#737c97'); gr.addColorStop(1, '#5b637c'); // lighter slate eaves
       g.fillStyle = gr; g.fillRect(0, 0, w, h);
       const sh = g.createLinearGradient(0, h - 14, 0, h);
       sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.42)');
       g.fillStyle = sh; g.fillRect(0, h - 14, w, 14);
-      g.fillStyle = '#8089a4'; g.fillRect(0, 0, w, 3);
+      g.fillStyle = '#a3abc2'; g.fillRect(0, 0, w, 3);
     }, { repeat: true });
   }
   return toon('#ffffff', { map: _rib, lit: 0.12, nocache: true });
@@ -321,15 +290,15 @@ export function buildIzakaya(parent, drips) {
   const cx = (X0 + X1) / 2;
   const R = rng(61);
 
-  const woodD = toon('#3b2415', { lit: 0.3 });
-  const woodM = toon('#6a4328', { lit: 0.35 });
-  const plaster = toon('#c8bcaa', { lit: 0.2 });
-  const roofTile = toon('#4a5068'); // ridge / verge pieces: slate, a step darker than the tiles
-  const tileDark = toon('#434a5e');
+  const woodD = toon(P.woodD, { lit: 0.3 }); // the timber frame: palette timber, lighter than the old near-black
+  const woodM = toon(P.woodM, { lit: 0.35 });
+  const plaster = toon('#e8dfcf', { lit: 0.2 });
+  const roofTile = toon(P.slate); // ridge / verge pieces: slate, a step darker than the tiles
+  const tileDark = toon('#5a6280');
   const iron = toon('#6f788c');
-  const stone = toon('#6d665f');
+  const stone = toon(P.stoneD);
   const stoneL = toon('#a59d92');
-  const capM = toon('#15110e');
+  const capM = toon(P.ink);
   const ribM = ribTileMat();
 
   // axis helpers: face = 's' (front, +z), 'e' (alley, +x), 'w' (-x), 'n' (-z). u runs along the face, o = outward offset
@@ -426,7 +395,7 @@ export function buildIzakaya(parent, drips) {
   bx(g, plaster, X0, X1, Y0, H, Z0, Z1);
   // wooden cladding / plaster with a half-timber frame; posts = where the timber posts go
   const clad = (f, len, u0, posts) => {
-    const m1 = f === 's' ? woodMat(len / 1.2, (H - 3.2) / 1.2, 0.3, '#9c7454') : plasterMat(len / 1.6, (H - 3.2) / 1.6);
+    const m1 = f === 's' ? woodMat(len / 1.2, (H - 3.2) / 1.2, 0.3, '#dcc09a') : plasterMat(len / 1.6, (H - 3.2) / 1.6);
     plo(f, len, H - 3.2, u0 + len / 2, 3.2 + (H - 3.2) / 2, 0.012, m1, { cast: false, recv: true });
     if (f !== 's') {
       const np = Math.max(2, Math.round(len / 1.45));
@@ -435,7 +404,7 @@ export function buildIzakaya(parent, drips) {
       bxo(f, u0, u0 + len, H - 0.22, H - 0.1, 0.01, 0.08, woodD, { cast: false });
       bxo(f, u0, u0 + len, 5.95, 6.02, 0.01, 0.075, woodD, { cast: false });
     }
-    const m0 = woodMat(len / 1.4, 3.05 / 1.4, 0.4, '#d8c3a8');
+    const m0 = woodMat(len / 1.4, 3.05 / 1.4, 0.4, '#ecdcc4');
     plo(f, len, 3.05, u0 + len / 2, Y0 + 3.05 / 2, 0.012, m0, { cast: false, recv: true });
   };
   clad('s', X1 - X0, X0);
@@ -559,32 +528,18 @@ export function buildIzakaya(parent, drips) {
       bx(a, woodD, -0.3, 0.3, 0.97, 1.02, -0.05, 0.05);
     }
 
-    // ---- upper facade: daruma, big wooden sign, menu plaques, lamp beam ----
+    // ---- upper facade: a lattice window, big wooden sign, menu plaques, lamp beam ----
     {
-      const RX = 0.72, RY = 0.88, RZ = 0.5;
-      const D = grp(g, -11.13, 4.72, fz + 0.42);
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), toon('#d2d1cd', { lit: 0.1 }));
-      body.scale.set(RX, RY, RZ); body.castShadow = body.receiveShadow = true; D.add(body);
-      sph(D, toon('#b9bcc2', { lit: 0.15 }), 0.56, 0, -RY + 0.06, -0.02, 1.0, 0.14, 0.72); // silver base rim
-      bx(g, woodD, -11.7, -10.56, 3.72, 3.84, fz, fz + 0.62); // the shelf it sits on
-      // face paint wrapped onto the body
-      const fg = new THREE.PlaneGeometry(RX * 1.8, RY * 1.72, 40, 52);
-      const pa = fg.attributes.position;
-      for (let i = 0; i < pa.count; i++) {
-        let x = pa.getX(i), y = pa.getY(i) - 0.02;
-        let s2 = (x / RX) ** 2 + (y / RY) ** 2;
-        if (s2 > 0.995) { const f = Math.sqrt(0.995 / s2); x *= f; y *= f; s2 = 0.995; }
-        const z = RZ * Math.sqrt(1 - s2);
-        const nx = x / (RX * RX), ny = y / (RY * RY), nz = z / (RZ * RZ);
-        const nl = Math.hypot(nx, ny, nz) || 1;
-        pa.setXYZ(i, x + (nx / nl) * 0.004, y + (ny / nl) * 0.004, z + (nz / nl) * 0.004);
-      }
-      fg.computeVertexNormals();
-      const face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ map: darumaTex(), transparent: true, color: new THREE.Color(0.8, 0.78, 0.74), depthWrite: false }));
-      face.userData.noLine = true;
-      D.add(face);
-      // two spots lighting it from below
-      [-11.5, -10.75].forEach((x) => { bx(g, capM, x - 0.05, x + 0.05, 3.84, 3.92, fz + 0.5, fz + 0.62, { cast: false }); });
+      // the upstairs room's lattice window (like the flat's windows on the back), a small sill with a flower box
+      const x = -11.13, y = 4.9, w = 0.92, h = 1.1;
+      bx(g, woodD, x - w / 2 - 0.07, x + w / 2 + 0.07, y - h / 2 - 0.07, y + h / 2 + 0.07, fz, fz + 0.09);
+      pl(g, L('#ffc980', 0.9), w, h, x, y, fz + 0.095, 0, 0);
+      for (let k = 1; k < 4; k++) bx(g, woodD, x - w / 2 + (k * w) / 4 - 0.012, x - w / 2 + (k * w) / 4 + 0.012, y - h / 2, y + h / 2, fz + 0.095, fz + 0.115, { cast: false });
+      for (let k = 1; k < 3; k++) bx(g, woodD, x - w / 2, x + w / 2, y - h / 2 + (k * h) / 3 - 0.012, y - h / 2 + (k * h) / 3 + 0.012, fz + 0.095, fz + 0.115, { cast: false });
+      pl(g, makeGlass(w, h, 53, { drops: 0.6, alpha: 0.04 }), w, h, x, y, fz + 0.12, 0, 0, { noLine: true });
+      bx(g, woodD, x - w / 2 - 0.12, x + w / 2 + 0.12, y - h / 2 - 0.14, y - h / 2 - 0.07, fz, fz + 0.2); // the sill
+      bx(g, woodM, x - w / 2 + 0.02, x + w / 2 - 0.02, y - h / 2 - 0.07, y - h / 2 + 0.11, fz + 0.04, fz + 0.2); // the flower box
+      for (let i = 0; i < 7; i++) { const fx = x - w / 2 + 0.1 + i * ((w - 0.2) / 6); sph(g, toon('#4f7f52'), 0.07, fx, y - h / 2 + 0.15, fz + 0.12, 1, 0.8, 1); sph(g, toon(['#f3a8be', '#ffffff', '#e8674f'][i % 3]), 0.028, fx + 0.02, y - h / 2 + 0.22, fz + 0.15); }
     }
     {
       const sgn = grp(g, -9.52, 4.32, fz);
