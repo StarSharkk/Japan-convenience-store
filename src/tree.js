@@ -375,17 +375,45 @@ export function makeTree({ seed = 1, height = 5.2, lean = 0.06, spread = 1.0, pa
 }
 
 /* ---------------------------------------------------------------- low shrub (no trunk) */
+let TWIG_MAT = null; // (one material for every shrub's twigs, so the town can merge them)
 export function makeShrub({ seed = 1, width = 1.4, height = 0.9, palette = 'deep', dens = 0.8, leafScale = 1 } = {}) {
   const R = rng(seed * 4099 + 5);
   const root = new THREE.Group();
   const F = new Foliage(R, palette, dens, leafScale);
   const n = Math.max(2, Math.round(width / 0.55));
+  const centres = [];
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0 : i / (n - 1) - 0.5;
     const Rc = height * (0.6 + R() * 0.25);
-    F.cluster(new THREE.Vector3(t * width * 0.8, height * 0.28 + R() * height * 0.1, (R() - 0.5) * width * 0.3), Rc, null, { flat: 0.8, top: 0.3 });
+    const c = new THREE.Vector3(t * width * 0.8, height * 0.28 + R() * height * 0.1, (R() - 0.5) * width * 0.3);
+    F.cluster(c, Rc, null, { flat: 0.8, top: 0.3 });
+    centres.push({ c, Rc });
   }
   root.add(F.mesh(true, 0, 0.45));
-  root.add(crownCore(R, new THREE.Vector3(0, height * 0.4, 0), width * 0.3, height * 0.32, width * 0.16, LEAF_PALETTES[palette][0]));
+  // the woody skeleton: stems from the base forking up into every leaf cluster, so the leaves sit on twigs (and in
+  // autumn / winter, as leaves drop, the branches show instead of loose leaves hanging in the air). Its own random
+  // stream: the foliage above is unchanged
+  {
+    const Rt = rng(seed * 733 + 11), geos = [], V3 = THREE.Vector3;
+    centres.forEach(({ c, Rc }) => {
+      const nStem = 2 + ((Rt() * 2) | 0);
+      for (let k = 0; k < nStem; k++) {
+        const a = Rt() * Math.PI * 2, base = new V3(c.x * 0.35 + Math.cos(a) * 0.03, 0, c.z * 0.35 + Math.sin(a) * 0.03);
+        const tip = c.clone().add(new V3(Math.cos(a) * Rc * 0.45, Rc * (0.15 + Rt() * 0.35), Math.sin(a) * Rc * 0.45));
+        const mid = base.clone().lerp(tip, 0.45).add(new V3((Rt() - 0.5) * 0.06, 0, (Rt() - 0.5) * 0.06));
+        const r0 = Math.max(0.008, height * 0.022);
+        geos.push(taperTube(new THREE.CatmullRomCurve3([base, mid, tip]), r0, r0 * 0.45, 6, 5));
+        // two side twigs out of the upper half, into the leaves
+        for (let j = 0; j < 2; j++) {
+          const b = a + (j ? 1.3 : -1.3) + (Rt() - 0.5) * 0.6, from = mid.clone().lerp(tip, 0.35 + j * 0.3);
+          const to = from.clone().add(new V3(Math.cos(b) * Rc * 0.45, Rc * (0.15 + Rt() * 0.25), Math.sin(b) * Rc * 0.45));
+          geos.push(taperTube(new THREE.CatmullRomCurve3([from, from.clone().lerp(to, 0.5).add(new V3(0, Rc * 0.05, 0)), to]), r0 * 0.5, r0 * 0.22, 4, 4));
+        }
+      }
+    });
+    const twigs = new THREE.Mesh(mergeGeos(geos), (TWIG_MAT ||= patchToon(new THREE.MeshToonMaterial({ color: '#5a4a3e', gradientMap: RAMP, emissive: '#08080a' }))));
+    twigs.castShadow = true; twigs.receiveShadow = true;
+    root.add(twigs);
+  }
   return root;
 }

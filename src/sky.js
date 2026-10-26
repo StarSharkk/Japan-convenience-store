@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 /**
  * World-space sky dome: vertical gradient (top / horizon / ground), sun + moon discs at their real
- * positions, stars, drifting fbm clouds, distant city-light bokeh at night, lightning flash.
+ * positions, stars, drifting fbm clouds, lightning flash. At night it fades to one flat
+ * colour (uSolid / uSolidCol, env.js).
  * One draw call, one fragment shader, no textures.
  */
 export function createSky(scene) {
@@ -22,6 +23,8 @@ export function createSky(scene) {
     uNight: { value: 1 },
     uFlash: { value: 0 },
     uTime: { value: 0 },
+    uSolid: { value: 0 }, // night: the whole dome one flat colour (no gradient, stars, moon, glows or painted clouds)
+    uSolidCol: { value: new THREE.Color('#0d1236') },
   };
   const m = new THREE.ShaderMaterial({
     uniforms: u,
@@ -31,8 +34,8 @@ export function createSky(scene) {
     vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
       varying vec3 vDir;
-      uniform vec3 uTop, uMid, uBot, uSunDir, uSunCol, uMoonDir, uCloudLit, uCloudShade;
-      uniform float uSunVis, uMoonVis, uStars, uCloud, uNight, uFlash, uTime;
+      uniform vec3 uTop, uMid, uBot, uSunDir, uSunCol, uMoonDir, uCloudLit, uCloudShade, uSolidCol;
+      uniform float uSunVis, uMoonVis, uStars, uCloud, uNight, uFlash, uTime, uSolid;
       float h13(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
       float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
       float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -56,15 +59,6 @@ export function createSky(scene) {
         float r = h13(ip);
         float star = step(0.9972, r) * smoothstep(0.5, 0.0, length(fract(sp) - 0.5)) * (0.65 + 0.35 * sin(uTime * 2.0 + r * 60.0));
         col += vec3(0.85, 0.9, 1.0) * star * uStars * smoothstep(0.02, 0.25, h) * 1.4;
-        // far city lights (bokeh) near the horizon at night
-        if(uNight > 0.02 && h > -0.6 && h < 0.3){
-          float az = atan(d.z, d.x);
-          vec2 bc = vec2(az * 12.0, h * 14.0); vec2 id = floor(bc); vec2 f = fract(bc) - 0.5;
-          float rn = h12(id); vec2 off = vec2(h12(id + 3.1), h12(id + 7.7)) - 0.5;
-          float blob = smoothstep(0.26, 0.0, length(f - off * 0.5)) * step(0.62, rn);
-          vec3 bcol = rn < 0.74 ? vec3(1.0, 0.62, 0.3) : rn < 0.84 ? vec3(0.45, 0.75, 1.0) : rn < 0.92 ? vec3(1.0, 0.4, 0.66) : vec3(1.0, 0.9, 0.55);
-          col += bcol * blob * 0.2 * uNight * smoothstep(0.3, 0.0, h) * smoothstep(-0.6, -0.15, h);
-        }
         // clouds (planar projection, slowly drifting)
         if(h > 0.0){
           vec2 cuv = d.xz / (h + 0.22) * 1.15 + vec2(uTime * 0.012, uTime * 0.005);
@@ -74,6 +68,7 @@ export function createSky(scene) {
           cc += uSunCol * pow(sd, 12.0) * 0.5 * uSunVis;
           col = mix(col, cc, cov * (0.35 + 0.65 * uCloud));
         }
+        col = mix(col, uSolidCol, uSolid);
         col += vec3(0.5, 0.6, 0.95) * uFlash * (0.35 + 0.65 * smoothstep(-0.2, 0.8, h));
         gl_FragColor = vec4(col, 1.0);
       }`,

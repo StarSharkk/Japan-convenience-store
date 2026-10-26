@@ -10,6 +10,7 @@ import { bladeGeo, taperTube, placeLeaf, tint, mergeInto, leafTex, leafMat, stem
 import { makePot, makeRhapisPot, makeFicusPot } from '../plants/pottedPlants.js';
 import { makeTaro, makeFern, makeHosta, makeAspidistra } from '../plants/groundPlants.js';
 import { rockBatch, rockMat, scatterRocks } from '../rocks.js';
+import { sharedPlants, plantAt, potPlants } from '../plants/wild.js';
 
 /* ====================================================================================================
    しずく花店 + the florist's house - the street corner across Hoshizora-dori from the LAWSON
@@ -469,26 +470,26 @@ function smallPot(parent, bins, x, y, z, seed, s = 1) {
 function flowers(parent, x, y, z, kind, seed, bucket = true) {
   const R = rng(seed), m = mats();
   if (bucket) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.26, 14), m.zinc); b.position.set(x, y + 0.13, z); b.castShadow = true; parent.add(b); }
+  // real cut flowers (plants/wild.js) fanning out of the bucket / vase / pot
   const top = y + (bucket ? 0.26 : 0);
-  const stem = toon('#5e8a44');
+  const type = { hydrangea: 'cutHydrangea', sunflower: 'cutSunflower', rose: 'cutRose', lavender: 'cutLavender', gerbera: 'cutGerbera' }[kind];
   const n = kind === 'hydrangea' ? 4 : kind === 'lavender' ? 9 : 6;
-  const col = { hydrangea: ['#8fa8e8', '#b39ae0', '#a7c4f0'], sunflower: ['#f5c432'], rose: ['#e9607a', '#f2a0b0', '#d9405a'], lavender: ['#9a7ad6', '#b49ae6'], gerbera: ['#ff8a5c', '#ffd0dc', '#ff6f8a'] }[kind];
   for (let i = 0; i < n; i++) {
-    const a = i * 2.4 + R(), r = 0.03 + R() * 0.06;
-    const hx = x + Math.cos(a) * r, hz = z + Math.sin(a) * r, hy = top + 0.25 + R() * 0.25;
-    cyl2(parent, stem, [x + Math.cos(a) * 0.02, top - 0.05, z + Math.sin(a) * 0.02], [hx, hy, hz], 0.006, 3, { noLine: true });
-    const c = toon(col[(R() * col.length) | 0]);
-    if (kind === 'hydrangea') { for (let k = 0; k < 5; k++) sph(parent, c, 0.045, hx + (R() - 0.5) * 0.07, hy + (R() - 0.5) * 0.05, hz + (R() - 0.5) * 0.07, 1, 0.85, 1); }
-    else if (kind === 'sunflower') { const head = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 12), c); head.position.set(hx, hy, hz); head.rotation.set(0.5 + R() * 0.3, a, 0); parent.add(head); const d = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 10), toon('#5a3a1c')); d.position.copy(head.position); d.rotation.copy(head.rotation); parent.add(d); }
-    else if (kind === 'lavender') { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.12, 6), c); sp.position.set(hx, hy, hz); parent.add(sp); }
-    else sph(parent, c, kind === 'rose' ? 0.035 : 0.045, hx, hy, hz, 1, kind === 'gerbera' ? 0.45 : 0.9, 1);
+    const a = i * 2.4 + R(), lean = 0.08 + R() * 0.22, sc = (bucket ? 1.0 : 0.72) * (0.9 + R() * 0.25);
+    plantAt(sharedPlants(), parent, type, seed + i, x + Math.cos(a) * 0.02, top - 0.1 * sc, z + Math.sin(a) * 0.02, sc, { ry: 0, tilt: [Math.sin(a) * lean, -Math.cos(a) * lean] });
   }
 }
-/** a clay pot of flowers (no bucket) */
+/** a clay pot of flowers: a full mound of greenery first, the flower heads set into it just above the leaves */
 function potFlowers(parent, x, y, z, kind, seed, r = 0.11) {
-  const m = mats();
+  const m = mats(), R = rng(seed);
   const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.78, r * 1.25, 14), m.clay); p.position.set(x, y + r * 0.62, z); p.castShadow = true; parent.add(p);
-  flowers(parent, x, y + r * 1.1, z, kind, seed, false);
+  const ty = y + r * 1.25, top = potPlants(sharedPlants(), x, ty, z, r * 0.88, { style: 'green', seed, obj: parent }) || r;
+  const type = { hydrangea: 'cutHydrangea', sunflower: 'cutSunflower', rose: 'cutRose', lavender: 'cutLavender', gerbera: 'cutGerbera' }[kind];
+  const n = kind === 'hydrangea' ? 3 : 5, stemH = kind === 'hydrangea' ? 0.43 : 0.42, sc = r / 0.11 * (kind === 'hydrangea' ? 0.95 : 0.7);
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.4 + R(), d = (i ? 0.45 : 0.1) * r, lean = i ? 0.25 : 0.05;
+    plantAt(sharedPlants(), parent, type, seed + i, x + Math.cos(a) * d, ty + top * (kind === 'hydrangea' ? 0.5 : 0.75) - stemH * sc, z + Math.sin(a) * d, sc, { ry: 0, tilt: [Math.sin(a) * lean, -Math.cos(a) * lean] });
+  }
 }
 /** an open wooden crate (label on the long side facing -x in the crate's frame) */
 function crate(parent, x, y, z, w = 0.5, d = 0.36, h = 0.26, ry = 0) {
@@ -738,8 +739,7 @@ function buildGreenhouse(g, Y, m) {
       [-0.012, 0.03].forEach((z) => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.007, 5, 10), toon('#d9483f')); r.rotation.x = Math.PI / 2; r.position.set(0.09, 0.006, z); sc.add(r); });
       bx(G, toon('#f2c6c6'), 5.55, 5.72, ty, ty + 0.02, 0.75, 0.86, { bevel: 0.006 }); bx(G, toon('#f2c6c6'), 5.62, 5.8, ty + 0.02, ty + 0.035, 0.8, 0.9, { bevel: 0.006 });
       const wire = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 5, 14), toon('#4a7a8c')); wire.rotation.x = Math.PI / 2; wire.position.set(6.0, ty + 0.012, 0.55); G.add(wire);
-      const stemC = toon('#5e8a44');
-      for (let i = 0; i < 5; i++) { const zz = 0.62 + i * 0.05, xa = 4.75 + i * 0.04; cyl2(G, stemC, [xa, ty + 0.012, zz], [xa + 0.42, ty + 0.012, zz + 0.04], 0.006, 3, { noLine: true }); sph(G, toon(['#e9607a', '#f2a0b0', '#ffd0dc', '#b39ae0', '#f5c432'][i]), 0.035, xa + 0.44, ty + 0.03, zz + 0.04, 1, 0.8, 1); }
+      for (let i = 0; i < 5; i++) { const zz = 0.62 + i * 0.05, xa = 4.75 + i * 0.04; plantAt(sharedPlants(), G, ['cutRose', 'cutRose', 'cutGerbera', 'cutHydrangea', 'cutSunflower'][i], i, xa, ty + 0.012, zz, 0.95, { ry: -0.1, tilt: [0, -Math.PI / 2] }); } // loose stems, lying
       // a bouquet in kraft paper waiting to be tied
       const bq = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.42, 10, 1, true), m.kraft); bq.rotation.z = Math.PI / 2 + 0.1; bq.position.set(5.85, ty + 0.1, 0.42); G.add(bq);
       flowers(G, 5.62, ty + 0.03, 0.42, 'gerbera', 611, false);
@@ -1092,32 +1092,20 @@ function flowerMound(parent, bins, cx, cy0, cz, rx, rz, h, seed) {
   const R = rng(seed);
   const leafM = leafMat(texes().pothos), small = leafMat(texes().small);
   const surf = (a, t) => V(cx + rx * Math.cos(a) * Math.sin(t), cy0 + h * Math.cos(t), cz + rz * Math.sin(a) * Math.sin(t));
-  // a green core so the heap never reads hollow, then leaves and heads over it
-  const core = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), toon('#3f6e3a')); core.scale.set(rx * 0.92, h * 0.9, rz * 0.92); core.position.set(cx, cy0, cz); parent.add(core);
-  for (let i = 0; i < 130; i++) {
-    const a = R() * Math.PI * 2, t = 0.15 + R() * 1.35, p = surf(a, t);
+  // leaves over the whole cap (no solid core: it read as a green blob), then real flowers on them (plants/wild.js)
+  for (let i = 0; i < 230; i++) {
+    const a = R() * Math.PI * 2, t = 0.1 + R() * 1.4, p = surf(a, t);
     const out = V(Math.cos(a), 0.6 + R() * 0.6, Math.sin(a)).normalize();
     const l = 0.08 + R() * 0.07;
     bins.add(parent, R() < 0.6 ? leafM : small, placeLeaf(bladeGeo({ L: l, W: l * 0.6, segL: 4, segW: 2, width: (v) => Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + v)), 0.7), droop: 0.25, cup: 0.12 }), p, out, upOf(out), 0.8 + R() * 0.3));
   }
-  const Yax = V(0, 1, 0), q = new THREE.Quaternion();
-  const kinds = [
-    ['daisy', ['#f08cc0', '#e978b4', '#f4a6cf']], ['bell', ['#8f7ae0', '#a693ea', '#7d68d6']],
-    ['daisy', ['#f6f3ea', '#ffffff']], ['rose', ['#b9a2ec', '#c8b4f2']], ['hyd', ['#8fa2e8', '#a08fe0']], ['tiny', ['#f5c432', '#ff9a4a']],
-  ];
-  for (let i = 0; i < 170; i++) {
-    const [k, cols] = kinds[i % kinds.length];
+  for (let i = 0; i < 46; i++) {
     const a = R() * Math.PI * 2, t = Math.acos(1 - R() * 0.75), p = surf(a, t);
-    const n = V((p.x - cx) / (rx * rx), (p.y - cy0) / (h * h), (p.z - cz) / (rz * rz)).normalize();
-    const c = toon(cols[(R() * cols.length) | 0]);
-    if (k === 'daisy') {
-      const d = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.012, 10), c); d.position.copy(p); d.quaternion.copy(q.setFromUnitVectors(Yax, n)); parent.add(d);
-      sph(parent, toon('#f2c14e'), 0.014, p.x + n.x * 0.008, p.y + n.y * 0.008, p.z + n.z * 0.008);
-    } else if (k === 'bell') {
-      const b = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.05, 6, 1, true), toon(cols[(R() * cols.length) | 0], { side: THREE.DoubleSide })); b.position.copy(p); b.quaternion.copy(q.setFromUnitVectors(Yax, n.clone().negate())); parent.add(b);
-    } else if (k === 'rose') sph(parent, c, 0.05, p.x, p.y, p.z, 1, 0.85, 1);
-    else if (k === 'hyd') { for (let j = 0; j < 4; j++) sph(parent, c, 0.04, p.x + (R() - 0.5) * 0.07, p.y + (R() - 0.5) * 0.04, p.z + (R() - 0.5) * 0.07, 1, 0.85, 1); }
-    else sph(parent, c, 0.018, p.x, p.y + 0.02, p.z);
+    const n = V((p.x - cx) / (rx * rx), (p.y - cy0) / (h * h), (p.z - cz) / (rz * rz)).normalize(), tilt = [Math.atan2(n.z, n.y) * 0.8, -Math.atan2(n.x, n.y) * 0.8];
+    const k = i % 6;
+    if (k === 4) plantAt(sharedPlants(), parent, 'cutHydrangea', i, p.x, p.y - 0.36, p.z, 0.85, { ry: a, tilt: [0, 0] }); // only the head shows over the leaves
+    else if (k === 5) plantAt(sharedPlants(), parent, 'cutRose', i, p.x, p.y - 0.4, p.z, 0.95, { ry: a, tilt: [0, 0] });
+    else plantAt(sharedPlants(), parent, 'blooms', i, p.x, p.y - 0.02, p.z, 1.3, { ry: a, tilt });
   }
   // a few sprigs of greenery standing out of the heap
   for (let i = 0; i < 6; i++) { const a = R() * 6.28, p = surf(a, 0.3 + R() * 0.4); cyl2(parent, toon('#5f8a4a'), [p.x, p.y - 0.05, p.z], [p.x + Math.cos(a) * 0.05, p.y + 0.16, p.z + Math.sin(a) * 0.05], 0.006, 3, { noLine: true }); }

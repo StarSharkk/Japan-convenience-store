@@ -3,6 +3,7 @@ import { reg, ENVK, SNOW_U, clamp, smooth, lerp, lk } from './core.js';
 import { GLASS_U } from './fx.js';
 import { SEASON_U } from './tree.js';
 import { createSky } from './sky.js';
+import { CLOUD_U } from './clouds.js';
 import { createHolidays, HOLIDAYS } from './holiday.js';
 import { holidayAtmosphereConfig as HC } from './holidayConfig.js';
 import { createFireworks } from './fireworks.js';
@@ -318,6 +319,16 @@ export function createEnvironment(ctx) {
     u.uCloudLit.value.copy(mid).lerp(_c1.setRGB(1, 1, 1), 0.55 * day).multiplyScalar(0.55 + 0.6 * day);
     u.uCloudShade.value.copy(top).multiplyScalar(0.85 + 0.2 * day);
     u.uNight.value = (1 - day) * (1 - cur.cloud * 0.4) * (1 - fogK);
+    // night: the sky becomes one flat colour (between its top and horizon colours) once the stars are out
+    const solid = smooth(0.25, 0.8, kf.stars);
+    u.uSolid.value = solid;
+    u.uSolidCol.value.copy(top).lerp(mid, 0.4);
+    // the 3D clouds (clouds.js) take their colours from this same sky
+    CLOUD_U.uSkyTop.value.copy(top); CLOUD_U.uSkyMid.value.copy(mid); CLOUD_U.uSkyBot.value.copy(bot); CLOUD_U.uSunCol.value.copy(kf.sunC);
+    CLOUD_U.uSunDir.value.copy(sunDir); CLOUD_U.uMoonDir.value.copy(moonDir);
+    CLOUD_U.uSunVis.value = u.uSunVis.value; CLOUD_U.uMoonVis.value = smooth(-0.04, 0.08, moonDir.y) * (1 - day) * (1 - cur.cloud * 0.85);
+    CLOUD_U.uWDay.value = day; CLOUD_U.uWDusk.value = (1 - day) * (1 - kf.stars); CLOUD_U.uWNight.value = (1 - day) * kf.stars;
+    CLOUD_U.uCloud.value = Math.min(1, cur.cloud);
     u.uFlash.value = flashA;
     u.uTime.value = t;
 
@@ -355,6 +366,7 @@ export function createEnvironment(ctx) {
     const fogHoliday = clamp(cur.fog * 80, 0, 1); // holiday air colour matters most when the air is thick
     let fogAmt = 0;
     for (const id of HOLIDAYS) { const w = cur.hol[id]; const a = HC[id].fog.amt * w * (0.35 + 0.65 * fogHoliday); if (a > 0.002) { _c4.copy(ACC[id].fog).multiplyScalar(0.25 + 0.75 * day); fogCol.lerp(_c4, a); fogAmt += a; } }
+    fogCol.lerp(u.uSolidCol.value, u.uSolid.value); // at night the haze melts into the flat sky
     scene.fog.color.copy(fogCol);
     scene.fog.far = (0.0034 * (0.6 + 0.4 * (1 - day)) + cur.fog) * (1 + fogAmt * 0.5); // = density (core.js fog chunks)
     post.outline.material.uniforms.uFog.value = scene.fog.far;

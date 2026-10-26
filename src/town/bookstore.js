@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedPlants, potPlants } from '../plants/wild.js';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, halo, plight, rng, noSnowBox } from '../core.js';
 import { makeGlass } from '../fx.js';
 import { makeRhapisPot, makePot } from '../plants/pottedPlants.js';
@@ -198,7 +199,7 @@ export function buildBookstore(parent) {
     stack(g, -1.3, WY0, Z1 + 0.15, 5, 41, 0.2); stack(g, -0.95, WY0, Z1 + 0.16, 3, 42, -0.1);
     { const fb = grp(g, -0.25, WY0, Z1 + 0.13, 0.05); fb.rotation.x = -0.15; bx(fb, m.wood, -0.2, 0.2, 0, 0.5, -0.02, 0.02); const fp = pl(fb, toon('#f4eedf', { lit: 0.15 }), 0.34, 0.42, 0, 0.25, 0.021, 0, 0); fp.userData.noLine = true; }
     faceOut(g, 0.35, WY0, Z1 + 0.14, 3, 0.1); faceOut(g, 0.7, WY0, Z1 + 0.14, 5, -0.1);
-    { const p = makePot({ r: 0.07, h: 0.12, seed: 3 }).group; p.position.set(1.15, WY0, Z1 + 0.14); g.add(p); [[0, 0], [0.03, 0.02], [-0.03, 0.01], [0.01, -0.03]].forEach(([a, b]) => sph(g, toon('#f6f3ec'), 0.035, 1.15 + a, WY0 + 0.17, Z1 + 0.14 + b)); }
+    { const pot = makePot({ r: 0.07, h: 0.12, seed: 3 }), p = pot.group; p.position.set(1.15, WY0, Z1 + 0.14); g.add(p); potPlants(sharedPlants(), 1.15, WY0 + pot.soilY, Z1 + 0.14, pot.soilR, { variant: 3, seed: 3, obj: g }); }
     // the "bookstore" board with two little spot lamps
     bx(g, m.black, -1.62, 1.32, Y + 2.62, Y + 3.0, Z1, Z1 + 0.05, { bevel: 0.01 });
     { const s = pl(g, new THREE.MeshBasicMaterial({ map: signTex() }), 2.86, 0.32, -0.15, Y + 2.81, Z1 + 0.052, 0, 0); s.userData.noLine = true; }
@@ -250,7 +251,7 @@ export function buildBookstore(parent) {
     // a wall lamp beside the doors
     bx(g, m.black, 1.6, 1.7, Y + 2.1, Y + 2.35, Z1, Z1 + 0.06, { cast: false }); bx(g, glow('#ffe2b0', 2.0, { off: '#d8d0c0' }), 1.61, 1.69, Y + 2.13, Y + 2.32, Z1 + 0.06, Z1 + 0.07, { cast: false }); halo(g, 1.65, Y + 2.2, Z1 + 0.2, '#ffd59a', 0.9, 0.3);
     // potted yellow flowers + a book stack on the deck
-    { const p = makePot({ r: 0.13, h: 0.22, seed: 8 }).group; p.position.set(DOOR[0] - 0.12, F, Z1 + 0.3); g.add(p); for (let i = 0; i < 9; i++) { const a = i * 2.4; sph(g, toon(i % 3 ? '#f2d23a' : '#4f7f46'), 0.04, DOOR[0] - 0.12 + Math.cos(a) * 0.08, F + 0.3 + (i % 3) * 0.03, Z1 + 0.3 + Math.sin(a) * 0.08); } }
+    { const pot = makePot({ r: 0.13, h: 0.22, seed: 8 }), p = pot.group; p.position.set(DOOR[0] - 0.12, F, Z1 + 0.3); g.add(p); potPlants(sharedPlants(), DOOR[0] - 0.12, F + pot.soilY, Z1 + 0.3, pot.soilR, { variant: 0, seed: 8, obj: g }); }
     stack(g, DOOR[1] + 0.25, F, Z1 + 0.3, 6, 44, 0.3);
   }
 
@@ -320,7 +321,7 @@ export function buildBookstore(parent) {
     floorLamp(g, -1.72, Y, Z1 + 0.3);
     cy(g, m.woodD, -0.25, Y, Z1 + 0.55, 0.025, 0.5, 6); cy(g, m.wood, -0.25, Y + 0.5, Z1 + 0.55, 0.18, 0.03, 16); cy(g, toon('#f6f3ec'), -0.25, Y + 0.53, Z1 + 0.55, 0.04, 0.09, 10);
     stack(g, 0.15, Y, Z1 + 0.35, 7, 50, 0.2); stack(g, 0.45, Y, Z1 + 0.55, 4, 51, -0.3);
-    { const p = makePot({ r: 0.14, h: 0.22, seed: 9 }).group; p.position.set(0.85, Y, Z1 + 0.4); g.add(p); for (let i = 0; i < 10; i++) { const a = i * 2.4; sph(g, toon(i % 3 ? '#f6f3ec' : '#4f7f46'), 0.04, 0.85 + Math.cos(a) * 0.09, Y + 0.3 + (i % 2) * 0.04, Z1 + 0.4 + Math.sin(a) * 0.09); } }
+    { const pot = makePot({ r: 0.14, h: 0.22, seed: 9 }), p = pot.group; p.position.set(0.85, Y, Z1 + 0.4); g.add(p); potPlants(sharedPlants(), 0.85, Y + pot.soilY, Z1 + 0.4, pot.soilR, { variant: 3, seed: 9, obj: g }); }
     // the welcome board on an easel by the steps
     { const e = grp(g, DOOR[0] - 0.45, Y, Z1 + 1.0, -0.2); [-0.2, 0.2].forEach((a) => cyl2(e, m.woodD, [a, 0, 0.12], [a * 0.4, 1.25, 0], 0.015, 5)); cyl2(e, m.woodD, [0, 0, -0.3], [0, 1.2, 0], 0.015, 5); bx(e, m.woodD, -0.24, 0.24, 0.42, 0.45, 0.02, 0.1, { cast: false }); const wb = grp(e, 0, 0.45, 0.07, 0); wb.rotation.x = -0.1; bx(wb, m.wood, -0.21, 0.21, 0, 0.62, -0.012, 0.012); const wp = pl(wb, new THREE.MeshBasicMaterial({ map: welcomeTex() }), 0.38, 0.57, 0, 0.31, 0.013, 0, 0); wp.userData.noLine = true; }
     // the postcard rack on the east side

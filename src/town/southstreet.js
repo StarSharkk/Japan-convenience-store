@@ -4,6 +4,7 @@ import { bicycle } from '../street.js';
 import { makeShrub } from '../tree.js';
 import { makePot } from '../plants/pottedPlants.js';
 import { YS, ct, wbx, txt, SERIF, paverTex, wetPass } from './shopkit.js';
+import { sharedPlants, potPlants, planterPlants } from '../plants/wild.js';
 
 /* ====================================================================================================
    The south block's shared street front (town/cafe.js + town/bookstore.js): one paving over the levelled pad
@@ -30,8 +31,9 @@ export function buildSouthStreet(parent) {
   const box = (x, z, w, d) => {
     wbx(g, wood, x - w / 2, x + w / 2, Y, Y + 0.42, z - d / 2, z + d / 2, 0.5);
     wbx(g, toon('#4a3a2c'), x - w / 2 + 0.05, x + w / 2 - 0.05, Y + 0.38, Y + 0.41, z - d / 2 + 0.05, z + d / 2 - 0.05, 1, { cast: false });
-    for (let i = 0; i < Math.round(w / 0.45); i++) { const sb = makeShrub({ seed: 160 + i + ((x * 10) | 0), width: 0.45, height: 0.45, palette: 'deep' }); sb.position.set(x - w / 2 + 0.25 + i * 0.45, Y + 0.38, z); g.add(sb); }
-    for (let i = 0; i < 7; i++) sph(g, toon(['#f2a0c4', '#ffffff', '#9a7ad6'][i % 3]), 0.035, x - w / 2 + 0.15 + R() * (w - 0.3), Y + 0.72 + R() * 0.1, z + (R() - 0.5) * (d - 0.15));
+    // greenery first, then small flowers threaded through it (plants/wild.js)
+    planterPlants(sharedPlants(), g, x - w / 2 + 0.06, x + w / 2 - 0.06, z - d / 2 + 0.06, z + d / 2 - 0.06, Y + 0.41, { seed: 57, flowers: ['pansy', 'daisy', 'forget'] });
+    for (let i = 0; i < 7; i++) { R(); R(); R(); } // (the old flower draws: the rest of the street keeps its places)
   };
   box(-3.3, 15.2, 1.6, 0.5);
   bicycle(grp(g, 0, Y - 0.15, 0), -3.15, 17.6, Math.PI / 2, '#6c8a3a', 0.12);
@@ -44,7 +46,7 @@ export function buildSouthStreet(parent) {
     [-0.36, 0.36].forEach((b) => { const w = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.03, 6, 18), woodD); w.position.set(-0.1, 0.26, b); c.add(w); for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI; cyl2(c, woodD, [-0.1 + Math.cos(a) * 0.22, 0.26 + Math.sin(a) * 0.22, b], [-0.1 - Math.cos(a) * 0.22, 0.26 - Math.sin(a) * 0.22, b], 0.012, 4); } });
     cyl2(c, woodD, [-0.1, 0.26, -0.36], [-0.1, 0.26, 0.36], 0.02, 6);
     cyl2(c, woodD, [0.55, 0.6, 0], [0.95, 0.85, 0], 0.025, 6); bx(c, woodD, -0.62, -0.55, 0, 0.55, -0.03, 0.03, { cast: false });
-    [[-0.35, -0.1, '#f2d23a'], [-0.05, 0.12, '#f2a0c4'], [0.25, -0.12, '#ffffff']].forEach(([a, b, col], i) => { const p = makePot({ r: 0.08, h: 0.13, seed: 20 + i }).group; p.position.set(a, 0.62, b); c.add(p); for (let k = 0; k < 6; k++) sph(c, toon(k % 2 ? col : '#4f7f46'), 0.03, a + Math.cos(k) * 0.05, 0.8 + (k % 3) * 0.02, b + Math.sin(k) * 0.05); });
+    [[-0.35, -0.1, '#f2d23a'], [-0.05, 0.12, '#f2a0c4'], [0.25, -0.12, '#ffffff']].forEach(([a, b, col], i) => { const pot = makePot({ r: 0.08, h: 0.13, seed: 20 + i }), p = pot.group; p.position.set(a, 0.62, b); c.add(p); potPlants(sharedPlants(), a, 0.62 + pot.soilY, b, pot.soilR, { variant: { '#f2d23a': 0, '#f2a0c4': 1, '#ffffff': 3 }[col], seed: i, obj: c }); });
     for (let k = 0; k < 4; k++) cy(c, toon('#f6f3ec'), 0.38 + (k % 2) * 0.08, 0.62 + ((k / 2) | 0) * 0.11, 0.1 - (k % 2) * 0.06, 0.035, 0.11, 10, { rt: 1.25 });
   }
   // the bench facing the plaza

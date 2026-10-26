@@ -11,6 +11,8 @@ import { buildPlantStage } from './plants/preview.js';
 import { createCamPan } from './camPan.js';
 import { setWaterQuality } from './waterSystem.js';
 import * as ROCKS from './rocks.js';
+import * as CLOUDS from './clouds.js';
+import * as WILD from './plants/wild.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -66,7 +68,7 @@ controls.addEventListener('change', clampPan);
 const BASE_R = 36;
 const home = new THREE.Spherical(BASE_R, THREE.MathUtils.degToRad(61), THREE.MathUtils.degToRad(36));
 const ISLAND_TARGET = new THREE.Vector3(-6, -1.5, -6);
-const ISLAND_R = 175;
+const ISLAND_R = 240; // the whole tray with a margin of sky + clouds round it (clouds.js)
 const sph = new THREE.Spherical(ISLAND_R, THREE.MathUtils.degToRad(51), THREE.MathUtils.degToRad(32));
 const from = new THREE.Spherical(310, THREE.MathUtils.degToRad(40), THREE.MathUtils.degToRad(64));
 let intro = true;
@@ -353,4 +355,4 @@ function frame() {
 frame();
 
 // debug hook
-window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles, pan, rocks: ROCKS };
+window.__konbini = { perf, flyTo, camHome, camTown, THREE, scene, camera, controls, renderer, pipe, reg, env, ui, handles, pan, rocks: ROCKS, clouds: CLOUDS, plants: WILD };

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedPlants, potPlants, planterPlants } from './plants/wild.js';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, roundRect, RAMP } from './core.js';
 import { makeGlass } from './fx.js';
 import { T, posterTex } from './tex.js';
@@ -539,7 +540,7 @@ export function buildIzakaya(parent, drips) {
       pl(g, makeGlass(w, h, 53, { drops: 0.6, alpha: 0.04 }), w, h, x, y, fz + 0.12, 0, 0, { noLine: true });
       bx(g, woodD, x - w / 2 - 0.12, x + w / 2 + 0.12, y - h / 2 - 0.14, y - h / 2 - 0.07, fz, fz + 0.2); // the sill
       bx(g, woodM, x - w / 2 + 0.02, x + w / 2 - 0.02, y - h / 2 - 0.07, y - h / 2 + 0.11, fz + 0.04, fz + 0.2); // the flower box
-      for (let i = 0; i < 7; i++) { const fx = x - w / 2 + 0.1 + i * ((w - 0.2) / 6); sph(g, toon('#4f7f52'), 0.07, fx, y - h / 2 + 0.15, fz + 0.12, 1, 0.8, 1); sph(g, toon(['#f3a8be', '#ffffff', '#e8674f'][i % 3]), 0.028, fx + 0.02, y - h / 2 + 0.22, fz + 0.15); }
+      planterPlants(sharedPlants(), g, x - w / 2 + 0.06, x + w / 2 - 0.06, fz + 0.04, fz + 0.2, y - h / 2 + 0.1, { seed: 542, flowers: ['pansy', 'pansy', 'daisy'], greens: ['fern', 'hosta'], density: 1.2 }); // greenery first, flowers through it
     }
     {
       const sgn = grp(g, -9.52, 4.32, fz);
@@ -768,7 +769,7 @@ export function buildIzakaya(parent, drips) {
       plo(f, 1.2, 0.84, bz, by, 0.09, makeGlass(1.2, 0.84, 21, { drops: 0.7, alpha: 0.04 }), { noLine: true });
     }
     bicycle(g, X1 + 0.55, Z1 + 0.0 - 0.3, 0.0, '#3a8fb8', 0, { type: 'basket', steer: 0.18 });
-    [[X1 + 0.35, Z1 - 1.9]].forEach(([x, z]) => { const p = grp(g, x, Y0, z); cy(p, toon('#8a5a3c'), 0, 0, 0, 0.18, 0.32, 10, { rt: 0.8 }); sph(p, toon('#2f5a44'), 0.24, 0, 0.55, 0, 1, 0.9, 1); });
+    [[X1 + 0.35, Z1 - 1.9]].forEach(([x, z]) => { const p = grp(g, x, Y0, z); cy(p, toon('#8a5a3c'), 0, 0, 0, 0.18, 0.32, 10, { rt: 0.8 }); potPlants(sharedPlants(), 0, 0.3, 0, 0.17, { style: 'green', seed: 7, obj: p }); });
   }
 
   /* ==================================================================== steel stairs (kept) */

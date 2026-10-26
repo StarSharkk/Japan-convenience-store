@@ -61,6 +61,7 @@ export function buildRocks(parent) {
       tints: ['#ffffff', '#f2f4f7', '#e6e9ee', '#f4efe8'],
       turn: (x, z) => -angOf(x, z) + Math.PI / 2, // long side along the shore
     });
+    out.lakeStones = B.placed.slice(); // (town/plantZones.js keeps the plants off them)
     out.lake = B.flush();
   }
 
@@ -78,6 +79,7 @@ export function buildRocks(parent) {
         size: [0.22, 0.38], sizeS: [0.1, 0.18], sink: [0.3, 0.5], tilt: 0.1, moss: 0.5,
       });
     });
+    out.parkStones = B.placed.slice();
     out.lakePark = B.flush();
   }
 

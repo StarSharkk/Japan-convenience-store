@@ -8,6 +8,7 @@ import { flipWinding } from '../merge.js';
 import { buildVillaHouse } from './villaHouse.js';
 import { makeWater, BED_PEBBLES } from '../waterSystem.js';
 import { rockBatch, rockMat, rockGeo } from '../rocks.js';
+import { plantBatch } from '../plants/wild.js';
 
 /* ====================================================================================================
    The large residence (大型住宅) - the south-east block, Kaigan-dori to the north, Hoshizora-dori to the west.
@@ -205,18 +206,24 @@ function stepStone(x, z, rx, rz, ry, i) {
   const h = rockGeo('step', i % 3).userData.h * Math.max(rx, rz);
   VB.add('step', i % 3, x, YL + 0.012, z, Math.max(rx, rz), { ry, sink: Math.max(0, 1 - 0.035 / h), sq: [1, 1, rz / Math.max(rx, rz)], tint: i % 2 ? '#ffffff' : '#f4efe6' });
 }
+// the garden's small plants (plants/wild.js): restrained - flowering shrubs, pink wildflowers, daisies, grass, clover
+let VP = null;
+/** a clump: hydrangea -> a flowering shrub, cosmos -> pink wildflowers, daisy -> daisies with clover, lavender spikes */
 function flowers(p, x, z, kind, seed, r = 0.35) {
-  // a clump: hydrangea (blue / violet balls), cosmos (pink / white), lavender spikes, white daisies
-  const R = rng(seed);
-  const leaf = toon('#4f7f46');
-  sph(p, leaf, r * 0.7, x, YL + r * 0.35, z, 1.2, 0.7, 1.2);
-  const n = kind === 'lavender' ? 14 : 8;
-  for (let i = 0; i < n; i++) {
-    const a = R() * 6.28, d = R() * r * 0.8, fx = x + Math.cos(a) * d, fz = z + Math.sin(a) * d;
-    if (kind === 'hydrangea') sph(p, toon(['#7f9fe6', '#9b8fe0', '#a8c4f2', '#b6a2ea'][(R() * 4) | 0]), 0.09 + R() * 0.04, fx, YL + r * 0.6 + R() * 0.1, fz, 1, 0.85, 1);
-    else if (kind === 'lavender') { cyl2(p, leaf, [fx, YL + 0.1, fz], [fx, YL + 0.5 + R() * 0.15, fz], 0.006, 3, { noLine: true }); const c = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 6), toon('#9a7ad6')); c.position.set(fx, YL + 0.6 + R() * 0.15, fz); p.add(c); }
-    else sph(p, toon(kind === 'cosmos' ? ['#f2a0c4', '#f7d6e6', '#e86a9a', '#ffffff'][(R() * 4) | 0] : ['#ffffff', '#f7f2d0'][(R() * 2) | 0]), 0.045, fx, YL + r * 0.7 + R() * 0.12, fz, 1, 0.5, 1);
+  const R = rng(seed), k = r / 0.32;
+  if (kind === 'lavender') {
+    const leaf = toon('#4f7f46');
+    VP.add('shortGrass', seed, x, YL, z, 1.3 * k, { ry: seed });
+    for (let i = 0; i < 14; i++) {
+      const a = R() * 6.28, d = R() * r * 0.8, fx = x + Math.cos(a) * d, fz = z + Math.sin(a) * d;
+      cyl2(p, leaf, [fx, YL + 0.1, fz], [fx, YL + 0.5 + R() * 0.15, fz], 0.006, 3, { noLine: true }); const c = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 6), toon('#9a7ad6')); c.position.set(fx, YL + 0.6 + R() * 0.15, fz); p.add(c);
+    }
+    return;
   }
+  if (kind === 'hydrangea') { VP.add('bushFlower', seed, x, YL, z, 0.9 * k, { ry: R() * 6.28 }); return; }
+  const n = 3 + ((R() * 2) | 0);
+  for (let i = 0; i < n; i++) { const a = R() * 6.28, d = R() * r * 0.7; VP.add(kind === 'cosmos' ? 'pinkWild' : 'daisy', seed + i, x + Math.cos(a) * d, YL, z + Math.sin(a) * d, (1.1 + R() * 0.3) * k, { ry: R() * 6.28 }); }
+  VP.add(kind === 'cosmos' ? 'shortGrass' : 'clover', seed, x, YL, z, 1.2 * k, { ry: seed * 2 });
 }
 function agave(p, bins, x, z, s, seed) {
   const R = rng(seed);
@@ -277,6 +284,7 @@ export function buildVilla(parent) {
   const bins = makeBins(root);
   const R = rng(64);
   VB = rockBatch(g, rockMat({ wet: 1.0, moss: 0.8, tint: '#faf6ee' }), { name: 'VillaRocks' });
+  VP = plantBatch(g, { name: 'VillaPlants', cast: true });
   VBP = rockBatch(g, rockMat({ waterY: YL + 0.07, band: 0.3, wet: 1.1, moss: 1.0, tint: '#faf6ee' }), { name: 'VillaPondRocks' });
 
   /* ---- ground: gravel under everything, the terrace in stone tiles, the lawn, the pond ---- */
@@ -402,7 +410,7 @@ export function buildVilla(parent) {
     bx(g, m.wood, cx - 0.42, cx + 0.42, py + 0.3, py + 0.35, cz - 0.42, cz + 0.42, { bevel: 0.015 });
     sph(g, toon('#4a5a50'), 0.07, cx - 0.1, py + 0.41, cz + 0.05, 1, 0.85, 1); cyl2(g, toon('#4a5a50'), [cx - 0.04, py + 0.41, cz + 0.05], [cx + 0.03, py + 0.45, cz + 0.05], 0.012, 5); sph(g, toon('#3a4a40'), 0.025, cx - 0.1, py + 0.47, cz + 0.05);
     [[0.14, -0.12], [0.18, 0.12]].forEach(([a, b]) => cy(g, toon('#efe8da'), cx + a, py + 0.35, cz + b, 0.032, 0.05, 10, { rt: 1.15 }));
-    cy(g, toon('#d8cfc0'), cx - 0.2, py + 0.35, cz - 0.22, 0.03, 0.12, 8, { rt: 0.6 }); sph(g, toon('#f2a0c4'), 0.03, cx - 0.2, py + 0.5, cz - 0.22);
+    cy(g, toon('#d8cfc0'), cx - 0.2, py + 0.35, cz - 0.22, 0.03, 0.12, 8, { rt: 0.6 }); VP.add('cutGerbera', 1, cx - 0.2, py + 0.37, cz - 0.22, 0.36, { ry: 0, tilt: [0.1, 0.1] }); // a single flower in the bud vase
     [[0, 0.78, Math.PI], [0, -0.78, 0], [0.8, 0, -Math.PI / 2]].forEach(([a, b, ry]) => {
       const c = grp(g, cx + a, py, cz + b, ry);
       [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].forEach(([u, v]) => bx(c, woodD, u - 0.025, u + 0.025, 0, 0.22, v - 0.025, v + 0.025, { cast: false }));
@@ -414,7 +422,7 @@ export function buildVilla(parent) {
     // a small Japanese maple in the lawn's front-left corner, by the fire deck (clear of every view onto the glass):
     // moss, two stones, an uplight
     { const t = makeTree({ seed: 233, height: 2.2, spread: 0.85, palette: 'maple', dens: 0.9, leafScale: 0.5, lean: -0.1 }); t.position.set(20.15, YL, 15.45); t.rotation.y = 1.1; g.add(t); }
-    for (let k = 0; k < 6; k++) { const a = k * 1.05 + Rl() * 0.4, r = 0.3 + Rl() * 0.2; sph(g, toon(k % 2 ? '#4f7a3a' : '#5d8a44'), 0.14 + Rl() * 0.05, 20.15 + Math.cos(a) * r, YL + 0.02, 15.45 + Math.sin(a) * r, 1.3, 0.28, 1.1); }
+    for (let k = 0; k < 6; k++) { const a = k * 1.05 + Rl() * 0.4, r = 0.3 + Rl() * 0.2, sc = 0.14 + Rl() * 0.05; VP.add(k % 2 ? 'cover' : 'clover', k, 20.15 + Math.cos(a) * r, YL + 0.005, 15.45 + Math.sin(a) * r, sc * 7, { ry: a * 3 }); } // moss / groundcover round the maple
     boulder(g, 20.75, 15.3, 0.22, 501); boulder(g, 20.95, 15.6, 0.12, 502);
     uplight(g, 20.5, 15.85);
     // soft lawn edges: groundcover, a few low shrubs, flower clumps and stones, at irregular intervals (not on the paths)
@@ -423,7 +431,7 @@ export function buildVilla(parent) {
       const p = O[i];
       if (p.x < 21.6 || (Math.abs(p.x - 21.9) < 0.9 && p.z > 19.8)) continue; // the pond + maple side, the path's start
       const k = Rl();
-      if (k < 0.45) for (let c = 0; c < 3; c++) sph(g, toon(c % 2 ? '#4f7a3a' : '#5f8a48'), 0.12 + Rl() * 0.06, p.x + (Rl() - 0.5) * 0.35, YL + 0.03, p.z + (Rl() - 0.5) * 0.25, 1.3, 0.35, 1.1);
+      if (k < 0.45) for (let c = 0; c < 3; c++) { const sc = 0.12 + Rl() * 0.06, fx = p.x + (Rl() - 0.5) * 0.35, fz = p.z + (Rl() - 0.5) * 0.25; VP.add(c === 1 ? 'clover' : 'cover', i + c, fx, YL + 0.005, fz, sc * 7, { ry: c * 2.1 + i }); } // low groundcover at the lawn's edge
       else if (k < 0.65) { const sb = makeShrub({ seed: 520 + i, width: 0.45, height: 0.38, palette: 'deep' }); sb.position.set(p.x, YL, p.z); g.add(sb); }
       else if (k < 0.85) flowers(g, p.x, p.z, ['lavender', 'hydrangea', 'daisy'][i % 3], 530 + i, 0.24);
       else boulder(g, p.x, p.z, 0.12 + Rl() * 0.08, 540 + i);
@@ -509,7 +517,7 @@ export function buildVilla(parent) {
   }
 
   bins.flush();
-  VB.flush(); VBP.flush();
+  VB.flush(); VBP.flush(); VP.flush();
   root.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) o.castShadow = false; });
   reg.villa = { lot: VILLA_LOT, entrance: house.entrance };
   return root;

@@ -6,6 +6,7 @@ import { makeShrub } from './tree.js';
 import { bladeGeo, placeLeaf, mergeInto, leafTex, leafMat } from './plants/kit.js';
 import { swingDoors, doorHit } from './doors.js';
 import { P } from './palette.js';
+import { sharedPlants, potPlants, planterPlants, plantAt } from './plants/wild.js';
 
 /* ====================================================================================================
    BREAD - the one-storey neighbourhood bakery on the lot left of the LAWSON (replaces the izakaya, which is
@@ -811,8 +812,10 @@ export function buildBakery(parent, drips) {
     planter(DECK.x0 + 0.02, DECK.x0 + 0.7, DECK.z1 - 0.65, DECK.z1 - 0.05);
     planter(DECK.x1 - 0.6, DECK.x1 - 0.02, DECK.z1 - 0.62, DECK.z1 - 0.05);
     planter(DECK.x0 + 0.02, DECK.x0 + 0.38, Z1 + 0.15, DECK.z1 - 0.9);
-    [[DECK.x0 + 0.36, DECK.z1 - 0.35, 0.7, 0.55, 11], [DECK.x1 - 0.31, DECK.z1 - 0.33, 0.55, 0.5, 13]].forEach(([x, z, w, h, s]) => { const sb = makeShrub({ seed: s, width: w, height: h, palette: 'deep' }); sb.position.set(x, YF + 0.38, z); g.add(sb); });
-    { const R = rng(19); for (let i = 0; i < 9; i++) { const z = Z1 + 0.3 + i * 0.25; sph(g, toon('#4f8a46'), 0.07, DECK.x0 + 0.2, YF + 0.45, z, 1, 0.6, 1); sph(g, toon(['#f2c14e', '#ffffff', '#e8687a'][i % 3]), 0.03, DECK.x0 + 0.2 + (R() - 0.5) * 0.08, YF + 0.5, z + (R() - 0.5) * 0.06); } }
+    // greenery first, then small flowers threaded through it (plants/wild.js)
+    planterPlants(sharedPlants(), g, DECK.x0 + 0.06, DECK.x0 + 0.66, DECK.z1 - 0.61, DECK.z1 - 0.09, YF + 0.41, { seed: 11, flowers: ['pansy', 'daisy'] });
+    planterPlants(sharedPlants(), g, DECK.x1 - 0.56, DECK.x1 - 0.06, DECK.z1 - 0.58, DECK.z1 - 0.09, YF + 0.41, { seed: 13, flowers: ['pansy', 'forget'] });
+    planterPlants(sharedPlants(), g, DECK.x0 + 0.06, DECK.x0 + 0.34, Z1 + 0.19, DECK.z1 - 0.94, YF + 0.41, { seed: 19, flowers: ['pansy', 'daisy', 'pinkWild'], greens: ['fern', 'hosta'] });
     // three round tables, two chairs each, set at easy angles
     const t1 = roundTable(g, -11.25, 1.85), t2 = roundTable(g, -10.15, 2.95), t3 = roundTable(g, -11.25, 3.85, 0.3);
     chair(g, -11.25 - 0.55, 1.85 - 0.08, Math.PI / 2 + 0.15); chair(g, -11.25 + 0.55, 1.85 + 0.05, -Math.PI / 2 - 0.1);
@@ -822,7 +825,7 @@ export function buildBakery(parent, drips) {
     cy(g, m.white, -11.3, t1, 1.8, 0.11, 0.012, 18); croissant(g, -11.32, t1 + 0.012, 1.8, 0.4); croissant(g, -11.25, t1 + 0.012, 1.86, 2.2);
     cy(g, m.white, -11.05, t1, 1.98, 0.05, 0.006, 12); cy(g, m.white, -11.05, t1 + 0.006, 1.98, 0.034, 0.06, 10); cy(g, toon('#5a3420'), -11.05, t1 + 0.062, 1.98, 0.028, 0.004, 10);
     cy(g, m.white, -10.2, t2, 2.92, 0.1, 0.012, 18); cakeSlice(g, -10.2, t2 + 0.012, 2.92, 0.6); bag(g, -9.98, t2, 3.05, 0.13, 0.2, 0.07, -0.4, true);
-    cy(g, toon('#eef6f4', { op: 0.4 }), -11.25, t3, 3.85, 0.035, 0.12, 10); for (let k = 0; k < 3; k++) { cyl2(g, toon('#5e8a44'), [-11.25, t3 + 0.08, 3.85], [-11.25 + (k - 1) * 0.04, t3 + 0.24, 3.85], 0.004, 3, { noLine: true }); sph(g, toon(['#f2c14e', '#ffffff', '#e8687a'][k]), 0.025, -11.25 + (k - 1) * 0.04, t3 + 0.26, 3.85); }
+    cy(g, toon('#eef6f4', { op: 0.4 }), -11.25, t3, 3.85, 0.035, 0.12, 10); [['cutGerbera', 3, 0.3], ['cutRose', 1, -0.25], ['cutGerbera', 1, 0]].forEach(([t, v, a], k) => plantAt(sharedPlants(), g, t, v, -11.25 + (k - 1) * 0.01, t3 + 0.02, 3.85, 0.42, { ry: 0, tilt: [a * 0.6, (k - 1) * 0.3] })); // a little vase of real flowers
     // by the door: a welcome mat, an A-frame TODAY'S BREAD board, a BREAD sign stand, crates of baguettes, pots, herbs
     const wm = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#9a7a52'; c.fillRect(0, 0, w, h); c.strokeStyle = '#7a5d3b'; c.lineWidth = 6; c.strokeRect(6, 6, w - 12, h - 12); T(c, 'WELCOME', w / 2, h / 2 + 2, 36, '#efe2c8', { weight: 800 }); });
     const mp = pl(g, new THREE.MeshBasicMaterial({ map: wm, color: new THREE.Color(0.88, 0.85, 0.8) }), 1.0, 0.36, (DOOR.x0 + DOOR.x1) / 2, YF + 0.004, Z1 + 0.3, 0, -Math.PI / 2); mp.userData.noLine = true;
@@ -837,7 +840,7 @@ export function buildBakery(parent, drips) {
     { const c = grp(g, -8.25, YF, 1.95, 0); const crateM = toon('#c69a64', { lit: 0.15 }); for (let k = 0; k < 2; k++) { const y = k * 0.24; bx(c, crateM, -0.24, 0.24, y, y + 0.02, -0.18, 0.18); [-1, 1].forEach((sx) => bx(c, crateM, sx * 0.24 - 0.015, sx * 0.24 + 0.015, y, y + 0.22, -0.18, 0.18)); [-1, 1].forEach((sz) => { bx(c, crateM, -0.24, 0.24, y, y + 0.06, sz * 0.18 - 0.015, sz * 0.18 + 0.015); bx(c, crateM, -0.24, 0.24, y + 0.14, y + 0.22, sz * 0.18 - 0.015, sz * 0.18 + 0.015); }); }
       for (let j = 0; j < 5; j++) baguette(c, (j - 2) * 0.05, 0.3, 0, Math.PI / 2 + (j - 2) * 0.06, -0.55 - (j % 2) * 0.1, 0.5); }
     [['rosemary', -8.65, 1.12], ['mint', -9.75, 1.15], ['thyme', -8.2, 2.42]].forEach(([k, x, z], i) => herbPot(g, bins, x, YF, z, k, 400 + i));
-    [[-9.85, 1.42, 0.12], [-8.62, 2.45, 0.1]].forEach(([x, z, r], i) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.78, r * 1.25, 12), m.clay); p.position.set(x, YF + r * 0.62, z); p.castShadow = true; g.add(p); for (let k = 0; k < 6; k++) sph(g, toon(['#e8687a', '#f2c14e', '#ffffff'][(k + i) % 3]), 0.026, x + Math.cos(k) * r * 0.6, YF + r * 1.3 + 0.03, z + Math.sin(k) * r * 0.6); });
+    [[-9.85, 1.42, 0.12], [-8.62, 2.45, 0.1]].forEach(([x, z, r], i) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.78, r * 1.25, 12), m.clay); p.position.set(x, YF + r * 0.62, z); p.castShadow = true; g.add(p); potPlants(sharedPlants(), x, YF + r * 1.2, z, r * 0.9, { variant: i ? 4 : 0, seed: i, obj: g }); });
   }
 
   /* ---- the alley mouth: a tray trolley of bread crates, the delivery box, a small bin ---- */

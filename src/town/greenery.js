@@ -3,6 +3,7 @@ import { reg, toon, rng } from '../core.js';
 import { makeTree, makeShrub, FOLIAGE, SEASON_U } from '../tree.js';
 import { BLOCKS, PLOTS, RAIL, lakeF, LAKE, groundY, blockAt, CROSSINGS, ZAK_PAD, VILLA_PAD, SOUTH_SHOPS_PAD, SAKURA_PLAZA, SW_ROW_PAD, WEST_HOMES } from './layout.js';
 import { IZA_AWAY } from '../site.js';
+import { plantGeo, plantMat, hydrangeaGeo } from '../plants/wild.js';
 
 /* ====================================================================================================
    Town greenery. Five tree species + three shrubs are grown ONCE as templates with the same leaf-card
@@ -247,13 +248,14 @@ export function buildGreenery(parent, lake) {
   {
     const hyd = shrubs.filter((s) => s.sp === 'hyd');
     const N = hyd.length * 7;
-    const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.15, 1), toon('#ffffff', { e: '#101830', ei: 0.3 }), N);
+    const fl = new THREE.InstancedMesh(hydrangeaGeo(), plantMat(), N); // a dome of small florets (plants/wild.js)
+    fl.userData.noLine = true;
     const pal = ['#7f9ae6', '#9a84d8', '#6fb0e8', '#c48ad6', '#e6a6c8'].map((c) => new THREE.Color(c));
     let n = 0;
     hyd.forEach((s) => {
       for (let k = 0; k < 7; k++) {
         const a = R() * 6.283, d = R() * 0.5 * s.s;
-        m4.compose(v.set(s.x + Math.cos(a) * d, s.y + (0.55 + R() * 0.3) * s.s, s.z + Math.sin(a) * d * 0.6), q.identity(), sc.setScalar(0.8 + R() * 0.5));
+        m4.compose(v.set(s.x + Math.cos(a) * d, s.y + (0.5 + R() * 0.3) * s.s, s.z + Math.sin(a) * d * 0.6), q.setFromAxisAngle(up, a * 3), sc.setScalar(0.8 + R() * 0.5));
         fl.setMatrixAt(n, m4);
         fl.setColorAt(n, pal[(R() * pal.length) | 0]);
         n++;
@@ -265,22 +267,13 @@ export function buildGreenery(parent, lake) {
     reg.updaters.push(() => { const w = SEASON_U.W.value; fl.visible = w.x * 0.7 + w.y > 0.45; });
   }
 
-  /* ---------------------------------------------------------------- grass tufts (season-coloured) */
+  /* ---------------------------------------------------------------- grass tufts: real short-grass clumps (plants/wild.js,
+     the light versions; three shapes), the seasons / wind / rain in their material */
   {
-    const blade = [];
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + 0.3, r = 0.06;
-      const bx0 = Math.cos(a) * r, bz0 = Math.sin(a) * r, tx = Math.cos(a) * 0.16, tz = Math.sin(a) * 0.16;
-      blade.push(bx0 - 0.03 * Math.sin(a), 0, bz0 + 0.03 * Math.cos(a), bx0 + 0.03 * Math.sin(a), 0, bz0 - 0.03 * Math.cos(a), tx, 0.26 + 0.08 * (k % 2), tz);
-    }
-    const tg = new THREE.BufferGeometry();
-    tg.setAttribute('position', new THREE.Float32BufferAttribute(blade, 3));
-    tg.computeVertexNormals();
-    const tm = toon('#3c6a44', { side: THREE.DoubleSide, nocache: true });
-    const N = 2600;
-    const tufts = new THREE.InstancedMesh(tg, tm, N);
-    let n = 0;
-    for (let i = 0; i < N * 6 && n < N; i++) {
+    const N = 2600, V3 = 3;
+    const ims = Array.from({ length: V3 }, (_, k) => new THREE.InstancedMesh(plantGeo(k === 2 ? 'tallGrass' : 'shortGrass', k, true), plantMat(), N));
+    const cnt = new Array(V3).fill(0);
+    for (let i = 0, n = 0; i < N * 6 && n < N; i++) {
       const x = -48 + R() * 84, z = -44 + R() * 76;
       const b = blockAt(x, z);
       if (!b || !['verge', 'park', 'forest', 'lots'].includes(b.surf)) continue;
@@ -292,21 +285,12 @@ export function buildGreenery(parent, lake) {
       // tufts keep exactly their places
       const paved = (x > ZAK_PAD[0] && x < ZAK_PAD[1] && z > ZAK_PAD[2] && z < ZAK_PAD[3]) || (x > SW_ROW_PAD[0] && x < SW_ROW_PAD[1] && z > SW_ROW_PAD[2] && z < SW_ROW_PAD[3] + 3.8) || (IZA_AWAY && x > IZA_AWAY.rect[0] - 1.4 && x < IZA_AWAY.rect[1] + 0.9 && z > IZA_AWAY.rect[2] - 0.6 && z < 6.6);
       m4.compose(v.set(x, paved ? -60 : groundY(x, z) - 0.01, z), q.setFromAxisAngle(up, R() * 6.28), sc.set(s, s * (0.7 + R() * 0.6), s));
-      tufts.setMatrixAt(n, m4);
-      tufts.setColorAt(n, col.setHSL(0.27 + R() * 0.08, 0.35 + R() * 0.2, 0.55 + R() * 0.35));
+      R(); R(); const lt = R(); // (the old per-tuft colour draws: now a brightness)
+      const k = n % V3, im = ims[k];
+      im.setMatrixAt(cnt[k], m4); im.setColorAt(cnt[k], col.setScalar(0.88 + lt * 0.24)); cnt[k]++;
       n++;
     }
-    tufts.count = n;
-    tufts.castShadow = false;
-    tufts.receiveShadow = true;
-    tufts.computeBoundingSphere();
-    g.add(tufts);
-    // season colour: spring fresh, summer deep, autumn straw, winter dry
-    const C = [new THREE.Color('#4f8a4c'), new THREE.Color('#3c6a44'), new THREE.Color('#8a7a3e'), new THREE.Color('#6f6650')];
-    reg.updaters.push(() => {
-      const w = SEASON_U.W.value;
-      tm.color.setRGB(C[0].r * w.x + C[1].r * w.y + C[2].r * w.z + C[3].r * w.w, C[0].g * w.x + C[1].g * w.y + C[2].g * w.z + C[3].g * w.w, C[0].b * w.x + C[1].b * w.y + C[2].b * w.z + C[3].b * w.w);
-    });
+    ims.forEach((im, k) => { im.count = cnt[k]; im.castShadow = false; im.receiveShadow = true; im.userData.noLine = true; im.computeBoundingSphere(); g.add(im); });
   }
 
   reg.townGreenery = { trees, shrubs, leafTotal };

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedPlants, planterPlants, roundBedPlants } from '../plants/wild.js';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, rng, FONT } from '../core.js';
 import { makeGlass } from '../fx.js';
 import { makeShrub, makeTree } from '../tree.js';
@@ -317,13 +318,14 @@ function forecourt(g, piles, U) {
     cy(g, m.stone, cx, y, cz, 1.25, 0.32, 40);
     cy(g, toon('#5a4636'), cx, y + 0.32, cz, 1.12, 0.02, 40, { cast: false });
     const R = rng(52);
-    for (let i = 0; i < 26; i++) { const a = R() * Math.PI * 2, r = 0.25 + R() * 0.8, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; sph(g, toon(i % 3 ? '#4f7f46' : '#5f8a48'), 0.13, x, y + 0.42, z, 1.2, 0.8, 1.2); sph(g, toon(['#f3a8be', '#ffffff', '#f2d23a', '#e8674f', '#b28ad8'][i % 5]), 0.045, x, y + 0.52, z); }
+    roundBedPlants(sharedPlants(), g, cx, cz, 1.08, y + 0.34, { seed: 320, r0: 0.22 }); // greenery round the clock post, flowers between
+    for (let i = 0; i < 26; i++) { R(); R(); } // (the old mound draws)
     cy(g, m.ink, cx, y + 0.32, cz, 0.06, 2.6, 10);
     const cg = grp(g, cx, y + 3.05, cz, 0); [0, Math.PI].forEach((ry) => { const f = grp(cg, 0, 0, 0, ry); cy(f, m.ink, 0, -0.03, 0.03, 0.27, 0.06, 24).rotation.x = Math.PI / 2; plane(f, basic(clockFace()), 0.46, 0.46, 0, 0, 0.065); }); U.clocks.push(cg);
     [[cx, cz + 2.0, Math.PI], [cx - 2.0, cz, Math.PI / 2], [cx + 2.0, cz, -Math.PI / 2]].forEach(([x, z, ry]) => { const b = grp(g, x, gy(x, z), z, ry); rbx(b, m.bench, -0.7, 0.7, 0.42, 0.47, -0.2, 0.2, { r: 0.01 }); rbx(b, m.bench, -0.7, 0.7, 0.55, 0.85, -0.24, -0.2, { r: 0.01 }); [-0.6, 0.6].forEach((a) => rbx(b, m.metal, a - 0.03, a + 0.03, 0, 0.42, -0.18, 0.18, { r: 0.004, cast: false })); });
   }
   // planters along the front, a tree in a pit by the bus stop, low shrubs at the block edge
-  [[19.75, -27.35], [20.65, -27.35]].forEach(([x, z], i) => { const y = gy(x, z); rbx(g, m.bench, x - 0.4, x + 0.4, y, y + 0.4, z - 0.2, z + 0.2, { r: 0.02 }); for (let k = 0; k < 4; k++) { sph(g, toon('#4f7f46'), 0.12, x - 0.3 + k * 0.2, y + 0.48, z, 1, 0.8, 1); sph(g, toon(['#f3a8be', '#f2d23a', '#ffffff'][(i + k) % 3]), 0.04, x - 0.28 + k * 0.2, y + 0.58, z); } });
+  [[19.75, -27.35], [20.65, -27.35]].forEach(([x, z], i) => { const y = gy(x, z); rbx(g, m.bench, x - 0.4, x + 0.4, y, y + 0.4, z - 0.2, z + 0.2, { r: 0.02 }); planterPlants(sharedPlants(), g, x - 0.36, x + 0.36, z - 0.16, z + 0.16, y + 0.4, { seed: 326 + i, flowers: ['pansy', 'daisy'] }); });
   { const t = makeTree({ seed: 271, height: 3.2, spread: 0.9, palette: 'deep', dens: 0.85 }); t.position.set(13.1, gy(13.1, -33.0), -33.0); g.add(t); cy(g, toon('#5a4636'), 13.1, gy(13.1, -33.0) + 0.01, -33.0, 0.55, 0.02, 20, { cast: false }); }
   [[12.6, -33.9], [12.6, -34.8], [21.2, -32.8]].forEach(([x, z], i) => { const sb = makeShrub({ seed: 290 + i, width: 1.0, height: 0.7, palette: 'deep' }); sb.position.set(x, gy(x, z), z); g.add(sb); });
   // vending machines + bins by the west wall (facing the road), the umbrella stand + post box by the entrance

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedPlants, plantAt } from '../plants/wild.js';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, halo, plight, rng, roundRect, noSnowBox } from '../core.js';
 import { makeGlass } from '../fx.js';
 import { makeRhapisPot, makeFicusPot } from '../plants/pottedPlants.js';
@@ -143,7 +144,7 @@ function table(p, x, z, { r = 0.34, h = 0.72, metal = false, seed = 1, takeaway 
     cy(p, m.white, x + a, yt, z + b, 0.07, 0.01, 14); cy(p, m.white, x + a, yt + 0.01, z + b, 0.038, 0.06, 12, { rt: 1.15 }); cy(p, toon('#5a3420'), x + a, yt + 0.065, z + b, 0.038, 0.004, 12);
   });
   cy(p, m.white, x + 0.08, yt, z + 0.15, 0.08, 0.01, 14); bread(p, R() < 0.5 ? 'croissant' : 'roll', x + 0.08, yt + 0.01, z + 0.15, 0.8, R() * 3);
-  cy(p, toon('#cfe3e6', { op: 0.8 }), x - 0.08, yt, z - 0.12, 0.022, 0.12, 8, { rt: 0.6 }); sph(p, toon(['#f2a0c4', '#ffffff', '#f2d23a'][(R() * 3) | 0]), 0.03, x - 0.08, yt + 0.15, z - 0.12);
+  cy(p, toon('#cfe3e6', { op: 0.8 }), x - 0.08, yt, z - 0.12, 0.022, 0.12, 8, { rt: 0.6 }); { const c = (R() * 3) | 0; plantAt(sharedPlants(), p, ['cutGerbera', 'cutRose', 'cutGerbera'][c], [1, 3, 3][c], x - 0.08, yt + 0.01, z - 0.12, 0.38, { ry: x * 7 }); }
   if (takeaway) { bx(p, toon('#c9a77a'), x - 0.02, x + 0.12, yt, yt + 0.18, z - 0.02, z + 0.06, { cast: false }); bx(p, toon('#7a5236'), x - 0.02, x + 0.12, yt + 0.12, yt + 0.13, z - 0.021, z + 0.061, { cast: false }); }
 }
 /** a pendant lamp (green enamel shade) hanging from the ceiling */

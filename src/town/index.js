@@ -17,6 +17,8 @@ import { buildIsland } from './island.js';
 import { buildClouds } from '../clouds.js';
 import { buildPower } from './power.js';
 import { buildRocks } from './rockZones.js';
+import { buildPlants } from './plantZones.js';
+import { flushSharedPlants } from '../plants/wild.js';
 import { buildFurniture } from './furniture.js';
 import { buildGreenery } from './greenery.js';
 import { buildHouses } from './houses.js';
@@ -63,13 +65,16 @@ export function buildTown(world, renderer, refl) {
   const plaza = buildPlaza(world);
   // the natural rocks by zone: lake shore, lake park, plaza pits, verges (rocks.js models; town/rockZones.js)
   const rocks = buildRocks(world);
+  // the wild planting by zone: florist beds, lake shore + meadow, verges (plants/wild.js models; town/plantZones.js)
+  const plants = buildPlants(world);
   // the houses / shops kit (houses.js) is kept but switched off for now; ?houses=1 shows it
   let houses = null;
   if (new URLSearchParams(location.search).get('houses') === '1') {
     setCat('iza'); // house / shop windows and lanterns follow the evening lights
     houses = buildHouses(world);
   }
+  flushSharedPlants(world); // the pots / boxes planted inside the buildings' own groups (plants/wild.js)
   setCat('shop');
-  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, station, island, clouds, power, rocks, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
+  reg.town = { map: MAP, blocks: BLOCKS, plots: PLOTS, groundY, ground, lake, rail, train, florist, zakkaya, villa, cafe, bookstore, southStreet, plaza, streetRow, westHomes, station, island, clouds, power, rocks, plants, furniture, greenery, houses, buildMs: Math.round(performance.now() - t0) };
   return reg.town;
 }

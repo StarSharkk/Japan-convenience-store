@@ -8,6 +8,7 @@ import { wetPass } from './shopkit.js';
 import { WEST_HOMES, groundY } from './layout.js';
 import { P, shade } from '../palette.js';
 import { rockBatch, rockMat } from '../rocks.js';
+import { sharedPlants, plantAt } from '../plants/wild.js';
 
 /* ====================================================================================================
    西の住宅地 - four quiet south-facing houses in block west1 (between Kita-dori and Kaigan-dori), two by two on two
@@ -137,7 +138,7 @@ function lamp(p, x, y, z, col = '#ffe2b0') {
 const pot = (p, x, z, y, seed, r = 0.14, flower = null) => {
   const q = makePot({ r, h: r * 1.8, seed }).group; q.position.set(x, y, z); p.add(q);
   const sb = makeShrub({ seed: 600 + seed, width: r * 2.6, height: r * 2.4, palette: seed % 2 ? 'deep' : 'grey' }); sb.position.set(x, y + r * 1.6, z); p.add(sb);
-  if (flower) for (let k = 0; k < 5; k++) sph(p, toon(flower), 0.03, x + Math.cos(k * 1.3) * r * 0.6, y + r * 2.9, z + Math.sin(k * 1.3) * r * 0.6);
+  if (flower) plantAt(sharedPlants(), p, 'pansy', { '#f3a8be': 1, '#ffffff': 3, '#f2d23a': 0 }[flower] ?? 1, x + r * 0.35, y + r * 1.6, z, r * 11, { ry: seed });
 };
 const shrub = (p, x, z, y, seed, w = 0.6, h = 0.5, pal = 'deep') => { const sb = makeShrub({ seed, width: w, height: h, palette: pal }); sb.position.set(x, y, z); p.add(sb); return sb; };
 

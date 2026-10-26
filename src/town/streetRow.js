@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedPlants, potPlants, planterPlants } from '../plants/wild.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { reg, toon, glow, bx, cy, cyl2, sph, pl, grp, canvasTex, halo, plight, rng, noSnowBox } from '../core.js';
 import { makeGlass } from '../fx.js';
@@ -173,7 +174,7 @@ function hut(p, mat, x0, x1, z0, z1, y, h, door = true) {
 export function flowerBox(p, x0, x1, y, z, seed) {
   const R = rng(seed), m = mats();
   rbx(p, m.wood, x0, x1, y, y + 0.18, z, z + 0.22, { r: 0.01 });
-  for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.16) { sph(p, toon('#4f7f46'), 0.08, x, y + 0.22, z + 0.11, 1, 0.8, 1); if (R() < 0.6) sph(p, toon(['#e86a8a', '#ffffff', '#f2d23a', '#c96ad8'][(R() * 4) | 0]), 0.035, x + (R() - 0.5) * 0.06, y + 0.3, z + 0.11 + (R() - 0.5) * 0.06); }
+  planterPlants(sharedPlants(), p, x0 + 0.03, x1 - 0.03, z + 0.03, z + 0.19, y + 0.16, { seed, flowers: ['pansy', 'pansy', 'daisy'], greens: ['fern', 'hosta'], density: 1.2 }); // greenery first, flowers through it
 }
 
 /* ---------------------------------------------------------------- the four buildings */
@@ -401,13 +402,13 @@ export function buildStreetRow(parent) {
     cy(g, m.metal, -27.25, gy(-27.25, ZF + 0.25), ZF + 0.25, 0.11, 0.42, 10);
     // C: the café's A-board, pots on the steps, a small bench under the window
     { const z = ZF + 0.95, a = grp(g, -33.7, gy(-33.7, z), z, Math.PI + 0.1); [1, -1].forEach((s) => { const b = grp(a, 0, 0, s * 0.15, 0); b.rotation.x = -s * 0.18; bx(b, m.white, -0.22, 0.22, 0, 0.75, -0.015, 0.015, { bevel: 0.01 }); const p = pl(b, new THREE.MeshBasicMaterial({ map: ct('srCafeA', 128, 192, (c, w, h) => { c.fillStyle = '#20291f'; c.fillRect(0, 0, w, h); txt(c, '喫茶', w / 2, 34, 30, '#f4f0e4', { font: SERIF }); txt(c, 'ブレンド 450', w / 2, 92, 17, '#e9e4d6', { font: HAND, weight: 600 }); txt(c, 'ナポリタン 780', w / 2, 126, 17, '#e9e4d6', { font: HAND, weight: 600 }); txt(c, 'プリン 380', w / 2, 160, 17, '#e8c97a', { font: HAND, weight: 600 }); }) }), 0.38, 0.6, 0, 0.42, s * 0.017, s > 0 ? 0 : Math.PI, 0); p.userData.noLine = true; }); }
-    [[-32.85, ZF + 0.25], [-30.95, ZF + 0.25]].forEach(([x, z], i) => { const y = gy(x, z), p = makePot({ r: 0.13, h: 0.24, seed: 70 + i }).group; p.position.set(x, y, z); g.add(p); sph(g, toon(i ? '#5f8a48' : '#4f7f46'), 0.15, x, y + 0.32, z, 1.1, 0.9, 1.1); for (let k = 0; k < 5; k++) sph(g, toon('#f2d23a'), 0.03, x + Math.cos(k) * 0.1, y + 0.42, z + Math.sin(k) * 0.1); });
+    [[-32.85, ZF + 0.25], [-30.95, ZF + 0.25]].forEach(([x, z], i) => { const y = gy(x, z), pot = makePot({ r: 0.13, h: 0.24, seed: 70 + i }), p = pot.group; p.position.set(x, y, z); g.add(p); potPlants(sharedPlants(), x, y + pot.soilY, z, pot.soilR, { variant: 0, seed: i, obj: g }); });
     { const x = -34.4, z = ZF + 0.35, b = grp(g, x, gy(x, z), z, 0); bx(b, m.woodL, -0.7, 0.7, 0.4, 0.45, -0.17, 0.17, { bevel: 0.01 }); [-0.6, 0.6].forEach((a) => bx(b, m.wood, a - 0.04, a + 0.04, 0, 0.4, -0.14, 0.14, { cast: false })); }
     // A: a bicycle, a narrow planter under the studio window
     bicycle(st(gy(-22.9, ZF + 0.9)), -22.9, ZF + 0.9, Math.PI / 2 + 0.1, '#c9c4b8', 0.12);
     flowerBox(g, -23.9, -21.45, gy(-22.6, ZF + 0.1), ZF + 0.02, 91);
     // D: pots by the door, a bench, the poster board on the parking side
-    [[-38.65, ZF + 0.1], [-37.1, ZF + 0.1], [-36.75, ZF + 0.1]].forEach(([x, z], i) => { const y = gy(x, z), p = makePot({ r: 0.12, h: 0.22, seed: 40 + i }).group; p.position.set(x, y, z); g.add(p); sph(g, toon(i % 2 ? '#4f7f46' : '#5f8a48'), 0.13, x, y + 0.32, z, 1.1, 0.9, 1.1); });
+    [[-38.65, ZF + 0.1], [-37.1, ZF + 0.1], [-36.75, ZF + 0.1]].forEach(([x, z], i) => { const y = gy(x, z), pot = makePot({ r: 0.12, h: 0.22, seed: 40 + i }), p = pot.group; p.position.set(x, y, z); g.add(p); potPlants(sharedPlants(), x, y + pot.soilY, z, pot.soilR, { style: i === 1 ? 'flower' : 'green', variant: 2, seed: i, obj: g }); });
     { const x = -40.2, z = ZF + 0.3, b = grp(g, x, gy(x, z), z, 0); bx(b, m.woodL, -0.6, 0.6, 0.4, 0.45, -0.18, 0.18, { bevel: 0.01 }); [-0.5, 0.5].forEach((a) => bx(b, m.wood, a - 0.04, a + 0.04, 0, 0.4, -0.15, 0.15, { cast: false })); }
     { const x = -42.0, z = 18.2, y = gy(x, z); [-0.4, 0.4].forEach((d) => cy(g, m.metal, x, y, z + d, 0.025, 1.6, 6)); bx(g, m.wood, x - 0.03, x + 0.03, y + 0.9, y + 1.6, z - 0.48, z + 0.48, { bevel: 0.01 }); [0, 1, 2].forEach((k) => { const p = pl(g, toon('#ffffff', { map: posterTex(k), nocache: true, lit: 0.15 }), 0.26, 0.36, x - 0.035, y + 1.25, z - 0.3 + k * 0.3, -Math.PI / 2, 0); p.userData.noLine = true; }); }
   }

@@ -6,6 +6,7 @@ import { cat } from '../street.js';
 import { groundY, PLAZA_CENTRE, PLAZA_TREES, PLAZA_BENCHES, PLAZA_SWING } from './layout.js';
 import { ct, txt, SERIF, HAND, wetPass } from './shopkit.js';
 import { buildFountain } from './fountain.js';
+import { plantBatch, potPlants, planterPlants } from '../plants/wild.js';
 
 /* ====================================================================================================
    桜広場 - the sakura plaza in front of the café and the bookstore (the south part of the south block).
@@ -41,6 +42,8 @@ export function buildPlaza(parent) {
     halo(g, x, y + 0.15, z, '#ffd9a8', 0.8, 0.25, 'lamp');
   }
 
+  // the small flowers and grasses (plants/wild.js): daisies, pink wildflowers, forget-me-nots, clover
+  const PB = plantBatch(g, { name: 'PlazaPlants' });
   /* ---- cherry groves: pits with low planting, an uplight each ---- */
   PLAZA_TREES.forEach(([x, z, h, tone, r], i) => {
     const y = gy(x, z), Rt = rng(900 + i * 31);
@@ -52,7 +55,7 @@ export function buildPlaza(parent) {
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2 + Rt(), rr = r * (0.55 + Rt() * 0.2);
       if (k % 2) { const sb = makeShrub({ seed: 420 + i * 7 + k, width: 0.38, height: 0.28, palette: 'deep' }); sb.position.set(x + Math.cos(a) * rr, y + 0.08, z + Math.sin(a) * rr); g.add(sb); }
-      else for (let f = 0; f < 4; f++) sph(g, toon(['#ffffff', '#f7c6d8', '#f2d23a', '#c9b6e8'][(i + k + f) % 4]), 0.032, x + Math.cos(a) * rr + (Rt() - 0.5) * 0.14, y + 0.13, z + Math.sin(a) * rr + (Rt() - 0.5) * 0.14);
+      else for (let f = 0; f < 4; f++) { const fx = x + Math.cos(a) * rr + (Rt() - 0.5) * 0.14, fz = z + Math.sin(a) * rr + (Rt() - 0.5) * 0.14; if (f < 3) PB.add(['daisy', 'pinkWild', 'clover', 'forget'][(i + k + f) % 4], i + k + f, fx, y + 0.12, fz, 1.1 + ((i + f) % 3) * 0.12, { ry: f * 2.1 + k }); }
     }
     const ux = x + (x < CX ? 0.4 : -0.4) * (r / 0.85);
     cy(g, glow('#fff0d0', 2.0, { cat: 'lamp', off: '#5a5a5a' }), ux, y + 0.1, z, 0.045, 0.02, 10);
@@ -94,7 +97,7 @@ export function buildPlaza(parent) {
     });
     reg.updaters.push((t) => seats.forEach(({ pv, amp, ph }) => (pv.rotation.z = amp * Math.sin(t * 1.9 + ph) + amp * 0.25 * Math.sin(t * 0.7 + ph * 2))));
     // flowers at the pad's corners, the retro lamp beside it
-    [[px0 + 0.2, pz0 + 0.2], [px1 - 0.2, pz1 - 0.25], [px1 - 0.25, pz0 + 0.25]].forEach(([fx, fz], i) => { sph(g, toon('#4f7f46'), 0.13, fx, y + 0.06, fz, 1.3, 0.7, 1.3); for (let k = 0; k < 7; k++) sph(g, toon(['#f2a0c4', '#ffffff', '#9a7ad6'][(i + k) % 3]), 0.03, fx + Math.cos(k * 0.9) * 0.1, y + 0.14 + (k % 2) * 0.03, fz + Math.sin(k * 0.9) * 0.1); });
+    [[px0 + 0.2, pz0 + 0.2], [px1 - 0.2, pz1 - 0.25], [px1 - 0.25, pz0 + 0.25]].forEach(([fx, fz], i) => { PB.add('cover', i, fx, y + 0.02, fz, 1.1, { ry: i * 2 }); PB.add(['pinkWild', 'daisy', 'forget'][i], i, fx + 0.04, y + 0.02, fz - 0.03, 1.1, { ry: i }); });
     lamp(g, -9.55, 28.6, black);
   }
 
@@ -110,14 +113,12 @@ export function buildPlaza(parent) {
 
   /* ---- two raised flower beds along the south edge ---- */
   const bed = (x0, x1, z0, z1, seed) => {
-    const y = gy((x0 + x1) / 2, (z0 + z1) / 2), Rb = rng(seed);
+    const y = gy((x0 + x1) / 2, (z0 + z1) / 2);
     bx(g, stone, x0, x1, y - 0.05, y + 0.36, z0, z0 + 0.1); bx(g, stone, x0, x1, y - 0.05, y + 0.36, z1 - 0.1, z1);
     bx(g, stone, x0, x0 + 0.1, y - 0.05, y + 0.36, z0, z1); bx(g, stone, x1 - 0.1, x1, y - 0.05, y + 0.36, z0, z1);
     bx(g, soil, x0 + 0.1, x1 - 0.1, y, y + 0.3, z0 + 0.1, z1 - 0.1, { cast: false });
-    for (let x = x0 + 0.4; x < x1 - 0.2; x += 0.62) {
-      if (Rb() < 0.45) { const sb = makeShrub({ seed: seed + ((x * 10) | 0), width: 0.48, height: 0.45, palette: 'deep' }); sb.position.set(x, y + 0.3, (z0 + z1) / 2); g.add(sb); }
-      else { const c = ['#f2a0c4', '#ffffff', '#9a7ad6', '#f2d23a'][(Rb() * 4) | 0]; sph(g, toon('#4f7f46'), 0.16, x, y + 0.38, (z0 + z1) / 2, 1.3, 0.6, 1); for (let k = 0; k < 7; k++) sph(g, toon(c), 0.035, x + (Rb() - 0.5) * 0.36, y + 0.46 + Rb() * 0.08, (z0 + z1) / 2 + (Rb() - 0.5) * 0.4); }
-    }
+    // greenery first, filling the bed, then small flowers threaded through it (plants/wild.js)
+    planterPlants(PB, g, x0 + 0.12, x1 - 0.12, z0 + 0.12, z1 - 0.12, y + 0.3, { seed, flowers: ['pansy', 'daisy', 'forget', 'pinkWild'] });
   };
   bed(-9.4, -5.3, 31.1, 31.85, 501); bed(-1.1, 3.1, 31.1, 31.85, 502);
 
@@ -166,11 +167,11 @@ export function buildPlaza(parent) {
     bx(g, toon('#2b2f2c'), x - 0.34, x + 0.34, y + 0.72, y + 0.76, z - 0.17, z + 0.17, { bevel: 0.01 });
   }
   [[-8.05, 29.55, '#f2a0c4'], [1.65, 29.55, '#ffffff'], [-9.9, 23.4, '#f2d23a'], [4.2, 23.4, '#9a7ad6']].forEach(([x, z, col], i) => {
-    const y = gy(x, z), p = makePot({ r: 0.13, h: 0.24, seed: 70 + i }).group; p.position.set(x, y, z); g.add(p);
-    sph(g, toon('#4f7f46'), 0.12, x, y + 0.3, z, 1.2, 0.8, 1.2);
-    for (let k = 0; k < 7; k++) sph(g, toon(col), 0.035, x + Math.cos(k * 0.9) * 0.09, y + 0.36 + (k % 3) * 0.02, z + Math.sin(k * 0.9) * 0.09);
+    const y = gy(x, z), pot = makePot({ r: 0.13, h: 0.24, seed: 70 + i }), p = pot.group; p.position.set(x, y, z); g.add(p);
+    potPlants(PB, x, y + pot.soilY, z, pot.soilR, { style: 'flower', variant: { '#f2a0c4': 1, '#ffffff': 3, '#f2d23a': 0, '#9a7ad6': 2 }[col], seed: i, obj: g });
   });
 
+  PB.flush();
   wetPass([wood, stone]);
   return g;
 }

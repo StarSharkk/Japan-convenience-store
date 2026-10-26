@@ -5,6 +5,7 @@ import { makeWater, BED_PLAIN } from '../waterSystem.js';
 import { makeShrub, makeTree } from '../tree.js';
 import { guardrail } from '../street.js';
 import { rockBatch, rockMat, rockGeo, footY } from '../rocks.js';
+import { plantBatch } from '../plants/wild.js';
 
 /* ====================================================================================================
    The island: the town (its outline, layout.js OUTLINE) becomes a small island in a round sea, the whole thing a
@@ -266,11 +267,10 @@ function buildEdge(g, samples) {
     });
     B.flush();
   }
-  /* grass tufts + wild flowers on the verge and the upper slope (instanced) */
+  /* grass, clover and wild flowers on the verge and the upper slope (plants/wild.js): thinning out down the slope,
+     none on the cliff faces; the same random draws as the first version, so everything placed after stays put */
   {
-    const tuft = new THREE.ConeGeometry(0.05, 0.28, 4).translate(0, 0.14, 0), fl = new THREE.IcosahedronGeometry(0.045, 0);
-    const T = new THREE.InstancedMesh(tuft, toon('#ffffff', { nocache: true }), 1600), F = new THREE.InstancedMesh(fl, toon('#ffffff', { nocache: true }), 900);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+    const B = plantBatch(g, { name: 'EdgePlants', lite: true });
     let nt = 0, nf = 0;
     samples.forEach((sm) => {
       if (road(sm)) return;
@@ -278,11 +278,18 @@ function buildEdge(g, samples) {
         const p0 = at(sm, 0); const d = 0.15 + R() * Math.max(0.3, p0.dS * 0.75), p = at(sm, d);
         if (p.h < SEA + 0.6) continue;
         const t = (R() - 0.5) * 0.9, x = p.x + sm.nz * t, z = p.z - sm.nx * t;
-        if (nt < 1600) { const s = 0.6 + R() * 0.9; m4.compose(new THREE.Vector3(x, p.h - 0.02, z), q.setFromEuler(new THREE.Euler((R() - 0.5) * 0.4, R() * 3, (R() - 0.5) * 0.4)), new THREE.Vector3(s, s, s)); T.setMatrixAt(nt, m4); T.setColorAt(nt, c.set(['#5e8f4a', '#6f9e52', '#4f7f44', '#7aa85a'][(R() * 4) | 0])); nt++; }
-        if (R() < 0.45 && nf < 900) { m4.compose(new THREE.Vector3(x + 0.1, p.h + 0.08 + R() * 0.1, z), q, new THREE.Vector3(1, 0.7, 1)); F.setMatrixAt(nf, m4); F.setColorAt(nf, c.set(['#fbf6ee', '#f6d24e', '#f3a8be', '#b8a0e0', '#ffffff', '#f4b26a'][(R() * 6) | 0])); nf++; }
+        const onFace = p0.cliff > 0.5 && d > 0.6, slope = Math.min(1, d / Math.max(0.6, p0.dS)); // 0 on the verge -> 1 at the foot
+        if (nt < 1600) {
+          const s = 0.6 + R() * 0.9; R(); const ry = R(); R(); const ci = R(); nt++;
+          if (!onFace && nt % 2 === 0 && ci > slope * 0.7) B.add(['shortGrass', 'tallGrass', 'shortGrass', 'clover'][(ci * 4) | 0], nt, x, p.h - 0.02, z, 0.8 + s * 0.4, { ry: ry * 6.28, lean: 0.1 });
+        }
+        if (R() < 0.45 && nf < 900) {
+          const hh = R(), ci = R(); nf++;
+          if (!onFace && slope < 0.45 && nf % 4 === 0) B.add(['daisy', 'clover', 'pinkWild', 'daisy', 'clover', 'forget'][(ci * 6) | 0], nf, x + 0.1, p.h - 0.01, z, 1.1 + hh * 0.4, { ry: ci * 9 });
+        }
       }
     });
-    T.count = nt; F.count = nf; T.userData.noLine = F.userData.noLine = true; g.add(T, F);
+    B.flush();
   }
   /* shrubs + a few trees on the verge (never in front of a road end) */
   samples.forEach((sm, i) => {
